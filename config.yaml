@@ -84,6 +84,36 @@ gmail:
   credentials_path: "./config/gmail_credentials.json"
   token_path: "./config/gmail_token.json"
 
+# Google Calendar Integration
+calendar:
+  enabled: true
+  credentials_path: "./config/gmail_credentials.json"
+  token_path: "./config/calendar_token.json"
+
+# Daily Briefing
+briefing:
+  enabled: false
+  morning_time: "08:00"
+  evening_time: "21:00"
+  include_weather: true
+  include_calendar: true
+  include_email: true
+  include_reminders: true
+  cross_device_push: false
+
+# Spotify Integration
+spotify:
+  enabled: false
+  client_id: ""
+  client_secret: ""
+  redirect_uri: "http://localhost:8888/callback"
+
+# Session Persistence
+session:
+  context_enabled: true
+  max_messages: 30
+  max_tool_results: 10
+
 # Obsidian Vault Integration
 obsidian:
   enabled: true

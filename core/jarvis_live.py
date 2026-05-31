@@ -36,6 +36,7 @@ from core.passive_vision import get_passive_vision
 from core.plugin_system import get_plugin_manager
 from core.proactive_suggestions import get_proactive_suggestions
 from core.semantic_search import get_semantic_search
+from core.session_manager import get_session_manager
 from core.voice_emotion import get_emotion_analyzer
 from core.vscode_bridge import get_vscode_bridge
 from memory.memory_manager import (
@@ -169,6 +170,8 @@ class JarvisLive:
         self.vscode = get_vscode_bridge()
         self.cross_device = get_cross_device()
         self.obsidian_bridge = get_obsidian_bridge()
+        self.session_context = get_session_manager()
+        self.session_context.start_session()
         self.conversation_started = False
 
         # Performance monitoring
@@ -356,6 +359,16 @@ class JarvisLive:
             "vscode.auto_connect", False
         ):
             self.vscode.sync_connect()
+
+        if self.config.get("briefing.enabled", False):
+            try:
+                from core.daily_briefing import get_daily_briefing
+
+                briefing = get_daily_briefing()
+                briefing.set_speak_callback(self.speak)
+                briefing.start_scheduler()
+            except Exception as e:
+                print(f"[Briefing] ❌ Auto-start failed: {e}")
 
     def _note_user_input(self, text: str) -> None:
         """Note user input and start Obsidian conversation if enabled."""
@@ -563,6 +576,7 @@ class JarvisLive:
 
     def _on_text_command(self, text: str) -> None:
         """Handle text command from UI."""
+        self.session_context.record_user_message(text)
         if not self._loop or not self.session:
             return
         if self._get_context_signature() != self._context_signature:
@@ -700,6 +714,10 @@ class JarvisLive:
         parts = [time_ctx]
         if mem_str:
             parts.append(mem_str)
+        if self.config.get("session.context_enabled", True):
+            context_summary = self.session_context.build_context_summary()
+            if context_summary:
+                parts.append(context_summary)
         parts.append(sys_prompt)
 
         return types.LiveConnectConfig(
@@ -746,7 +764,8 @@ class JarvisLive:
             send_message, reminder, youtube_video, screen_process,
             computer_settings, desktop_control, code_helper, dev_agent,
             web_search_action, file_processor, computer_control,
-            game_updater, flight_finder, gmail_manager, roblox_controller
+            game_updater, flight_finder, gmail_manager, calendar_manager,
+            daily_briefing, spotify_controller, roblox_controller
         )
 
         if name == "save_memory":
@@ -867,6 +886,18 @@ class JarvisLive:
                 r = await loop.run_in_executor(None, lambda: gmail_manager(parameters=args, response=None, player=self.ui, speak=self.speak, session_memory=None))
                 result = r or "Done."
 
+            elif name == "calendar_manager":
+                r = await loop.run_in_executor(None, lambda: calendar_manager(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
+            elif name == "daily_briefing":
+                r = await loop.run_in_executor(None, lambda: daily_briefing(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
+            elif name == "spotify_controller":
+                r = await loop.run_in_executor(None, lambda: spotify_controller(parameters=args, player=self.ui, speak=self.speak))
+                result = r or "Done."
+
             elif name == "obsidian_manager":
                 result = self._handle_obsidian_manager(args)
 
@@ -925,6 +956,7 @@ class JarvisLive:
             )
 
             self.proactive.track_action(name, success=True)
+            self.session_context.record_tool_execution(name, args, str(result)[:300])
 
         except Exception as e:
             duration_ms = (datetime.now() - start_time).total_seconds() * 1000
@@ -1108,6 +1140,12 @@ class JarvisLive:
                             self._turn_done_event.clear()
                         self.audio_in_queue.put_nowait(response.data)
 
+                    session_token = getattr(response, "session_resumption_update", None)
+                    if session_token:
+                        token_value = getattr(session_token, "new_handle", None) or getattr(session_token, "handle", None)
+                        if token_value:
+                            self.session_context.save_session_token(str(token_value))
+
                     if response.server_content:
                         sc = response.server_content
 
@@ -1128,12 +1166,14 @@ class JarvisLive:
 
                             full_in = " ".join(in_buf).strip()
                             if full_in:
+                                self.session_context.record_user_message(full_in)
                                 self._note_user_input(full_in)
                                 self.ui.write_log(f"You: {full_in}")
                             in_buf = []
 
                             full_out = " ".join(out_buf).strip()
                             if full_out:
+                                self.session_context.record_jarvis_response(full_out)
                                 self.ui.write_log(f"Jarvis: {full_out}")
                                 self.track_obsidian_response(full_out)
                             out_buf = []
@@ -1275,6 +1315,7 @@ class JarvisLive:
             except Exception as e:
                 logger.error(f"Connection error: {e}")
                 traceback.print_exc()
+                self.session_context.mark_reconnect()
                 if _is_invalid_api_key_error(e):
                     self.set_speaking(False)
                     self.ui.set_state("API KEY ERROR")

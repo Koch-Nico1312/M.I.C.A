@@ -74,6 +74,9 @@ from actions.web_search        import web_search as web_search_action
 from actions.computer_control  import computer_control
 from actions.game_updater      import game_updater
 from actions.gmail_manager     import gmail_manager
+from actions.calendar_manager  import calendar_manager
+from actions.spotify_controller import spotify_controller
+from core.daily_briefing       import daily_briefing
 from actions.roblox_controller import roblox_controller
 
 
@@ -533,6 +536,78 @@ TOOL_DECLARATIONS = [
                 "label": {"type": "STRING", "description": "Gmail label to filter (default: INBOX)"},
                 "cc": {"type": "STRING", "description": "CC recipients (for send)"},
                 "bcc": {"type": "STRING", "description": "BCC recipients (for send)"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "calendar_manager",
+        "description": (
+            "Manages Google Calendar: list today's events, create/edit/delete appointments, "
+            "search events, check free time slots, view weekly schedule. "
+            "Use for ANY calendar, schedule, or appointment related request."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "today | tomorrow | this_week | list | create | delete | update | next | search | free_slots"
+                },
+                "title": {"type": "STRING", "description": "Event title (for create/update)"},
+                "date": {"type": "STRING", "description": "Date in YYYY-MM-DD format"},
+                "start_time": {"type": "STRING", "description": "Start time HH:MM (24h format)"},
+                "end_time": {"type": "STRING", "description": "End time HH:MM (24h format)"},
+                "start_date": {"type": "STRING", "description": "Start date for list range"},
+                "end_date": {"type": "STRING", "description": "End date for list range"},
+                "description": {"type": "STRING", "description": "Event description"},
+                "location": {"type": "STRING", "description": "Event location"},
+                "event_id": {"type": "STRING", "description": "Event ID for update/delete"},
+                "query": {"type": "STRING", "description": "Search query"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "daily_briefing",
+        "description": (
+            "Provides a daily briefing combining weather, calendar events, unread emails, "
+            "and reminders into one summary. Use when the user asks for a morning briefing, "
+            "daily update, 'what's on my schedule', or 'give me an overview of today'."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "morning | evening | status | schedule | enable | disable"
+                },
+                "morning_time": {"type": "STRING", "description": "Time for morning briefing HH:MM (default: 08:00)"},
+                "evening_time": {"type": "STRING", "description": "Time for evening briefing HH:MM (default: 21:00)"},
+            },
+            "required": ["action"]
+        }
+    },
+    {
+        "name": "spotify_controller",
+        "description": (
+            "Controls Spotify music playback. Use for: playing songs/playlists/albums, "
+            "pause/resume, skip, volume, shuffle, repeat, queue songs, list playlists, "
+            "show currently playing, search music, and transfer playback between devices. "
+            "Use this for ANY music-related request."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "play | pause | resume | next | previous | current | volume | search | queue | playlists | shuffle | repeat | devices | transfer | liked"
+                },
+                "query": {"type": "STRING", "description": "Song/artist/playlist name for play/search/queue"},
+                "value": {"type": "INTEGER", "description": "Volume level 0-100"},
+                "state": {"type": "STRING", "description": "on/off for shuffle, off/track/context for repeat"},
+                "device_name": {"type": "STRING", "description": "Device name for transfer"},
+                "type": {"type": "STRING", "description": "Search type: track | album | playlist | artist (default: track)"},
             },
             "required": ["action"]
         }

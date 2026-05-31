@@ -153,6 +153,32 @@ class Config:
             env_dict.setdefault('vscode', {})['bridge_enabled'] = os.getenv('VSCODE_BRIDGE_ENABLED').lower() == 'true'
         if os.getenv('VSCODE_PORT'):
             env_dict.setdefault('vscode', {})['port'] = int(os.getenv('VSCODE_PORT'))
+
+        # Calendar
+        if os.getenv('CALENDAR_ENABLED'):
+            env_dict.setdefault('calendar', {})['enabled'] = os.getenv('CALENDAR_ENABLED').lower() == 'true'
+
+        # Daily Briefing
+        if os.getenv('BRIEFING_ENABLED'):
+            env_dict.setdefault('briefing', {})['enabled'] = os.getenv('BRIEFING_ENABLED').lower() == 'true'
+        if os.getenv('BRIEFING_MORNING_TIME'):
+            env_dict.setdefault('briefing', {})['morning_time'] = os.getenv('BRIEFING_MORNING_TIME')
+        if os.getenv('BRIEFING_EVENING_TIME'):
+            env_dict.setdefault('briefing', {})['evening_time'] = os.getenv('BRIEFING_EVENING_TIME')
+
+        # Spotify
+        if os.getenv('SPOTIFY_CLIENT_ID'):
+            env_dict.setdefault('spotify', {})['client_id'] = os.getenv('SPOTIFY_CLIENT_ID')
+        if os.getenv('SPOTIFY_CLIENT_SECRET'):
+            env_dict.setdefault('spotify', {})['client_secret'] = os.getenv('SPOTIFY_CLIENT_SECRET')
+        if os.getenv('SPOTIFY_REDIRECT_URI'):
+            env_dict.setdefault('spotify', {})['redirect_uri'] = os.getenv('SPOTIFY_REDIRECT_URI')
+        if os.getenv('SPOTIFY_ENABLED'):
+            env_dict.setdefault('spotify', {})['enabled'] = os.getenv('SPOTIFY_ENABLED').lower() == 'true'
+
+        # Session Persistence
+        if os.getenv('SESSION_CONTEXT_ENABLED'):
+            env_dict.setdefault('session', {})['context_enabled'] = os.getenv('SESSION_CONTEXT_ENABLED').lower() == 'true'
         
         # System
         if os.getenv('STEALTH_MODE'):

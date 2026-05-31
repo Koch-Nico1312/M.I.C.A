@@ -9,8 +9,10 @@ This module provides:
 """
 
 import asyncio
+import threading
+from collections import deque
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Deque, List
 from dataclasses import dataclass, field
 
 from core.logger import get_logger
@@ -43,7 +45,7 @@ class SessionManager:
     Manages JARVIS session lifecycle and state.
     """
     
-    def __init__(self):
+    def __init__(self, max_messages: int = 30, max_tool_results: int = 10):
         """Initialize session manager."""
         self.session: Optional[Any] = None
         self.context: SessionContext = SessionContext()
@@ -51,8 +53,106 @@ class SessionManager:
         self._refresh_requested = False
         self._refresh_reason = ""
         self._turn_done_event: Optional[asyncio.Event] = None
+        self.max_messages = max_messages
+        self.max_tool_results = max_tool_results
+        self._messages: Deque[Dict[str, Any]] = deque(maxlen=max_messages)
+        self._tool_results: Deque[Dict[str, Any]] = deque(maxlen=max_tool_results)
+        self._session_token: Optional[str] = None
+        self._session_start: Optional[datetime] = None
+        self._reconnect_count = 0
+        self._context_lock = threading.Lock()
         
         logger.info("Session manager initialized")
+
+    def start_session(self) -> None:
+        """Mark the start of a new session."""
+        self._session_start = datetime.now()
+        logger.info("[Session] New session started")
+
+    def record_user_message(self, text: str) -> None:
+        """Record a user message."""
+        if not text or not text.strip():
+            return
+        with self._context_lock:
+            self._messages.append({
+                "role": "user",
+                "content": text.strip(),
+                "timestamp": datetime.now().isoformat(),
+            })
+
+    def record_jarvis_response(self, text: str) -> None:
+        """Record a JARVIS response."""
+        if not text or not text.strip():
+            return
+        with self._context_lock:
+            self._messages.append({
+                "role": "jarvis",
+                "content": text.strip(),
+                "timestamp": datetime.now().isoformat(),
+            })
+
+    def record_tool_execution(self, tool_name: str, args: dict, result: str) -> None:
+        """Record a tool execution result."""
+        with self._context_lock:
+            self._tool_results.append({
+                "tool": tool_name,
+                "args_summary": str(args)[:200],
+                "result_summary": str(result)[:300],
+                "timestamp": datetime.now().isoformat(),
+            })
+
+    def save_session_token(self, token: str) -> None:
+        """Save Gemini session resumption token."""
+        self._session_token = token
+
+    def get_session_token(self) -> Optional[str]:
+        """Get saved session resumption token."""
+        return self._session_token
+
+    def mark_reconnect(self) -> None:
+        """Mark that a reconnection occurred."""
+        self._reconnect_count += 1
+        logger.info(f"[Session] Reconnection #{self._reconnect_count}")
+
+    def build_context_summary(self) -> str:
+        """Build a context summary string for reconnect prompt injection."""
+        with self._context_lock:
+            if not self._messages and not self._tool_results:
+                return ""
+
+            lines: List[str] = []
+            lines.append("[CONVERSATION CONTEXT — Resumed session, continue naturally]")
+            lines.append(f"Session reconnection #{self._reconnect_count}. Continue as if uninterrupted.")
+            lines.append("")
+
+            if self._messages:
+                lines.append("Recent conversation:")
+                for msg in list(self._messages)[-15:]:
+                    role = "User" if msg["role"] == "user" else "JARVIS"
+                    content = str(msg["content"])[:250]
+                    lines.append(f"  {role}: {content}")
+                lines.append("")
+
+            if self._tool_results:
+                lines.append("Recent actions taken:")
+                for tool in list(self._tool_results)[-5:]:
+                    lines.append(f"  - {tool['tool']}: {str(tool['result_summary'])[:150]}")
+                lines.append("")
+
+            lines.append("Continue the conversation naturally. Do NOT say 'welcome back' or mention reconnection.")
+
+            result = "\n".join(lines)
+            if len(result) > 2500:
+                result = result[:2497] + "..."
+            return result + "\n"
+
+    def clear(self) -> None:
+        """Clear all reconnect context."""
+        with self._context_lock:
+            self._messages.clear()
+            self._tool_results.clear()
+            self._session_token = None
+            self._reconnect_count = 0
     
     def set_session(self, session: Any) -> None:
         """
@@ -204,16 +304,35 @@ class SessionManager:
         self._refresh_requested = False
         self._refresh_reason = ""
         self._turn_done_event = None
+        self.clear()
         logger.info("Session manager reset")
 
 
+class SessionContextManager(SessionManager):
+    """
+    Maintains conversation context across Gemini Live reconnections.
+    """
+
+
 # Global instance
-_session_manager: Optional[SessionManager] = None
+_session_manager: Optional[SessionContextManager] = None
 
 
-def get_session_manager() -> SessionManager:
+def get_session_manager() -> SessionContextManager:
     """Get the global session manager instance."""
     global _session_manager
     if _session_manager is None:
-        _session_manager = SessionManager()
+        try:
+            from config.config_loader import get_config
+
+            config = get_config()
+            max_messages = int(config.get("session.max_messages", 30))
+            max_tool_results = int(config.get("session.max_tool_results", 10))
+        except Exception:
+            max_messages = 30
+            max_tool_results = 10
+        _session_manager = SessionContextManager(
+            max_messages=max_messages,
+            max_tool_results=max_tool_results,
+        )
     return _session_manager
