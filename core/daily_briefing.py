@@ -5,12 +5,10 @@ Combines weather, calendar, unread emails, reminders, and memory into one summar
 
 from __future__ import annotations
 
-import json
 import threading
-import time
 from datetime import datetime
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from config.config_loader import get_config
 from core.cross_device import get_cross_device

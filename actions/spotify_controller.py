@@ -6,7 +6,7 @@ Controls playback, search, queues, playlists, devices, shuffle, repeat, and volu
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, Optional
 
 try:
     import spotipy
