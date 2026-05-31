@@ -1,0 +1,31 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+config/api_keys.json
+config/gmail_credentials.json
+
+# Python cache and virtual environments
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+venv/
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Logs and runtime data
+*.log
+logs/
+data/cache/
+data/memory_backups/
+*.db
+
+# Build and distribution outputs
+build/
+dist/
+htmlcov/
+node_modules/
+

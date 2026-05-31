@@ -1,0 +1,261 @@
+{
+  "identity": {
+    "gender": "male",
+    "age": 15,
+    "height_cm": 183,
+    "weight_kg": 63.3,
+    "native_language": "German",
+    "location": {
+      "country": "Austria",
+      "region": "Upper Austria",
+      "city": "Linz",
+      "district": "Bindermichl"
+    }
+  },
+  "appearance": {
+    "hair": {
+      "color": "brown",
+      "style": "short, textured French crop"
+    },
+    "eyes": "brown",
+    "glasses": false,
+    "style": {
+      "favorite_clothing": [
+        "blue jeans",
+        "white pullover",
+        "black pullover"
+      ]
+    }
+  },
+  "preferences": {
+    "language": "German",
+    "addressing": "du",
+    "ai_nickname_for_assistant": "Jarvis",
+    "ai_persona": "female friend, not formal assistant",
+    "communication_style": {
+      "wants_discussion": true,
+      "does_not_want_constant_agreement": true,
+      "prefers_direct_suggestions": true,
+      "dislikes_hollow_reassurance": true,
+      "dislikes_being_called_bro": true,
+      "prefers_casual_german": true
+    }
+  },
+  "interests": {
+    "technology": [
+      "programming",
+      "AI",
+      "IT",
+      "servers",
+      "automation",
+      "homelab",
+      "self-hosted infrastructure",
+      "local AI inference"
+    ],
+    "gaming": [
+      "Valorant",
+      "Fortnite",
+      "Geometry Dash"
+    ],
+    "sports": [
+      "Calisthenics",
+      "Boxing (interested)"
+    ],
+    "other": [
+      "motorcycles (125cc sportbikes)",
+      "Cyberdeck building",
+      "Japan travel"
+    ]
+  },
+  "skills_and_goals": {
+    "current_learning_goals": [
+      "AI development",
+      "C# (approx. 7 months non-continuous)",
+      "JavaScript",
+      "networking",
+      "backend systems",
+      "Node.js"
+    ],
+    "current_skill_level": {
+      "it_infrastructure": "enthusiast",
+      "csharp": "beginner-intermediate (exceeds typical beginner output)",
+      "javascript": "learning"
+    },
+    "fitness_goals": [
+      "improve in Calisthenics",
+      "build consistent training routine"
+    ],
+    "long_term_goals": {
+      "financial": {
+        "target_monthly_income_eur": 6000,
+        "target_monthly_income_max_eur": 10000,
+        "wealth_goal_until_25_eur": 150000,
+        "wealth_goal_max_until_25_eur": 250000
+      },
+      "life": [
+        "buy own house before age 25",
+        "build stable future for family",
+        "be happy",
+        "visit Japan"
+      ],
+      "private_goals": [
+        "build own local Jarvis AI assistant",
+        "be emotionally stable and wealthy"
+      ]
+    }
+  },
+  "school": {
+    "type": "HTL (Höhere Technische Lehranstalt)",
+    "year": "1st year",
+    "favorite_subjects": [
+      "IT",
+      "Sports"
+    ],
+    "opinion": {
+      "dislikes_school": true,
+      "thinks_most_school_content_is_useless": true,
+      "dislikes_math_teacher": true
+    },
+    "schedule": {
+      "monday_until": "14:30",
+      "tuesday_until": "14:30",
+      "wednesday_until": "12:40 and 17:10",
+      "thursday_until": "14:30",
+      "friday_until": "13:35"
+    }
+  },
+  "apprenticeship": {
+    "company": "voestalpine",
+    "role": "Informationstechnologie – Systemtechnik",
+    "start_date": "September 2026",
+    "hr_contact": "Anastasia Vogl",
+    "status": "confirmed"
+  },
+  "family": {
+    "mother": {
+      "name": "Corinna",
+      "job": "administrative assistant",
+      "birthday": "09.02.1992",
+      "relationship": "very well"
+    },
+    "father": {
+      "name": "Christoph",
+      "job": "ATM repair technician",
+      "birthday": "11.08.1991",
+      "relationship": "very well"
+    },
+    "stepfather": {
+      "name": "Max",
+      "job": "works with mother",
+      "relationship": "is ok but not too well"
+    },
+    "stepmother": {
+      "name": "Melanie",
+      "nickname": "Melly",
+      "job": "festival manager",
+      "birthday": "05.05.1992"
+    },
+    "brother": {
+      "name": "Marco",
+      "age": 11,
+      "birthday": "07.05.2015"
+    },
+    "parents_divorced": true,
+    "important_values": [
+      "family",
+      "relationships",
+      "friendship"
+    ]
+  },
+  "pets": {
+    "cats": [
+      {
+        "name": "Simba",
+        "status": "alive"
+      }
+    ],
+    "deceased_pets": [
+      {
+        "name": "Diego",
+        "type": "cat"
+      }
+    ],
+    "future_pet_wish": "dog"
+  },
+  "environment": {
+    "has_own_room": true,
+    "favorite_places": [
+      "own room"
+    ]
+  },
+  "travel": {
+    "dream_destination": "Japan",
+    "travel_interests": [
+      "cities",
+      "villages"
+    ]
+  },
+  "food": {
+    "favorite_food": "Fleckerlspieß",
+    "general_preference": "likes almost everything"
+  },
+  "projects": {
+    "jarvis": {
+      "description": "Personal AI voice assistant with persistent memory and modular architecture",
+      "path": "C:\\Users\\kochn_lrehka5\\Desktop\\AIs\\Mark-XXXIX",
+      "preferred_tech_stack": {
+        "frontend": "HTML/CSS",
+        "environment": "Local Server / Docker",
+        "language": "C#"
+      }
+    },
+    "syscore": {
+      "description": "C# Windows terminal dashboard for HTL POSE class",
+      "path": "C:\\Users\\Nico\\Desktop\\SySCore",
+      "github": "Koch-Nico1312/SysCore",
+      "features": [
+        "animated start screen",
+        "login system",
+        "admin portal with 19+ built-in tools",
+        "retro UI",
+        "self-contained win-x64 executable"
+      ]
+    },
+    "homelab": {
+      "technologies": [
+        "Proxmox",
+        "Pi-hole (LXC)",
+        "Ubuntu Server VM",
+        "Immich",
+        "CasaOS",
+        "Jellyfin",
+        "Docker"
+      ]
+    },
+    "cyberdeck": {
+      "status": "idea/planning",
+      "features": [
+        "offline AI",
+        "solar charging"
+      ]
+    }
+  },
+  "subscriptions": {
+    "netflix": false,
+    "disney_plus": false
+  },
+  "notes": {
+    "startup_reminder": "Continue previous session on startup",
+    "timezone_preference": "Europe/Vienna",
+    "daily_briefing_trigger": "Tagesbericht",
+    "daily_briefing_steps": [
+      "Search Gmail for important unread emails (skip ads/newsletters)",
+      "Show today + next 2-3 days calendar events, flag conflicts",
+      "Auto-create calendar entries from appointment emails",
+      "Show open Notion tasks, create new from relevant emails",
+      "Show Calisthenics training plan and progress from Notion"
+    ]
+  },
+  "relationships": {},
+  "wishes": {}
+}

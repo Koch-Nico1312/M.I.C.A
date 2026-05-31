@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  jarvis:
+    build: .
+    container_name: jarvis-assistant
+    restart: unless-stopped
+    volumes:
+      # Mount configuration
+      - ./config:/app/config
+      # Mount data directories for persistence
+      - ./data:/app/data
+      # Mount logs
+      - ./logs:/app/logs
+      # Mount memory
+      - ./memory:/app/memory
+      # Mount plugins
+      - ./plugins:/app/plugins
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONUTF8=1
+      # Add your API keys here or use .env file
+      # - GEMINI_API_KEY=your_api_key_here
+    devices:
+      # Add audio device access if needed (Linux only)
+      # - /dev/snd:/dev/snd
+    network_mode: host  # Required for audio and network access
+    # For production, consider using a proper network instead of host mode
+
+  # Optional: Ollama for local LLM fallback
+  ollama:
+    image: ollama/ollama:latest
+    container_name: jarvis-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    profiles:
+      - with-ollama
+
+volumes:
+  ollama_data:
+    driver: local

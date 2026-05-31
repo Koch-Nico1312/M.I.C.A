@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "fetch": {
+      "name": "Fetch MCP Server",
+      "transport": "http",
+      "url": "http://localhost:8000",
+      "enabled": false,
+      "timeout": 10
+    }
+  }
+}

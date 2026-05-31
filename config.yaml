@@ -1,0 +1,110 @@
+# JARVIS Configuration File
+# This file contains application settings that can be modified without changing code
+
+# Model Settings
+models:
+  live: "models/gemini-2.5-flash-native-audio-preview-12-2025"
+  text: "gemini-2.5-flash"
+  vision: "gemini-2.5-flash"
+  voice_name: "Charon"
+  context_window: 1000000  # Maximum context window in tokens (1M for gemini-2.5)
+
+# Audio Settings
+audio:
+  channels: 1
+  send_sample_rate: 16000
+  receive_sample_rate: 24000
+  chunk_size: 1024
+
+# Local LLM Fallback (Ollama)
+ollama:
+  enabled: false
+  
+  base_url: "http://localhost:11434"
+  model: "llama3.1"
+  fallback_only: true  # If true, only use when Gemini fails
+  auto_start: true  # Automatically start Ollama server if enabled
+
+# Passive Vision System
+passive_vision:
+  enabled: true
+  interval_seconds: 30  # How often to capture screen
+  memory_minutes: 10    # How long to keep visual memory
+  storage_path: "./data/vision_memory"
+
+# Semantic Search (RAG)
+rag:
+  enabled: true
+  vector_db: "chromadb"  # chromadb or lancedb
+  index_path: "./data/vector_db"
+  chunk_size: 500
+  chunk_overlap: 50
+  embedding_model: "all-MiniLM-L6-v2"
+
+# Screen Overlay HUD
+hud:
+  enabled: false
+  transparency: 0.7
+  highlight_color: "#00ff00"
+  show_click_targets: true
+  show_mouse_trail: false
+
+# Proactive Suggestions
+proactive:
+  enabled: false
+  interval_seconds: 60
+  max_suggestions: 3
+
+# Voice Emotional Analysis
+emotion:
+  enabled: true
+  sensitivity: 0.5
+  adjust_tone: true
+
+# Cross-Device Handover
+cross_device:
+  telegram:
+    enabled: false
+    bot_token: ""
+    chat_id: ""
+  discord:
+    enabled: false
+    bot_token: ""
+    channel_id: ""
+
+# VS Code Integration
+vscode:
+  bridge_enabled: false
+  port: 8080
+  auto_connect: false
+
+# Gmail Integration
+gmail:
+  enabled: false
+  credentials_path: "./config/gmail_credentials.json"
+  token_path: "./config/gmail_token.json"
+
+# Obsidian Vault Integration
+obsidian:
+  enabled: true
+  vault_path: "~/Obsidian/Jarvis"
+
+# System Settings
+system:
+  stealth_mode: false
+  log_level: "INFO"
+  max_memory_mb: 512
+
+# Security & Safety Settings
+security:
+  permission_profile: "normal"        # safe | normal | admin
+  allow_destructive_actions: true   # global override for destructive file/command operations
+  mcp_enabled: true                  # enables loading MCP servers on boot
+
+# Paths
+paths:
+  base_dir: "."  # Auto-detected if not specified
+  config_dir: "./config"
+  data_dir: "./data"
+  plugins_dir: "./plugins"
+  logs_dir: "./logs"
