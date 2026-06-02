@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import mimetypes
+import os
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import webbrowser
@@ -18,16 +21,20 @@ import psutil
 
 from config.config_loader import get_config
 from core.logger import get_logger
+from core.metrics_collector import get_metrics_collector
 from core.paths import project_path, resolve_project_root
+from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor
 from core.performance_tracker import get_performance_tracker
 from core.session_manager import get_session_manager
 from core.ui_theme import C
 
 try:
+    if os.environ.get("JARVIS_NO_QT"):
+        raise ImportError("Qt disabled by JARVIS_NO_QT environment variable")
     from PyQt6.QtCore import QUrl
-    from PyQt6.QtWidgets import QApplication, QMainWindow
     from PyQt6.QtWebEngineWidgets import QWebEngineView
+    from PyQt6.QtWidgets import QApplication, QMainWindow
 
     QT_WEBENGINE_AVAILABLE = True
 except Exception:
@@ -110,6 +117,12 @@ class JarvisUI:
         self._config = get_config()
         self._session_manager = get_session_manager()
 
+        # Debouncing and dirty flag for UI state updates
+        self._state_dirty = False
+        self._last_state_hash = None
+        self._last_update_time = 0
+        self._debounce_interval = 1.0  # 1 second debounce interval
+
         self._ensure_ui_assets()
         self._start_http_server()
         self._log("SYS: UI bridge ready.")
@@ -147,8 +160,20 @@ class JarvisUI:
         self._on_text_command = cb
 
     def set_state(self, state: str):
+        perf_flags = get_performance_flags()
+        metrics = get_metrics_collector()
+
         with self._lock:
+            old_state = self._state
             self._state = state
+            self._state_dirty = True
+
+        if perf_flags.is_enabled("debounce_ui_updates"):
+            metrics.start_operation("ui_state_change")
+            metrics.end_operation(
+                "ui_state_change", {"old_state": old_state, "new_state": state, "dirty": True}
+            )
+
         self._log(f"SYS: State changed to {state}.")
 
     def write_log(self, text: str):
@@ -184,15 +209,24 @@ class JarvisUI:
         return None
 
     def mainloop(self):
+        if os.environ.get("JARVIS_NO_QT"):
+            logger.info("Running in server-only mode (Qt disabled)")
+            try:
+                while not self._shutdown_event.wait(0.25):
+                    pass
+            except KeyboardInterrupt:
+                pass
+            finally:
+                self.shutdown()
+            return
+
         if QT_WEBENGINE_AVAILABLE:
             self._run_qt_window()
             return
 
         if self._server_url:
             webbrowser.open(self._server_url, new=1, autoraise=True)
-        logger.warning(
-            "Qt WebEngine is not available. Falling back to the system browser."
-        )
+        logger.warning("Qt WebEngine is not available. Falling back to the system browser.")
         try:
             while not self._shutdown_event.wait(0.25):
                 pass
@@ -231,6 +265,9 @@ class JarvisUI:
             self._logs.append(entry)
 
     def _current_state(self) -> Dict[str, Any]:
+        perf_flags = get_performance_flags()
+        metrics = get_metrics_collector()
+
         with self._lock:
             state = self._state
             muted = self._muted
@@ -239,7 +276,8 @@ class JarvisUI:
 
         session = self._session_manager.get_current_session()
         recent_sessions = self._session_manager.get_recent_sessions(limit=16)
-        return {
+
+        current_state_dict = {
             "state": state,
             "muted": muted,
             "speaking": state == "SPEAKING",
@@ -250,6 +288,40 @@ class JarvisUI:
             "session": session,
             "recent_sessions": recent_sessions,
         }
+
+        # Debouncing logic
+        if perf_flags.is_enabled("debounce_ui_updates"):
+            import hashlib
+            import json
+            import time
+
+            # Calculate hash of current state
+            state_str = json.dumps(current_state_dict, sort_keys=True)
+            state_hash = hashlib.md5(state_str.encode()).hexdigest()
+            current_time = time.time()
+
+            # Check if state has changed and debounce interval has passed
+            if state_hash == self._last_state_hash:
+                # State hasn't changed, skip update
+                metrics.start_operation("ui_state_skipped")
+                metrics.end_operation("ui_state_skipped", {"reason": "unchanged"})
+                return current_state_dict
+
+            if current_time - self._last_update_time < self._debounce_interval:
+                # Debounce interval hasn't passed, skip update
+                metrics.start_operation("ui_state_skipped")
+                metrics.end_operation("ui_state_skipped", {"reason": "debounce"})
+                return current_state_dict
+
+            # Update state hash and timestamp
+            self._last_state_hash = state_hash
+            self._last_update_time = current_time
+            self._state_dirty = False
+
+            metrics.start_operation("ui_state_update")
+            metrics.end_operation("ui_state_update", {"hash": state_hash[:16]})
+
+        return current_state_dict
 
     def _resource_snapshot(self) -> Dict[str, Any]:
         cpu = psutil.cpu_percent(interval=None)
@@ -332,9 +404,7 @@ class JarvisUI:
     def _recent_chats_payload(self) -> Dict[str, Any]:
         return {
             "sessions": self._session_manager.get_recent_sessions(limit=30),
-            "current_session_id": (
-                self._session_manager.get_current_session() or {}
-            ).get("id"),
+            "current_session_id": (self._session_manager.get_current_session() or {}).get("id"),
         }
 
     # ------------------------------------------------------------------
@@ -350,9 +420,7 @@ class JarvisUI:
 
         logger.info("Building React UI bundle...")
         if not VITE_BIN.exists():
-            raise RuntimeError(
-                "UI build toolchain is missing. Run 'npm install' in UI/ first."
-            )
+            raise RuntimeError("UI build toolchain is missing. Run 'npm install' in UI/ first.")
 
         node_executable = _find_node_executable()
         if not node_executable:
@@ -370,12 +438,11 @@ class JarvisUI:
         if result.returncode != 0:
             logger.error(result.stdout)
             logger.error(result.stderr)
-            raise RuntimeError(
-                "UI build failed. Run 'npm install' and 'npm run build' in UI/."
-            )
+            raise RuntimeError("UI build failed. Run 'npm install' and 'npm run build' in UI/.")
 
     def _start_http_server(self) -> None:
         ui = self
+        perf_flags = get_performance_flags()
 
         class Handler(BaseHTTPRequestHandler):
             server_version = "JarvisUI/1.0"
@@ -410,12 +477,36 @@ class JarvisUI:
                 self.wfile.write(blob)
 
             def do_GET(self):  # noqa: N802
-                ui._handle_get(self)
+                if perf_flags.is_enabled("async_ui_server"):
+                    # Run handler in event loop for async I/O
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(ui._handle_get_async(self))
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Async GET handler error: {e}")
+                        # Fallback to synchronous
+                        ui._handle_get(self)
+                else:
+                    ui._handle_get(self)
 
             def do_POST(self):  # noqa: N802
-                ui._handle_post(self)
+                if perf_flags.is_enabled("async_ui_server"):
+                    # Run handler in event loop for async I/O
+                    try:
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(ui._handle_post_async(self))
+                        loop.close()
+                    except Exception as e:
+                        logger.error(f"Async POST handler error: {e}")
+                        # Fallback to synchronous
+                        ui._handle_post(self)
+                else:
+                    ui._handle_post(self)
 
-        self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._server = ThreadingHTTPServer(("127.0.0.1", 8000), Handler)
         self._server.daemon_threads = True
         self._server_thread = threading.Thread(
             target=self._server.serve_forever,
@@ -452,6 +543,11 @@ class JarvisUI:
             return request._send_json(200, {"logs": list(self._logs)[-150:]})  # type: ignore[attr-defined]
 
         return self._serve_static(request, path)
+
+    async def _handle_get_async(self, request: BaseHTTPRequestHandler) -> None:
+        """Handle GET requests asynchronously."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._handle_get, request)
 
     def _handle_post(self, request: BaseHTTPRequestHandler) -> None:
         path = urlparse(request.path).path
@@ -574,6 +670,11 @@ class JarvisUI:
 
         return request._send_json(404, {"error": "unknown endpoint"})  # type: ignore[attr-defined]
 
+    async def _handle_post_async(self, request: BaseHTTPRequestHandler) -> None:
+        """Handle POST requests asynchronously."""
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._handle_post, request)
+
     def _serve_static(self, request: BaseHTTPRequestHandler, path: str) -> None:
         if path in {"", "/"}:
             candidate = UI_DIST_DIR / "index.html"
@@ -594,21 +695,86 @@ class JarvisUI:
         data = candidate.read_bytes()
         return request._send_bytes(200, data, content_type)  # type: ignore[attr-defined]
 
+    def _start_vite_dev_server(self) -> None:
+        """Start the Vite dev server if not already running."""
+        vite_dev_url = "http://localhost:5173"
+        
+        # Check if already running
+        try:
+            import requests
+            response = requests.get(vite_dev_url, timeout=1)
+            if response.status_code == 200:
+                self._log("SYS: Vite dev server already running at http://localhost:5173")
+                return
+        except Exception:
+            pass
+        
+        # Start Vite dev server
+        self._log("SYS: Starting Vite dev server...")
+        
+        if not UI_DIR.exists():
+            raise RuntimeError("UI/ directory is missing. Please run 'cd UI && npm run dev' to start the UI.")
+        
+        if not VITE_BIN.exists():
+            raise RuntimeError("UI build toolchain is missing. Run 'npm install' in UI/ first.")
+        
+        node_executable = _find_node_executable()
+        if not node_executable:
+            raise RuntimeError(
+                "Node.js is not available. Install Node.js or add it to PATH, "
+                "then run 'npm install' in UI/."
+            )
+        
+        # Start Vite dev server in background
+        self._vite_process = subprocess.Popen(
+            [node_executable, str(VITE_BIN), "dev"],
+            cwd=str(UI_DIR),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Wait for server to start
+        import time
+        max_wait = 30
+        for i in range(max_wait):
+            try:
+                import requests
+                response = requests.get(vite_dev_url, timeout=1)
+                if response.status_code == 200:
+                    self._log("SYS: Vite dev server started successfully")
+                    return
+            except Exception:
+                time.sleep(1)
+        
+        raise RuntimeError("Failed to start Vite dev server. Please run 'cd UI && npm run dev' manually.")
+
     def _run_qt_window(self) -> None:
+        """Run Qt window with Vite dev server."""
         if QApplication is None or QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
 
-        if not self._server_url:
-            raise RuntimeError("UI server has not started")
+        # Always use Vite dev server
+        vite_dev_url = "http://localhost:5173"
+        self._start_vite_dev_server()
+        
+        self._log(f"SYS: Using Vite dev server at {vite_dev_url}")
+        self._window = _JARVISWindow(self, vite_dev_url)
 
-        app = QApplication.instance() or QApplication([])
-        app.setApplicationName("JARVIS")
+        # Use existing QApplication instance if available (created in main thread)
+        app = QApplication.instance()
+        if app is None:
+            app = QApplication(sys.argv)
+            app.setApplicationName("JARVIS")
         self._app = app
 
-        self._window = _JARVISWindow(self, self._server_url)
         self._window.show()
 
         try:
             app.exec()
         finally:
             self.shutdown()
+            # Stop Vite dev server if we started it
+            if hasattr(self, '_vite_process') and self._vite_process:
+                self._vite_process.terminate()
+                self._vite_process.wait(timeout=5)

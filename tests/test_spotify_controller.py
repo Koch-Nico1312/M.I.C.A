@@ -140,7 +140,10 @@ def test_liked_plays_saved_tracks():
     result = controller.liked()
 
     assert "Playing your liked songs" in result
-    assert ("start_playback", {"uris": ["spotify:track:track123", "spotify:track:track456"]}) in client.calls
+    assert (
+        "start_playback",
+        {"uris": ["spotify:track:track123", "spotify:track:track456"]},
+    ) in client.calls
 
 
 def test_devices_use_short_lived_cache():

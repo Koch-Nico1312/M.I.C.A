@@ -46,15 +46,16 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     Promise.all([jarvisApi.getSettings(), jarvisApi.getCalendarStatus()])
       .then(([nextSettings, nextCalendar]) => {
         if (cancelled) return;
+        const settingsData = nextSettings as DashboardSettings | null;
         setSettings({
           ui: {
-            default_view: nextSettings?.ui?.default_view ?? DEFAULT_SETTINGS.ui.default_view,
-            voice_first: Boolean(nextSettings?.ui?.voice_first ?? DEFAULT_SETTINGS.ui.voice_first),
+            default_view: settingsData?.ui?.default_view ?? DEFAULT_SETTINGS.ui.default_view,
+            voice_first: Boolean(settingsData?.ui?.voice_first ?? DEFAULT_SETTINGS.ui.voice_first),
           },
           calendar: {
-            enabled: Boolean(nextSettings?.calendar?.enabled ?? DEFAULT_SETTINGS.calendar.enabled),
-            credentials_path: nextSettings?.calendar?.credentials_path ?? DEFAULT_SETTINGS.calendar.credentials_path,
-            token_path: nextSettings?.calendar?.token_path ?? DEFAULT_SETTINGS.calendar.token_path,
+            enabled: Boolean(settingsData?.calendar?.enabled ?? DEFAULT_SETTINGS.calendar.enabled),
+            credentials_path: settingsData?.calendar?.credentials_path ?? DEFAULT_SETTINGS.calendar.credentials_path,
+            token_path: settingsData?.calendar?.token_path ?? DEFAULT_SETTINGS.calendar.token_path,
           },
         });
         setCalendar(nextCalendar as CalendarStatus);
@@ -86,9 +87,9 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setMessage(null);
 
     try {
-      await jarvisApi.saveSettings(settings);
+      await jarvisApi.saveSettings(settings as unknown as Record<string, unknown>);
       if (settings.calendar.enabled) {
-        const result = await jarvisApi.connectCalendar(settings.calendar);
+        const result = await jarvisApi.connectCalendar(settings.calendar) as { message?: string } | null;
         setMessage(
           result?.message
             ? String(result.message)

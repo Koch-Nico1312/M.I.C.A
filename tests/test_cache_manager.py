@@ -2,11 +2,12 @@
 Tests for the cache manager.
 """
 
-import pytest
-import tempfile
-from pathlib import Path
 import json
+import tempfile
 import time
+from pathlib import Path
+
+import pytest
 
 from core.cache_manager import CacheManager, get_cache_manager
 
@@ -72,7 +73,7 @@ def test_llm_response_caching(temp_cache_manager):
     prompt = "Test prompt"
     model = "test-model"
     response = "Test response"
-    
+
     temp_cache_manager.cache_llm_response(prompt, model, response)
     cached = temp_cache_manager.get_llm_response(prompt, model)
     assert cached == response
@@ -83,7 +84,7 @@ def test_embedding_caching(temp_cache_manager):
     text = "Test text"
     model = "test-embed-model"
     embedding = [0.1, 0.2, 0.3, 0.4, 0.5]
-    
+
     temp_cache_manager.cache_embedding(text, model, embedding)
     cached = temp_cache_manager.get_embedding(text, model)
     assert cached == embedding

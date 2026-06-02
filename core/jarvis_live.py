@@ -11,39 +11,46 @@ This module contains the core JarvisLive class that manages:
 
 import asyncio
 import contextlib
+import functools
 import json
 import re
 import sys
 import threading
 import time
 import traceback
+from datetime import datetime, timedelta
 from functools import partial
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional, Callable
+from typing import Any, Callable, Optional
 
 import google.genai
 from google.genai import types
 
-from core.logger import get_logger
-from core.performance_monitor import get_performance_monitor, track_api_call_decorator
-from core.security import get_api_key_manager
 from config.config_loader import get_config
+from core.action_history import ActionStatus, get_action_history
+from core.api_cache import get_api_cache
+from core.approval_flow import get_approval_flow
 from core.cross_device import get_cross_device
 from core.healthcheck import build_runtime_report, format_runtime_report
 from core.hud_overlay import get_hud_manager
 from core.llm_fallback import get_hybrid_llm
+from core.logger import get_logger
+from core.metrics_collector import get_metrics_collector
 from core.passive_vision import get_passive_vision
+from core.performance_flags import get_performance_flags
+from core.performance_monitor import get_performance_monitor, track_api_call_decorator
 from core.plugin_system import get_plugin_manager
 from core.proactive_suggestions import get_proactive_suggestions
+from core.security import get_api_key_manager
 from core.semantic_search import get_semantic_search
+from core.session_manager import get_session_manager
 from core.voice_emotion import get_emotion_analyzer
 from core.vscode_bridge import get_vscode_bridge
-from core.session_manager import get_session_manager
-from core.approval_flow import get_approval_flow
-from core.action_history import get_action_history, ActionStatus
 from memory.memory_manager import (
-    MEMORY_PATH, load_memory, update_memory, format_memory_for_prompt,
+    MEMORY_PATH,
+    format_memory_for_prompt,
+    load_memory,
+    update_memory,
 )
 from memory.obsidian_vault import get_obsidian_bridge
 from ui_bridge import JarvisUI
@@ -68,15 +75,89 @@ _CTRL_RE = re.compile(r"<ctrl\d+>", re.IGNORECASE)
 
 
 def _load_system_prompt() -> str:
-    """Load the system prompt from file or return default."""
+    """
+    Load the system prompt from file or return default.
+    With caching enabled (via feature flag), uses LRU cache with 5-minute TTL.
+    """
+    perf_flags = get_performance_flags()
+    metrics = get_metrics_collector()
+
+    if perf_flags.is_enabled("cache_system_prompt"):
+        return _load_system_prompt_cached()
+
+    # Original implementation without caching
+    metrics.start_operation("load_system_prompt_uncached")
     try:
-        return PROMPT_PATH.read_text(encoding="utf-8")
+        result = PROMPT_PATH.read_text(encoding="utf-8")
+        metrics.end_operation("load_system_prompt_uncached", {"cached": False})
+        return result
     except Exception:
+        metrics.end_operation("load_system_prompt_uncached", {"cached": False, "error": True})
         return (
             "You are JARVIS, Tony Stark's AI assistant. "
             "Be concise, direct, and always use the provided tools to complete tasks. "
             "Never simulate or guess results — always call the appropriate tool."
         )
+
+
+# Cached version with timestamp-based invalidation
+_system_prompt_cache = {"prompt": None, "timestamp": None, "file_mtime": None}
+_system_prompt_cache_ttl = timedelta(minutes=5)
+_system_prompt_cache_lock = threading.Lock()
+
+
+def _load_system_prompt_cached() -> str:
+    """
+    Load system prompt with LRU cache and 5-minute TTL.
+    Cache is invalidated if file is modified.
+    """
+    metrics = get_metrics_collector()
+    metrics.start_operation("load_system_prompt_cached")
+
+    with _system_prompt_cache_lock:
+        current_time = datetime.now()
+
+        # Check if we need to refresh cache
+        needs_refresh = False
+
+        if _system_prompt_cache["prompt"] is None:
+            needs_refresh = True
+        elif current_time - _system_prompt_cache["timestamp"] > _system_prompt_cache_ttl:
+            needs_refresh = True
+        elif PROMPT_PATH.exists():
+            current_mtime = PROMPT_PATH.stat().st_mtime
+            if _system_prompt_cache["file_mtime"] != current_mtime:
+                needs_refresh = True
+
+        if needs_refresh:
+            try:
+                prompt = PROMPT_PATH.read_text(encoding="utf-8")
+                _system_prompt_cache["prompt"] = prompt
+                _system_prompt_cache["timestamp"] = current_time
+                _system_prompt_cache["file_mtime"] = (
+                    PROMPT_PATH.stat().st_mtime if PROMPT_PATH.exists() else None
+                )
+                metrics.end_operation(
+                    "load_system_prompt_cached", {"cached": False, "refreshed": True}
+                )
+                logger.debug("System prompt cache refreshed")
+            except Exception:
+                # Return cached version if available, otherwise default
+                if _system_prompt_cache["prompt"]:
+                    metrics.end_operation(
+                        "load_system_prompt_cached", {"cached": True, "error": True}
+                    )
+                    return _system_prompt_cache["prompt"]
+                metrics.end_operation("load_system_prompt_cached", {"cached": False, "error": True})
+                return (
+                    "You are JARVIS, Tony Stark's AI assistant. "
+                    "Be concise, direct, and always use the provided tools to complete tasks. "
+                    "Never simulate or guess results — always call the appropriate tool."
+                )
+        else:
+            metrics.end_operation("load_system_prompt_cached", {"cached": True, "refreshed": False})
+
+    return _system_prompt_cache["prompt"]
 
 
 def _clean_transcript(text: str) -> str:
@@ -131,7 +212,7 @@ FEATURE_TOOL_DECLARATIONS = []
 class JarvisLive:
     """
     Main JARVIS AI Assistant class managing live sessions and tool execution.
-    
+
     This class handles:
     - Gemini Live API connections
     - Audio input/output streaming
@@ -143,7 +224,7 @@ class JarvisLive:
     def __init__(self, ui: JarvisUI) -> None:
         """
         Initialize JarvisLive instance.
-        
+
         Args:
             ui: JarvisUI instance for user interface
         """
@@ -179,13 +260,13 @@ class JarvisLive:
 
         # Performance monitoring
         self.perf_monitor = get_performance_monitor()
-        
+
         # Approval flow for risky actions
         self.approval_flow = get_approval_flow()
         # Set permission level from config or default to normal
         perm_level = self.config.get("security.permission_level", "normal")
         self.approval_flow.set_permission_level(perm_level)
-        
+
         # Action history for tracking and undo
         self.action_history = get_action_history()
 
@@ -312,13 +393,13 @@ class JarvisLive:
     def _build_tool_declarations(self) -> list[dict[str, Any]]:
         """
         Build tool declarations for Gemini Live API.
-        
+
         Returns:
             List of tool declarations including core, feature, and plugin tools
         """
         # Import tool declarations from main module
-        from main import TOOL_DECLARATIONS, FEATURE_TOOL_DECLARATIONS
-        
+        from main import FEATURE_TOOL_DECLARATIONS, TOOL_DECLARATIONS
+
         declarations = list(TOOL_DECLARATIONS)
         declarations.extend(FEATURE_TOOL_DECLARATIONS)
         declarations.extend(self.plugin_manager.get_tool_declarations())
@@ -326,18 +407,21 @@ class JarvisLive:
         # Load MCP tools if enabled
         if self.config.get("security.mcp_enabled", True):
             try:
-                from core.mcp_client import get_mcp_tools, get_mcp_client
+                from core.mcp_client import get_mcp_client, get_mcp_tools
+
                 mcp_client = get_mcp_client()
                 mcp_client.connect_all_enabled()
                 mcp_tools = get_mcp_tools()
-                
+
                 # Format MCP tools to match Gemini Live tool declaration schema
                 for tool in mcp_tools:
-                    declarations.append({
-                        "name": tool["name"],
-                        "description": tool["description"],
-                        "parameters": tool["parameters"]
-                    })
+                    declarations.append(
+                        {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "parameters": tool["parameters"],
+                        }
+                    )
                 logger.info(f"[MCP] Registered {len(mcp_tools)} tools into tool declarations.")
             except Exception as me:
                 logger.warning(f"[MCP] Failed to load/register MCP tools: {me}")
@@ -358,6 +442,7 @@ class JarvisLive:
 
         if self.config.get("briefing.enabled", False):
             from core.daily_briefing import get_daily_briefing
+
             briefing = get_daily_briefing()
             briefing.set_speak_callback(self.speak)
             briefing.start_scheduler()
@@ -380,17 +465,13 @@ class JarvisLive:
 
     def _note_user_input(self, text: str) -> None:
         """Note user input and start Obsidian conversation if enabled."""
-        if (
-            text
-            and self.config.get("obsidian.enabled", False)
-            and not self.conversation_started
-        ):
+        if text and self.config.get("obsidian.enabled", False) and not self.conversation_started:
             self.start_obsidian_conversation(text)
 
     def _get_context_signature(self) -> tuple[Optional[float], Optional[float]]:
         """
         Get signature of context files for change detection.
-        
+
         Returns:
             Tuple of (prompt_mtime, memory_mtime)
         """
@@ -404,7 +485,7 @@ class JarvisLive:
 
         We keep this as a soft marker only. Hard-closing the websocket here
         interrupted conversations and caused frequent context resets.
-        
+
         Args:
             reason: Reason for refresh
         """
@@ -430,7 +511,11 @@ class JarvisLive:
         """Handle passive vision tool calls."""
         action = args.get("action", "status")
         if action == "start":
-            return "Passive vision started." if self.passive_vision.start() else "Passive vision is unavailable."
+            return (
+                "Passive vision started."
+                if self.passive_vision.start()
+                else "Passive vision is unavailable."
+            )
         if action == "stop":
             self.passive_vision.stop()
             return "Passive vision stopped."
@@ -543,7 +628,11 @@ class JarvisLive:
         """Handle VS Code bridge tool calls."""
         action = args.get("action", "diagnostics")
         if action == "connect":
-            return "VS Code bridge connected." if self.vscode.sync_connect() else "VS Code bridge unavailable."
+            return (
+                "VS Code bridge connected."
+                if self.vscode.sync_connect()
+                else "VS Code bridge unavailable."
+            )
         if action == "diagnostics":
             return json.dumps(self.vscode.sync_get_diagnostics(), indent=2)
         if action == "get_selection":
@@ -594,17 +683,14 @@ class JarvisLive:
         self._note_user_input(text)
         self.session_context.record_user_message(text)
         asyncio.run_coroutine_threadsafe(
-            self.session.send_client_content(
-                turns={"parts": [{"text": text}]},
-                turn_complete=True
-            ),
-            self._loop
+            self.session.send_client_content(turns={"parts": [{"text": text}]}, turn_complete=True),
+            self._loop,
         )
 
     def set_speaking(self, value: bool) -> None:
         """
         Set speaking state.
-        
+
         Args:
             value: Speaking state
         """
@@ -621,24 +707,21 @@ class JarvisLive:
     def speak(self, text: str) -> None:
         """
         Send text to be spoken by JARVIS.
-        
+
         Args:
             text: Text to speak
         """
         if not self._loop or not self.session:
             return
         asyncio.run_coroutine_threadsafe(
-            self.session.send_client_content(
-                turns={"parts": [{"text": text}]},
-                turn_complete=True
-            ),
-            self._loop
+            self.session.send_client_content(turns={"parts": [{"text": text}]}, turn_complete=True),
+            self._loop,
         )
 
     def speak_error(self, tool_name: str, error: str) -> None:
         """
         Speak error message.
-        
+
         Args:
             tool_name: Name of the tool that failed
             error: Error message
@@ -646,11 +729,11 @@ class JarvisLive:
         short = str(error)[:120]
         self.ui.write_log(f"ERR: {tool_name} — {short}")
         self.speak(f"Sir, {tool_name} encountered an error. {short}")
-    
+
     def start_obsidian_conversation(self, user_input: str) -> None:
         """
         Start tracking a new conversation for Obsidian.
-        
+
         Args:
             user_input: Initial user input
         """
@@ -660,17 +743,17 @@ class JarvisLive:
             logger.info("[Obsidian] Conversation tracking started")
         except Exception as e:
             logger.warning(f"[Obsidian] Could not start tracking: {e}")
-    
+
     def end_obsidian_conversation(self, summary: Optional[str] = None) -> None:
         """
         End conversation tracking and save to Obsidian.
-        
+
         Args:
             summary: Optional conversation summary
         """
         if not self.conversation_started:
             return
-        
+
         try:
             note_title = self.obsidian_bridge.end_conversation(summary)
             if note_title:
@@ -679,21 +762,21 @@ class JarvisLive:
             self.conversation_started = False
         except Exception as e:
             logger.warning(f"[Obsidian] Could not save conversation: {e}")
-    
+
     def track_obsidian_action(self, action: str) -> None:
         """
         Track an action taken during conversation.
-        
+
         Args:
             action: Action description
         """
         if self.conversation_started:
             self.obsidian_bridge.add_action(action)
-    
+
     def track_obsidian_response(self, response: str) -> None:
         """
         Track an AI response during conversation.
-        
+
         Args:
             response: AI response text
         """
@@ -703,7 +786,7 @@ class JarvisLive:
     def _build_config(self) -> types.LiveConnectConfig:
         """
         Build Gemini Live connection configuration.
-        
+
         Returns:
             LiveConnectConfig with system instruction and tools
         """
@@ -722,12 +805,12 @@ class JarvisLive:
         parts = [time_ctx]
         if mem_str:
             parts.append(mem_str)
-        
+
         # Add session context summary if available
         context_summary = self.session_context.build_context_summary()
         if context_summary:
             parts.append(context_summary)
-        
+
         parts.append(sys_prompt)
 
         return types.LiveConnectConfig(
@@ -739,9 +822,7 @@ class JarvisLive:
             session_resumption=types.SessionResumptionConfig(),
             speech_config=types.SpeechConfig(
                 voice_config=types.VoiceConfig(
-                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
-                        voice_name=self.voice_name
-                    )
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=self.voice_name)
                 )
             ),
             generation_config=types.GenerationConfig(
@@ -753,10 +834,10 @@ class JarvisLive:
     async def _execute_tool(self, fc) -> types.FunctionResponse:
         """
         Execute a tool call from Gemini Live.
-        
+
         Args:
             fc: Function call from Gemini
-        
+
         Returns:
             FunctionResponse with result
         """
@@ -772,26 +853,37 @@ class JarvisLive:
         # Extract the specific action from args for permission checking
         action = args.get("action", name)
         is_allowed, approval_message = self.approval_flow.check_and_request_approval(
-            tool_name=name,
-            action=action,
-            parameters=args
+            tool_name=name, action=action, parameters=args
         )
-        
+
         if not is_allowed:
             logger.warning(f"Action blocked or denied: {name} - {approval_message}")
             self.ui.write_log(f"SEC: {approval_message}")
             return types.FunctionResponse(
-                id=fc.id, name=name,
-                response={"result": f"Action not allowed: {approval_message}"}
+                id=fc.id, name=name, response={"result": f"Action not allowed: {approval_message}"}
             )
 
         # Import tool functions dynamically to avoid circular imports
         from main import (
-            open_app, weather_action, browser_control, file_controller,
-            send_message, reminder, youtube_video, screen_process,
-            computer_settings, desktop_control, code_helper, dev_agent,
-            web_search_action, file_processor, computer_control,
-            game_updater, flight_finder, gmail_manager, roblox_controller
+            browser_control,
+            code_helper,
+            computer_control,
+            computer_settings,
+            desktop_control,
+            dev_agent,
+            file_controller,
+            file_processor,
+            flight_finder,
+            game_updater,
+            gmail_manager,
+            open_app,
+            reminder,
+            roblox_controller,
+            screen_process,
+            send_message,
+            weather_action,
+            web_search_action,
+            youtube_video,
         )
 
         if name == "save_memory":
@@ -808,8 +900,7 @@ class JarvisLive:
             if not self.ui.muted:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
-                id=fc.id, name=name,
-                response={"result": "ok", "silent": True}
+                id=fc.id, name=name, response={"result": "ok", "silent": True}
             )
 
         loop = asyncio.get_event_loop()
@@ -825,104 +916,185 @@ class JarvisLive:
 
         try:
             if name == "open_app":
-                r = await loop.run_in_executor(None, lambda: open_app(parameters=args, response=None, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: open_app(parameters=args, response=None, player=self.ui)
+                )
                 result = r or f"Opened {args.get('app_name')}."
 
             elif name == "weather_report":
-                r = await loop.run_in_executor(None, lambda: weather_action(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: weather_action(parameters=args, player=self.ui)
+                )
                 result = r or "Weather delivered."
 
             elif name == "browser_control":
-                r = await loop.run_in_executor(None, lambda: browser_control(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: browser_control(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "file_controller":
-                r = await loop.run_in_executor(None, lambda: file_controller(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: file_controller(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "send_message":
-                r = await loop.run_in_executor(None, lambda: send_message(parameters=args, response=None, player=self.ui, session_memory=None))
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: send_message(
+                        parameters=args, response=None, player=self.ui, session_memory=None
+                    ),
+                )
                 result = r or f"Message sent to {args.get('receiver')}."
 
             elif name == "reminder":
-                r = await loop.run_in_executor(None, lambda: reminder(parameters=args, response=None, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: reminder(parameters=args, response=None, player=self.ui)
+                )
                 result = r or "Reminder set."
 
             elif name == "youtube_video":
-                r = await loop.run_in_executor(None, lambda: youtube_video(parameters=args, response=None, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: youtube_video(parameters=args, response=None, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "screen_process":
                 threading.Thread(
                     target=screen_process,
-                    kwargs={"parameters": args, "response": None,
-                            "player": self.ui, "session_memory": None},
-                    daemon=True
+                    kwargs={
+                        "parameters": args,
+                        "response": None,
+                        "player": self.ui,
+                        "session_memory": None,
+                    },
+                    daemon=True,
                 ).start()
                 result = "Vision module activated. Stay completely silent — vision module will speak directly."
 
             elif name == "computer_settings":
-                r = await loop.run_in_executor(None, lambda: computer_settings(parameters=args, response=None, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: computer_settings(parameters=args, response=None, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "desktop_control":
-                r = await loop.run_in_executor(None, lambda: desktop_control(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: desktop_control(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "code_helper":
-                r = await loop.run_in_executor(None, lambda: code_helper(parameters=args, player=self.ui, speak=self.speak))
+                r = await loop.run_in_executor(
+                    None, lambda: code_helper(parameters=args, player=self.ui, speak=self.speak)
+                )
                 result = r or "Done."
 
             elif name == "dev_agent":
-                r = await loop.run_in_executor(None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak))
+                r = await loop.run_in_executor(
+                    None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
                 result = r or "Done."
 
             elif name == "agent_task":
-                from agent.task_queue import get_queue, TaskPriority
-                priority_map = {"low": TaskPriority.LOW, "normal": TaskPriority.NORMAL, "high": TaskPriority.HIGH}
-                priority = priority_map.get(args.get("priority", "normal").lower(), TaskPriority.NORMAL)
-                task_id = get_queue().submit(goal=args.get("goal", ""), priority=priority, speak=self.speak)
+                from agent.task_queue import TaskPriority, get_queue
+
+                priority_map = {
+                    "low": TaskPriority.LOW,
+                    "normal": TaskPriority.NORMAL,
+                    "high": TaskPriority.HIGH,
+                }
+                priority = priority_map.get(
+                    args.get("priority", "normal").lower(), TaskPriority.NORMAL
+                )
+                task_id = get_queue().submit(
+                    goal=args.get("goal", ""), priority=priority, speak=self.speak
+                )
                 result = f"Task started (ID: {task_id})."
 
             elif name == "web_search":
-                r = await loop.run_in_executor(None, lambda: web_search_action(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: web_search_action(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "file_processor":
                 if not args.get("file_path") and self.ui.current_file:
                     args["file_path"] = self.ui.current_file
                 r = await loop.run_in_executor(
-                    None,
-                    lambda: file_processor(parameters=args, player=self.ui, speak=self.speak)
+                    None, lambda: file_processor(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 
             elif name == "computer_control":
-                r = await loop.run_in_executor(None, lambda: computer_control(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: computer_control(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "game_updater":
-                r = await loop.run_in_executor(None, lambda: game_updater(parameters=args, player=self.ui, speak=self.speak))
+                r = await loop.run_in_executor(
+                    None, lambda: game_updater(parameters=args, player=self.ui, speak=self.speak)
+                )
                 result = r or "Done."
 
             elif name == "flight_finder":
-                r = await loop.run_in_executor(None, lambda: flight_finder(parameters=args, player=self.ui))
+                r = await loop.run_in_executor(
+                    None, lambda: flight_finder(parameters=args, player=self.ui)
+                )
                 result = r or "Done."
 
             elif name == "gmail_manager":
-                r = await loop.run_in_executor(None, lambda: gmail_manager(parameters=args, response=None, player=self.ui, speak=self.speak, session_memory=None))
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: gmail_manager(
+                        parameters=args,
+                        response=None,
+                        player=self.ui,
+                        speak=self.speak,
+                        session_memory=None,
+                    ),
+                )
                 result = r or "Done."
 
             elif name == "calendar_manager":
-                r = await loop.run_in_executor(None, lambda: calendar_manager(parameters=args, response=None, player=self.ui, speak=self.speak, session_memory=None))
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: calendar_manager(
+                        parameters=args,
+                        response=None,
+                        player=self.ui,
+                        speak=self.speak,
+                        session_memory=None,
+                    ),
+                )
                 result = r or "Done."
 
             elif name == "daily_briefing":
-                r = await loop.run_in_executor(None, lambda: daily_briefing(parameters=args, response=None, player=self.ui, speak=self.speak, session_memory=None))
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: daily_briefing(
+                        parameters=args,
+                        response=None,
+                        player=self.ui,
+                        speak=self.speak,
+                        session_memory=None,
+                    ),
+                )
                 result = r or "Done."
 
             elif name == "spotify_controller":
-                r = await loop.run_in_executor(None, lambda: spotify_controller(parameters=args, response=None, player=self.ui, speak=self.speak, session_memory=None))
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: spotify_controller(
+                        parameters=args,
+                        response=None,
+                        player=self.ui,
+                        speak=self.speak,
+                        session_memory=None,
+                    ),
+                )
                 result = r or "Done."
 
             elif name == "obsidian_manager":
@@ -953,10 +1125,14 @@ class JarvisLive:
                 self.end_obsidian_conversation("Session ended by user request")
                 self.ui.write_log("SYS: Shutdown requested.")
                 self.speak("Goodbye, sir.")
+
                 def _shutdown():
-                    import time, os
+                    import os
+                    import time
+
                     time.sleep(1)
                     os._exit(0)
+
                 threading.Thread(target=_shutdown, daemon=True).start()
 
             elif self.plugin_manager.get_tool(name):
@@ -999,23 +1175,21 @@ class JarvisLive:
                 except Exception as perf_error:
                     logger.debug("Latency metrics skipped: %s", perf_error)
             self.perf_monitor.track_api_call(
-                endpoint=f"tool_{name}",
-                duration_ms=duration_ms,
-                success=True
+                endpoint=f"tool_{name}", duration_ms=duration_ms, success=True
             )
 
             self.proactive.track_action(name, success=True)
-            
+
             # Record tool execution for session context
             self.session_context.record_tool_execution(name, args, str(result)[:300])
-            
+
             # Record in action history
             self.action_history.record_action(
                 tool_name=name,
                 action=tool_action,
                 parameters=args,
                 result=str(result)[:500],
-                status=ActionStatus.SUCCESS
+                status=ActionStatus.SUCCESS,
             )
 
         except Exception as e:
@@ -1045,24 +1219,21 @@ class JarvisLive:
                 except Exception as perf_error:
                     logger.debug("Latency metrics skipped: %s", perf_error)
             self.perf_monitor.track_api_call(
-                endpoint=f"tool_{name}",
-                duration_ms=duration_ms,
-                success=False,
-                error=str(e)
+                endpoint=f"tool_{name}", duration_ms=duration_ms, success=False, error=str(e)
             )
             result = f"Tool '{name}' failed: {e}"
             logger.error(f"Tool execution failed: {name} - {e}")
             traceback.print_exc()
             self.proactive.track_action(name, success=False)
             self.speak_error(name, e)
-            
+
             # Record failed action in history
             self.action_history.record_action(
                 tool_name=name,
                 action=tool_action,
                 parameters=args,
                 result=str(e)[:500],
-                status=ActionStatus.FAILED
+                status=ActionStatus.FAILED,
             )
 
         if not self.ui.muted:
@@ -1071,25 +1242,22 @@ class JarvisLive:
         self.hud.set_action("")
 
         logger.info(f"Tool result: {name} → {str(result)[:80]}")
-        return types.FunctionResponse(
-            id=fc.id, name=name,
-            response={"result": result}
-        )
+        return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
 
     def _handle_obsidian_manager(self, args: dict[str, Any]) -> str:
         """Handle Obsidian manager tool calls."""
         action = args.get("action")
-        
+
         if action == "start_tracking":
             user_input = args.get("user_input", "New conversation")
             self.start_obsidian_conversation(user_input)
             return "Conversation tracking started."
-        
+
         elif action == "end_tracking":
             summary = args.get("summary", None)
             self.end_obsidian_conversation(summary)
             return "Conversation tracking ended and saved."
-        
+
         elif action == "search_notes":
             query = args.get("query", "")
             results = self.obsidian_bridge.vault.search_notes(query)
@@ -1100,7 +1268,7 @@ class JarvisLive:
             else:
                 result = "No notes found."
             return result
-        
+
         elif action == "create_person_note":
             name = args.get("name")
             information = args.get("information", {})
@@ -1109,7 +1277,7 @@ class JarvisLive:
                 return f"Person note created for {name}."
             else:
                 return "Name required for person note."
-        
+
         elif action == "create_project_note":
             project_name = args.get("name")
             details = args.get("information", {})
@@ -1118,14 +1286,14 @@ class JarvisLive:
                 return f"Project note created for {project_name}."
             else:
                 return "Project name required."
-        
+
         elif action == "get_all_notes":
             notes = self.obsidian_bridge.vault.get_all_notes()
             result = f"Total notes: {len(notes)}\n\n"
             for note in notes:
                 result += f"- {note['title']} ({note['tags']})\n"
             return result
-        
+
         else:
             return f"Unknown action: {action}"
 
@@ -1144,9 +1312,7 @@ class JarvisLive:
                 # Wait for audio data with timeout for keepalive
                 try:
                     queue_size = self.out_queue.qsize() if self.out_queue else -1
-                    logger.debug(
-                        "[LiveDiag] Waiting for audio chunk (out_queue=%s)", queue_size
-                    )
+                    logger.debug("[LiveDiag] Waiting for audio chunk (out_queue=%s)", queue_size)
                     msg = await asyncio.wait_for(self.out_queue.get(), timeout=keepalive_interval)
                     send_started = asyncio.get_event_loop().time()
                     await self.session.send_realtime_input(media=msg)
@@ -1166,9 +1332,7 @@ class JarvisLive:
                         # Empty text is easy to ignore server-side. A tiny silent
                         # audio chunk keeps the live stream active without
                         # pretending that the assistant heard real speech.
-                        await self.session.send_realtime_input(
-                            media=self._build_idle_audio_frame()
-                        )
+                        await self.session.send_realtime_input(media=self._build_idle_audio_frame())
                         last_send_time = current_time
                         idle_keepalive_hits += 1
                         logger.debug("Sent keepalive ping (silent audio)")
@@ -1193,11 +1357,13 @@ class JarvisLive:
                 jarvis_speaking = self._is_speaking
             if not jarvis_speaking and not self.ui.muted:
                 data = indata.tobytes()
+
                 def safe_put():
                     try:
                         self.out_queue.put_nowait({"data": data, "mime_type": "audio/pcm"})
                     except Exception:
                         pass
+
                 loop.call_soon_threadsafe(safe_put)
 
         try:
@@ -1271,9 +1437,7 @@ class JarvisLive:
                             logger.info(f"Tool call: {fc.name}")
                             fr = await self._execute_tool(fc)
                             fn_responses.append(fr)
-                        await self.session.send_tool_response(
-                            function_responses=fn_responses
-                        )
+                        await self.session.send_tool_response(function_responses=fn_responses)
                         await self._apply_pending_refresh()
 
                 # Normal end of a turn. Gemini closes receive() after turn_complete,
@@ -1300,10 +1464,7 @@ class JarvisLive:
         try:
             while True:
                 try:
-                    chunk = await asyncio.wait_for(
-                        self.audio_in_queue.get(),
-                        timeout=0.1
-                    )
+                    chunk = await asyncio.wait_for(self.audio_in_queue.get(), timeout=0.1)
                 except asyncio.TimeoutError:
                     if (
                         self._turn_done_event
@@ -1329,11 +1490,7 @@ class JarvisLive:
         self._refresh_runtime_config()
         self._patch_live_websocket_keepalive()
         client = google.genai.Client(
-            api_key=_get_api_key(),
-            http_options={
-                "api_version": "v1beta",
-                "timeout": 600
-            }
+            api_key=_get_api_key(), http_options={"api_version": "v1beta", "timeout": 600}
         )
 
         while True:
@@ -1371,19 +1528,27 @@ class JarvisLive:
                         for task in done:
                             if not task.cancelled() and task.exception() is not None:
                                 failed_name = next(
-                                    (name for name, candidate in tasks.items() if candidate is task),
+                                    (
+                                        name
+                                        for name, candidate in tasks.items()
+                                        if candidate is task
+                                    ),
                                     "unknown",
                                 )
                                 self._log_task_failure(failed_name, task)
                                 raise task.exception()
 
-                        if done and not any(task.exception() for task in done if not task.cancelled()):
+                        if done and not any(
+                            task.exception() for task in done if not task.cancelled()
+                        ):
                             completed_name = next(
                                 (name for name, candidate in tasks.items() if candidate in done),
                                 "unknown",
                             )
                             logger.warning("Runtime task %s completed unexpectedly", completed_name)
-                            raise RuntimeError(f"Runtime task {completed_name} completed unexpectedly")
+                            raise RuntimeError(
+                                f"Runtime task {completed_name} completed unexpectedly"
+                            )
 
                         if pending:
                             logger.warning(
@@ -1391,7 +1556,11 @@ class JarvisLive:
                             )
                             for task in pending:
                                 stopped_name = next(
-                                    (name for name, candidate in tasks.items() if candidate is task),
+                                    (
+                                        name
+                                        for name, candidate in tasks.items()
+                                        if candidate is task
+                                    ),
                                     "unknown",
                                 )
                                 logger.warning("Task %s stopped unexpectedly", stopped_name)

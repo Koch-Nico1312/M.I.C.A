@@ -14,6 +14,7 @@ from typing import Any, Callable, Optional
 try:
     import spotipy
     from spotipy.oauth2 import SpotifyOAuth
+
     SPOTIFY_AVAILABLE = True
 except ImportError:  # pragma: no cover - exercised when spotipy is missing
     spotipy = None  # type: ignore[assignment]
@@ -22,7 +23,6 @@ except ImportError:  # pragma: no cover - exercised when spotipy is missing
 
 from config.config_loader import get_config
 from core.logger import get_logger
-
 
 logger = get_logger(__name__)
 
@@ -51,7 +51,9 @@ _LIKED_QUERY_RE = re.compile(
 )
 
 
-def _coerce_int(value: Any, default: int, minimum: int | None = None, maximum: int | None = None) -> int:
+def _coerce_int(
+    value: Any, default: int, minimum: int | None = None, maximum: int | None = None
+) -> int:
     try:
         number = int(value)
     except Exception:
@@ -455,7 +457,9 @@ class SpotifyController:
                 return f"Playing the requested Spotify {parsed_kind}, sir."
 
             if target_kind == "any":
-                return self._play_best_match(stripped_query, ("track", "album", "playlist", "artist"))
+                return self._play_best_match(
+                    stripped_query, ("track", "album", "playlist", "artist")
+                )
 
             return self._play_by_type(stripped_query, target_kind)
         except Exception as e:
@@ -524,7 +528,10 @@ class SpotifyController:
             if current and current.get("item"):
                 track = current["item"]
                 name = track.get("name", "Unknown")
-                artists = ", ".join(a.get("name", "Unknown") for a in track.get("artists", [])) or "Unknown"
+                artists = (
+                    ", ".join(a.get("name", "Unknown") for a in track.get("artists", []))
+                    or "Unknown"
+                )
                 album = track.get("album", {}).get("name", "Unknown")
                 is_playing = current.get("is_playing", False)
                 status = "Playing" if is_playing else "Paused"
@@ -532,7 +539,11 @@ class SpotifyController:
                 progress_ms = current.get("progress_ms")
                 duration_ms = track.get("duration_ms")
                 progress_text = ""
-                if isinstance(progress_ms, int) and isinstance(duration_ms, int) and duration_ms > 0:
+                if (
+                    isinstance(progress_ms, int)
+                    and isinstance(duration_ms, int)
+                    and duration_ms > 0
+                ):
                     progress_text = f" ({progress_ms // 1000}/{duration_ms // 1000}s)"
                 device_text = f" on {device}" if device else ""
                 logger.info("Spotify current track: %s", name)
@@ -558,7 +569,9 @@ class SpotifyController:
             logger.exception("Spotify volume error: %s", e)
             return f"Failed to set volume: {e}"
 
-    def search(self, query: str, search_type: str = "track", limit: int = 5, refresh: bool = False) -> str:
+    def search(
+        self, query: str, search_type: str = "track", limit: int = 5, refresh: bool = False
+    ) -> str:
         """Search for music."""
         if not self.sp:
             return "Spotify not available, sir."
@@ -755,7 +768,9 @@ def get_spotify_controller() -> SpotifyController:
     return _spotify_controller
 
 
-def spotify_controller(parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None) -> str:
+def spotify_controller(
+    parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None
+) -> str:
     """
     Spotify control tool for JARVIS.
 

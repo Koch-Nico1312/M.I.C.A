@@ -4,8 +4,7 @@ from pathlib import Path
 
 from core.plugin_system import PluginManager
 
-
-PLUGIN_CONTENT = '''TOOL_DECLARATION = {
+PLUGIN_CONTENT = """TOOL_DECLARATION = {
     "name": "demo_tool",
     "description": "Demo plugin",
     "parameters": {
@@ -16,7 +15,7 @@ PLUGIN_CONTENT = '''TOOL_DECLARATION = {
 
 def demo_tool(parameters: dict, **kwargs):
     return "plugin-ok"
-'''
+"""
 
 
 class PluginSystemTests(unittest.TestCase):

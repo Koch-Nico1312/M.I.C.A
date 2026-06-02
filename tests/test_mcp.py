@@ -1,11 +1,13 @@
-import unittest
 import json
 import os
+import unittest
 from pathlib import Path
-from core.mcp_client import get_mcp_client, MCP_CONFIG_FILE
+
+from core.mcp_client import MCP_CONFIG_FILE, get_mcp_client
+
 
 class MCPClientTests(unittest.TestCase):
-    
+
     def setUp(self):
         # Save original config if exists
         self.config_existed = MCP_CONFIG_FILE.exists()
@@ -29,13 +31,13 @@ class MCPClientTests(unittest.TestCase):
         # Remove config file to test creation
         if MCP_CONFIG_FILE.exists():
             os.remove(MCP_CONFIG_FILE)
-            
+
         client = get_mcp_client()
         client._load_config()
-        
+
         # Should have created the default config file
         self.assertTrue(Path(MCP_CONFIG_FILE).exists())
-        
+
         # Default config has 'fetch' server
         self.assertIn("fetch", client.servers)
         self.assertEqual(client.servers["fetch"].name, "Fetch MCP Server")
@@ -48,24 +50,25 @@ class MCPClientTests(unittest.TestCase):
             "name": "Test Server",
             "transport": "http",
             "url": "http://localhost:9999",
-            "enabled": True
+            "enabled": True,
         }
-        
+
         # Add server
         success = client.add_server("test_srv", "Test Server", server_config)
         self.assertTrue(success)
         self.assertIn("test_srv", client.servers)
         self.assertEqual(client.servers["test_srv"].name, "Test Server")
-        
+
         # Verify it is written to the config file
         with open(MCP_CONFIG_FILE, "r", encoding="utf-8") as f:
             cfg = json.load(f)
             self.assertIn("test_srv", cfg.get("servers", {}))
-            
+
         # Remove server
         success = client.remove_server("test_srv")
         self.assertTrue(success)
         self.assertNotIn("test_srv", client.servers)
+
 
 if __name__ == "__main__":
     unittest.main()

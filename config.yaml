@@ -151,6 +151,31 @@ performance:
   background_tasks_enabled: true      # enable background task processing
   background_workers: 4              # number of background worker threads
   status_update_interval_ms: 500     # interval for status updates (ms)
+  # Performance Optimization Feature Flags
+  flags:
+    # Phase 1: Quick Wins
+    cache_system_prompt: true         # Cache system prompt with 5-min TTL
+    lazy_tool_declarations: true      # Lazy load tool declarations
+    optimized_audio_chunks: true      # Use 4096-byte chunks with double buffering
+    cache_api_responses: true         # Cache API responses with 10-min TTL
+    preload_embedding_model: true     # Preload embedding model at startup
+    debounce_ui_updates: true         # Debounce UI updates to 1s interval
+    async_logging: true               # Use async logging with queue
+    # Phase 2: Medium-Impact
+    lazy_load_actions: false          # Lazy load action modules
+    connection_pooling: false         # Use connection pooling for external APIs
+    aggressive_compression: false     # Aggressive compression for old messages
+    db_connection_pooling: false      # Use connection pooling for databases
+    vector_db_cache: false           # Cache vector DB queries with 1-hour TTL
+    batch_screen_processing: false    # Batch process screen captures
+    event_file_watching: false        # Use event-based file watching
+    # Phase 3: Complex Changes
+    reduce_memory_footprint: false    # Implement state sharding and GC
+    parallel_tool_execution: false    # Execute independent tools in parallel
+    async_workflow_engine: false     # Use async task queue for workflows
+    precompute_queries: false         # Precompute common queries
+    response_streaming: false        # Stream API responses
+    async_ui_server: false           # Use aiohttp for UI server
 
 # Workflow & Orchestration Settings
 workflow:

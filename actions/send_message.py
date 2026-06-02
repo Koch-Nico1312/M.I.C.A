@@ -6,28 +6,30 @@ from pathlib import Path
 
 try:
     import pyautogui
+
     pyautogui.FAILSAFE = True
-    pyautogui.PAUSE    = 0.06
+    pyautogui.PAUSE = 0.06
     _PYAUTOGUI = True
 except ImportError:
     _PYAUTOGUI = False
 
 try:
     import pyperclip
+
     _PYPERCLIP = True
 except ImportError:
     _PYPERCLIP = False
+
 
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
+
 def _get_os() -> str:
     try:
-        cfg = json.loads(
-            (_base_dir() / "config" / "api_keys.json").read_text(encoding="utf-8")
-        )
+        cfg = json.loads((_base_dir() / "config" / "api_keys.json").read_text(encoding="utf-8"))
         return cfg.get("os_system", "windows").lower()
     except Exception:
         return "windows"
@@ -63,6 +65,7 @@ def _clear_and_paste(text: str) -> None:
     time.sleep(0.1)
     _paste_text(text)
 
+
 def _open_app(app_name: str) -> bool:
     _require_pyautogui()
     os_name = _get_os()
@@ -80,17 +83,23 @@ def _open_app(app_name: str) -> bool:
         elif os_name == "mac":
             result = subprocess.run(
                 ["open", "-a", app_name],
-                capture_output=True, text=True, timeout=10, encoding='utf-8',
+                capture_output=True,
+                text=True,
+                timeout=10,
+                encoding="utf-8",
             )
             if result.returncode != 0:
                 result = subprocess.run(
                     ["open", "-a", f"{app_name}.app"],
-                    capture_output=True, text=True, timeout=10, encoding='utf-8',
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                    encoding="utf-8",
                 )
             time.sleep(2.5)
             return result.returncode == 0
 
-        else: 
+        else:
             launched = False
             for launcher in [
                 ["gtk-launch", app_name.lower()],
@@ -101,7 +110,7 @@ def _open_app(app_name: str) -> bool:
                         launcher,
                         stdout=subprocess.DEVNULL,
                         stderr=subprocess.DEVNULL,
-                        encoding='utf-8',
+                        encoding="utf-8",
                     )
                     launched = True
                     break
@@ -117,13 +126,15 @@ def _open_app(app_name: str) -> bool:
 
 def _open_browser_url(url: str) -> bool:
     import webbrowser
+
     try:
         webbrowser.open(url)
-        time.sleep(4.0) 
+        time.sleep(4.0)
         return True
     except Exception as e:
         print(f"[SendMessage] ⚠️ Could not open browser: {e}")
         return False
+
 
 def _search_in_app(query: str) -> None:
     _require_pyautogui()
@@ -134,6 +145,7 @@ def _search_in_app(query: str) -> None:
     time.sleep(0.5)
     _clear_and_paste(query)
     time.sleep(1.0)
+
 
 def _desktop_send(app_name: str, receiver: str, message: str) -> str:
     if not _open_app(app_name):
@@ -150,11 +162,14 @@ def _desktop_send(app_name: str, receiver: str, message: str) -> str:
     time.sleep(0.3)
     return f"Message sent to {receiver} via {app_name}."
 
+
 def _send_whatsapp(receiver: str, message: str) -> str:
     return _desktop_send("WhatsApp", receiver, message)
 
+
 def _send_telegram(receiver: str, message: str) -> str:
     return _desktop_send("Telegram", receiver, message)
+
 
 def _send_signal(receiver: str, message: str) -> str:
     return _desktop_send("Signal", receiver, message)
@@ -175,7 +190,7 @@ def _send_instagram(receiver: str, message: str) -> str:
 
     pyautogui.press("down")
     time.sleep(0.3)
-    pyautogui.press("enter")   
+    pyautogui.press("enter")
     time.sleep(0.4)
 
     for _ in range(4):
@@ -198,7 +213,6 @@ def _send_messenger(receiver: str, message: str) -> str:
     if not _open_browser_url("https://www.messenger.com/"):
         return "Could not open Messenger in browser."
 
-
     _search_in_app(receiver)
     time.sleep(0.5)
     pyautogui.press("down")
@@ -213,13 +227,14 @@ def _send_messenger(receiver: str, message: str) -> str:
 
     return f"Message sent to {receiver} via Messenger."
 
+
 _PLATFORM_MAP = [
-    ({"whatsapp", "wp", "wapp"},              _send_whatsapp),
-    ({"telegram", "tg"},                      _send_telegram),
-    ({"instagram", "ig", "insta"},            _send_instagram),
-    ({"signal"},                               _send_signal),
-    ({"discord"},                              _send_discord),
-    ({"messenger", "facebook", "fb"},         _send_messenger),
+    ({"whatsapp", "wp", "wapp"}, _send_whatsapp),
+    ({"telegram", "tg"}, _send_telegram),
+    ({"instagram", "ig", "insta"}, _send_instagram),
+    ({"signal"}, _send_signal),
+    ({"discord"}, _send_discord),
+    ({"messenger", "facebook", "fb"}, _send_messenger),
 ]
 
 
@@ -237,10 +252,10 @@ def send_message(
     player=None,
     session_memory=None,
 ) -> str:
-    params       = parameters or {}
-    receiver     = params.get("receiver", "").strip()
+    params = parameters or {}
+    receiver = params.get("receiver", "").strip()
     message_text = params.get("message_text", "").strip()
-    platform     = params.get("platform", "whatsapp").strip()
+    platform = params.get("platform", "whatsapp").strip()
 
     if not receiver:
         return "Please specify a recipient."
@@ -256,7 +271,7 @@ def send_message(
 
     try:
         handler = _resolve_platform(platform)
-        result  = handler(receiver, message_text)
+        result = handler(receiver, message_text)
     except Exception as e:
         result = f"Could not send message: {e}"
 

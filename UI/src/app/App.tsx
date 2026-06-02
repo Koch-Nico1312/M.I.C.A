@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, startTransition } from "react";
-import { Sparkles, Activity, Mic, MessageSquareText, DatabaseZap } from "lucide-react";
+import { Sparkles, Activity, Mic, MessageSquareText, DatabaseZap, PanelLeftOpen } from "lucide-react";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "./components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import { DocumentsView } from "./components/DocumentsView";
@@ -56,7 +56,7 @@ export default function App() {
     };
 
     tick();
-    const timer = window.setInterval(tick, 2000);
+    const timer = window.setInterval(tick, 1000);
 
     return () => {
       alive = false;

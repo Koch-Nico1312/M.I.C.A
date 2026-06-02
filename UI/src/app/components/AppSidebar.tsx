@@ -9,6 +9,8 @@ import {
   Sparkles,
   FileText,
   Waves,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -21,6 +23,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarSeparator,
+  SidebarTrigger,
 } from "./ui/sidebar";
 import { Calendar as CalendarComponent } from "./ui/calendar";
 import { useState } from "react";
@@ -95,18 +98,23 @@ export function AppSidebar({
           className="relative flex h-full flex-col rounded-2xl border border-white/10 bg-[#06131d]/90 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
         >
           <SidebarHeader className="p-5 pb-4">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3 shadow-[0_0_30px_rgba(34,211,238,0.18)]">
-                <Sparkles className="h-6 w-6 text-cyan-200" />
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3 shadow-[0_0_30px_rgba(34,211,238,0.18)]">
+                  <Sparkles className="h-6 w-6 text-cyan-200" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold uppercase tracking-[0.35em] text-white">
+                    Jarvis
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Voice-first assistant
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-sm font-semibold uppercase tracking-[0.35em] text-white">
-                  Jarvis
-                </h2>
-                <p className="text-xs text-slate-400">
-                  Voice-first assistant
-                </p>
-              </div>
+              <SidebarTrigger className="rounded-lg border border-white/10 bg-white/5 p-2 text-slate-300 hover:bg-white/10">
+                <PanelLeftClose className="h-4 w-4" />
+              </SidebarTrigger>
             </div>
           </SidebarHeader>
 
@@ -214,6 +222,7 @@ export function AppSidebar({
                     mode="single"
                     selected={date}
                     onSelect={handleDateSelect}
+                    weekStartsOn={1}
                     className="rounded-xl bg-transparent text-slate-100 [&_.rdp-day_button]:text-slate-200 [&_.rdp-day_button:hover]:bg-white/10 [&_.rdp-day_button.rdp-day_selected]:bg-cyan-400/20 [&_.rdp-day_button.rdp-day_selected]:text-cyan-100"
                   />
                 </div>

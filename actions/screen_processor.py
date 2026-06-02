@@ -16,6 +16,7 @@ import sounddevice as sd
 
 try:
     import cv2
+
     _CV2 = True
 except ImportError:
     _CV2 = False
@@ -23,12 +24,14 @@ except ImportError:
 try:
     import mss
     import mss.tools
+
     _MSS = True
 except ImportError:
     _MSS = False
 
 try:
     import PIL.Image
+
     _PIL = True
 except ImportError:
     _PIL = False
@@ -36,13 +39,14 @@ except ImportError:
 from google import genai
 from google.genai import types as gtypes
 
+
 def _base_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).resolve().parent.parent
 
 
-_BASE        = _base_dir()
+_BASE = _base_dir()
 _CONFIG_PATH = _BASE / "config" / "api_keys.json"
 
 
@@ -72,14 +76,15 @@ def _get_api_key() -> str:
 def _get_os() -> str:
     return _load_config().get("os_system", "windows").lower()
 
-_LIVE_MODEL         = "models/gemini-2.5-flash-native-audio-preview-12-2025"
-_CHANNELS           = 1
+
+_LIVE_MODEL = "models/gemini-2.5-flash-native-audio-preview-12-2025"
+_CHANNELS = 1
 _RECEIVE_SAMPLE_RATE = 24_000
-_CHUNK_SIZE         = 1_024
+_CHUNK_SIZE = 1_024
 
 _IMG_MAX_W = 640
 _IMG_MAX_H = 360
-_JPEG_Q    = 60
+_JPEG_Q = 60
 
 _SYSTEM_PROMPT = (
     "You are JARVIS, an advanced AI assistant. "
@@ -105,16 +110,17 @@ def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]
         print(f"[Vision] ⚠️  Image compress failed: {e}")
         return img_bytes, f"image/{source_format.lower()}"
 
+
 def _capture_screen() -> tuple[bytes, str]:
 
     if not _MSS:
         raise RuntimeError("mss is not installed. Run: pip install mss")
 
     with mss.mss() as sct:
-        monitors = sct.monitors          # [0] = all combined, [1..n] = real screens
-        target   = monitors[1] if len(monitors) > 1 else monitors[0]
-        shot     = sct.grab(target)
-        png      = mss.tools.to_png(shot.rgb, shot.size)
+        monitors = sct.monitors  # [0] = all combined, [1..n] = real screens
+        target = monitors[1] if len(monitors) > 1 else monitors[0]
+        shot = sct.grab(target)
+        png = mss.tools.to_png(shot.rgb, shot.size)
 
     return _compress(png, "PNG")
 
@@ -125,9 +131,9 @@ def _cv2_backend() -> int:
         return 0
     os_name = _get_os()
     if os_name == "windows":
-        return cv2.CAP_DSHOW    
+        return cv2.CAP_DSHOW
     if os_name == "mac":
-        return cv2.CAP_AVFOUNDATION  
+        return cv2.CAP_AVFOUNDATION
     return cv2.CAP_ANY
 
 
@@ -175,9 +181,9 @@ def _capture_camera() -> tuple[bytes, str]:
     if not _CV2:
         raise RuntimeError("OpenCV (cv2) is not installed. Run: pip install opencv-python")
 
-    index   = _get_camera_index()
+    index = _get_camera_index()
     backend = _cv2_backend()
-    cap     = cv2.VideoCapture(index, backend)
+    cap = cv2.VideoCapture(index, backend)
 
     if not cap.isOpened():
         raise RuntimeError(f"Camera index {index} could not be opened.")
@@ -202,16 +208,17 @@ def _capture_camera() -> tuple[bytes, str]:
     _, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, _JPEG_Q])
     return buf.tobytes(), "image/jpeg"
 
+
 class _VisionSession:
     def __init__(self):
-        self._loop:       Optional[asyncio.AbstractEventLoop] = None
-        self._thread:     Optional[threading.Thread]          = None
-        self._session                                          = None
-        self._out_queue:  Optional[asyncio.Queue]             = None
-        self._audio_in:   Optional[asyncio.Queue]             = None
-        self._ready_evt:  threading.Event                     = threading.Event()
-        self._player                                           = None
-        self._lock:       threading.Lock                       = threading.Lock()
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._thread: Optional[threading.Thread] = None
+        self._session = None
+        self._out_queue: Optional[asyncio.Queue] = None
+        self._audio_in: Optional[asyncio.Queue] = None
+        self._ready_evt: threading.Event = threading.Event()
+        self._player = None
+        self._lock: threading.Lock = threading.Lock()
 
     def start(self, player=None, timeout: float = 25.0) -> None:
         with self._lock:
@@ -250,7 +257,7 @@ class _VisionSession:
 
     async def _session_loop(self) -> None:
         self._out_queue = asyncio.Queue(maxsize=30)
-        self._audio_in  = asyncio.Queue()
+        self._audio_in = asyncio.Queue()
 
         client = genai.Client(
             api_key=_get_api_key(),
@@ -262,9 +269,7 @@ class _VisionSession:
             system_instruction=_SYSTEM_PROMPT,
             speech_config=gtypes.SpeechConfig(
                 voice_config=gtypes.VoiceConfig(
-                    prebuilt_voice_config=gtypes.PrebuiltVoiceConfig(
-                        voice_name="Charon"
-                    )
+                    prebuilt_voice_config=gtypes.PrebuiltVoiceConfig(voice_name="Charon")
                 )
             ),
         )
@@ -273,12 +278,10 @@ class _VisionSession:
         while True:
             try:
                 print("[Vision] 🔌 Connecting...")
-                async with client.aio.live.connect(
-                    model=_LIVE_MODEL, config=config
-                ) as session:
+                async with client.aio.live.connect(model=_LIVE_MODEL, config=config) as session:
                     self._session = session
                     self._ready_evt.set()
-                    backoff = 2.0  
+                    backoff = 2.0
                     print("[Vision] ✅ Connected")
 
                     async with asyncio.TaskGroup() as tg:
@@ -296,7 +299,7 @@ class _VisionSession:
             print(f"[Vision] 🔄 Reconnecting in {backoff:.0f}s...")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 1.5, 30.0)
-            self._ready_evt.set()  
+            self._ready_evt.set()
 
     async def _send_loop(self) -> None:
         while True:
@@ -345,7 +348,7 @@ class _VisionSession:
 
         except Exception as e:
             print(f"[Vision] ⚠️  Recv error: {e}")
-            raise  
+            raise
 
     async def _play_loop(self) -> None:
         stream = sd.RawOutputStream(
@@ -366,9 +369,10 @@ class _VisionSession:
             stream.stop()
             stream.close()
 
-_session      = _VisionSession()
+
+_session = _VisionSession()
 _session_lock = threading.Lock()
-_session_up   = False
+_session_up = False
 
 
 def _ensure_session(player=None) -> None:
@@ -382,15 +386,15 @@ def _ensure_session(player=None) -> None:
 
 
 def screen_process(
-    parameters:     dict,
+    parameters: dict,
     response=None,
     player=None,
     session_memory=None,
 ) -> bool:
 
-    params    = parameters or {}
+    params = parameters or {}
     user_text = (params.get("text") or params.get("user_text") or "").strip()
-    angle     = params.get("angle", "screen").lower().strip()
+    angle = params.get("angle", "screen").lower().strip()
 
     if not user_text:
         print("[Vision] ⚠️  No question provided — aborting")
@@ -425,11 +429,12 @@ def warmup_session(player=None) -> None:
     except Exception as e:
         print(f"[Vision] ⚠️  Warmup failed: {e}")
 
+
 if __name__ == "__main__":
     print("[TEST] screen_processor.py")
     print("=" * 52)
     mode = input("angle — screen / camera (default: screen): ").strip().lower() or "screen"
-    q    = input("Question (Enter = default): ").strip() or "What do you see? Be brief."
+    q = input("Question (Enter = default): ").strip() or "What do you see? Be brief."
 
     t0 = time.perf_counter()
     warmup_session()

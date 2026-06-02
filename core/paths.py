@@ -4,18 +4,14 @@ import os
 import sys
 from pathlib import Path
 
-
 _ROOT_ENV_VARS = ("MARK_XXXIX_ROOT", "MARK_XXXIX_BASE_DIR")
 
 
 def _looks_like_project_root(candidate: Path) -> bool:
-    return (
-        (candidate / "config.yaml").exists()
-        and (
-            (candidate / "main.py").exists()
-            or (candidate / "UI" / "package.json").exists()
-            or ((candidate / "config").exists() and (candidate / "core").exists())
-        )
+    return (candidate / "config.yaml").exists() and (
+        (candidate / "main.py").exists()
+        or (candidate / "UI" / "package.json").exists()
+        or ((candidate / "config").exists() and (candidate / "core").exists())
     )
 
 

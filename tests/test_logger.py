@@ -2,13 +2,14 @@
 Tests for the logging system.
 """
 
-import pytest
 import logging
-from pathlib import Path
-import tempfile
 import os
+import tempfile
+from pathlib import Path
 
-from core.logger import setup_logging, get_logger
+import pytest
+
+from core.logger import get_logger, setup_logging
 
 
 def test_setup_logging():
@@ -16,7 +17,7 @@ def test_setup_logging():
     with tempfile.TemporaryDirectory() as tmpdir:
         log_dir = Path(tmpdir)
         setup_logging(log_dir=log_dir)
-        
+
         # Check that log files were created
         assert (log_dir / "jarvis.log").exists() or True  # May not exist yet
         assert (log_dir / "errors.log").exists() or True
@@ -33,7 +34,7 @@ def test_get_logger():
 def test_logger_levels():
     """Test different log levels."""
     logger = get_logger("test_levels")
-    
+
     # These should not raise exceptions
     logger.debug("Debug message")
     logger.info("Info message")
@@ -46,7 +47,7 @@ def test_multiple_loggers():
     """Test that multiple loggers can be created."""
     logger1 = get_logger("module1")
     logger2 = get_logger("module2")
-    
+
     assert logger1.name == "module1"
     assert logger2.name == "module2"
     assert logger1 is not logger2

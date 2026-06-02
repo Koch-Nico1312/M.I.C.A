@@ -1,15 +1,124 @@
 {
   "current_session": {
-    "id": "20260601-161209-c2481a14",
+    "id": "20260602-095846-cfe8de8a",
     "title": "Voice session",
-    "started_at": "2026-06-01T16:12:09.756666",
-    "updated_at": "2026-06-01T16:12:09.756666",
+    "started_at": "2026-06-02T09:58:46.847914",
+    "updated_at": "2026-06-02T09:58:46.847914",
     "ended_at": null,
     "messages": [],
     "tool_results": [],
     "summary": "",
     "status": "active"
   },
-  "sessions": [],
-  "updated_at": "2026-06-01T16:12:09.757665"
+  "sessions": [
+    {
+      "id": "20260602-091403-5f1c182a",
+      "title": "Hallo",
+      "started_at": "2026-06-02T09:14:03.459176",
+      "updated_at": "2026-06-02T09:42:00.476622",
+      "ended_at": "2026-06-02T09:42:00.476622",
+      "messages": [
+        {
+          "id": "c8a4b06a9dd44898b66e1ad7d847dfda",
+          "role": "user",
+          "content": "Hallo",
+          "timestamp": "2026-06-02T09:14:39.325345"
+        },
+        {
+          "id": "4bbe1b13ae854edbb91e36be43ee1551",
+          "role": "assistant",
+          "content": "Hallo! Wie kann ich dir helfen?",
+          "timestamp": "2026-06-02T09:14:42.108612"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Hallo",
+      "status": "completed"
+    },
+    {
+      "id": "20260602-091251-ce7a290b",
+      "title": "of the je wel s",
+      "started_at": "2026-06-02T09:12:51.026291",
+      "updated_at": "2026-06-02T09:14:01.254992",
+      "ended_at": "2026-06-02T09:14:01.254992",
+      "messages": [
+        {
+          "id": "f6611ea156cb4b4a932c8478c0963c95",
+          "role": "tool",
+          "content": "weather_report: Showing the weather for Vienna, today, sir.",
+          "timestamp": "2026-06-02T09:13:02.098034",
+          "tool": "weather_report",
+          "args_summary": "{'city': 'Vienna'}",
+          "result_summary": "Showing the weather for Vienna, today, sir."
+        },
+        {
+          "id": "1b054507ea3b48d2865ac5e01351b686",
+          "role": "user",
+          "content": "of the je wel s",
+          "timestamp": "2026-06-02T09:13:02.110189"
+        },
+        {
+          "id": "79ff01a930ce4d67adf47b8459bcbcbe",
+          "role": "user",
+          "content": "Mo rgen mus s werden ist für eine Zelle",
+          "timestamp": "2026-06-02T09:13:05.081600"
+        },
+        {
+          "id": "27f25b884c33409dbda137722ca02b8d",
+          "role": "user",
+          "content": "Ähm C3. Ganz genau.",
+          "timestamp": "2026-06-02T09:13:07.847399"
+        },
+        {
+          "id": "f13364cde60247f28f83eaa3488fb619",
+          "role": "tool",
+          "content": "screen_process: Vision module activated. Stay completely silent — vision module will speak directly.",
+          "timestamp": "2026-06-02T09:13:17.244308",
+          "tool": "screen_process",
+          "args_summary": "{'text': 'Analyze the screen content and identify what cell C3 is and what value can be entered into it, based on the context provided in the video.'}",
+          "result_summary": "Vision module activated. Stay completely silent — vision module will speak directly."
+        },
+        {
+          "id": "3e8720079541476eacb4f50e3e58f418",
+          "role": "user",
+          "content": "Und jetz t is t es so , da mit ich eine n We rt rein schrei ben kan n in die se Ze lle , gib t e s zwei Möglichkeiten.",
+          "timestamp": "2026-06-02T09:13:17.501619"
+        },
+        {
+          "id": "dbaa5e9938cf41a2a4cbfd176a122f1e",
+          "role": "assistant",
+          "content": "Let me check",
+          "timestamp": "2026-06-02T09:13:17.504621"
+        }
+      ],
+      "tool_results": [],
+      "summary": "of the je wel s",
+      "status": "completed"
+    },
+    {
+      "id": "20260602-090005-cade5821",
+      "title": "Si ng up to easy tap ping , sy stem schon schon viel gemacht . Das hat sich scho",
+      "started_at": "2026-06-02T09:00:05.431853",
+      "updated_at": "2026-06-02T09:07:06.045513",
+      "ended_at": "2026-06-02T09:07:06.045513",
+      "messages": [
+        {
+          "id": "d0fb0fb34963441fad7649e923920cc1",
+          "role": "user",
+          "content": "Si ng up to easy tap ping , sy stem schon schon viel gemacht . Das hat sich schon sehe n und schon seh r viel Ge schwin digkeit . Ich überhaup t so euch Videos gefragt.",
+          "timestamp": "2026-06-02T09:00:32.600472"
+        },
+        {
+          "id": "1e394ff8a1a245b389334a6853c8fdf1",
+          "role": "assistant",
+          "content": "Ich bin mir nicht ganz sicher, was du meinst. Möchtest du etwas über \"easy tapping\" erfahren, eine Systemeinstellung vornehmen oder etwas mit Videos machen?",
+          "timestamp": "2026-06-02T09:00:32.605650"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Si ng up to easy tap ping , sy stem schon schon viel gemacht . Das hat sich schon sehe n und schon seh r viel Ge schwin digkeit . Ich überha",
+      "status": "completed"
+    }
+  ],
+  "updated_at": "2026-06-02T09:58:46.847914"
 }

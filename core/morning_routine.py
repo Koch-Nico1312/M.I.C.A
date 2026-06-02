@@ -4,17 +4,18 @@ Morning Routine System for Mark-XXXIX
 Manages automated morning skin check workflows with reminders and notifications.
 """
 
+import json
 import threading
 import time
-from datetime import datetime, time as dt_time
-from pathlib import Path
-from typing import Optional, Dict, List, Any, Callable
 from dataclasses import dataclass, field
+from datetime import datetime
+from datetime import time as dt_time
 from enum import Enum
-import json
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional
 
-from core.logger import get_logger
 from core.local_analyzer import get_local_analyzer
+from core.logger import get_logger
 from core.paths import project_path
 
 logger = get_logger(__name__)
@@ -22,6 +23,7 @@ logger = get_logger(__name__)
 
 class RoutineMode(Enum):
     """Mode for morning routine."""
+
     OFF = "off"
     MANUAL = "manual"
     SEMI_AUTOMATIC = "semi_automatic"
@@ -30,6 +32,7 @@ class RoutineMode(Enum):
 
 class RoutineStatus(Enum):
     """Status of the morning routine."""
+
     IDLE = "idle"
     WAITING_FOR_PHOTO = "waiting_for_photo"
     ANALYZING = "analyzing"
@@ -41,6 +44,7 @@ class RoutineStatus(Enum):
 @dataclass
 class RoutineConfig:
     """Configuration for morning routine."""
+
     mode: RoutineMode = RoutineMode.MANUAL
     reminder_time: str = "08:00"  # HH:MM format
     reminder_window_minutes: int = 60
@@ -55,6 +59,7 @@ class RoutineConfig:
 @dataclass
 class RoutineExecution:
     """Record of a routine execution."""
+
     date: str
     scheduled_time: str
     actual_time: Optional[str] = None
@@ -70,11 +75,11 @@ class MorningRoutine:
     Manages automated morning skin check workflow.
     Integrates with local analyzer and reminder system.
     """
-    
+
     def __init__(self, config: Optional[RoutineConfig] = None):
         """
         Initialize the morning routine system.
-        
+
         Args:
             config: Routine configuration
         """
@@ -82,170 +87,172 @@ class MorningRoutine:
         self.status = RoutineStatus.IDLE
         self.current_execution: Optional[RoutineExecution] = None
         self.execution_history: List[RoutineExecution] = []
-        
+
         self._lock = threading.Lock()
         self._running = False
         self._monitor_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
-        
+
         # Integration
         self.local_analyzer = get_local_analyzer()
         self.status_callback: Optional[Callable[[RoutineStatus, str], None]] = None
-        
+
         # Persistence
         self.persistence_file = project_path("data", "morning_routine.json")
         self.persistence_file.parent.mkdir(parents=True, exist_ok=True)
         self._load_history()
-        
+
         logger.info(f"Morning routine initialized (mode: {self.config.mode.value})")
-    
+
     def set_status_callback(self, callback: Callable[[RoutineStatus, str], None]):
         """
         Set callback for status updates.
-        
+
         Args:
             callback: Function to call when status changes
         """
         with self._lock:
             self.status_callback = callback
             logger.info("Status callback set")
-    
+
     def start_monitoring(self):
         """Start the background monitoring thread."""
         with self._lock:
             if self._running:
                 logger.warning("Morning routine monitoring already running")
                 return
-            
+
             self._running = True
             self._stop_event.clear()
             self._monitor_thread = threading.Thread(
-                target=self._monitor_loop,
-                name="MorningRoutineMonitor",
-                daemon=True
+                target=self._monitor_loop, name="MorningRoutineMonitor", daemon=True
             )
             self._monitor_thread.start()
             logger.info("Morning routine monitoring started")
-    
+
     def stop_monitoring(self):
         """Stop the background monitoring thread."""
         with self._lock:
             if not self._running:
                 return
-            
+
             self._stop_event.set()
             if self._monitor_thread:
                 self._monitor_thread.join(timeout=5.0)
-            
+
             self._running = False
             logger.info("Morning routine monitoring stopped")
-    
+
     def _monitor_loop(self):
         """Background monitoring loop."""
         while not self._stop_event.is_set():
             try:
                 current_time = datetime.now()
                 current_time_str = current_time.strftime("%H:%M")
-                
+
                 # Check if it's reminder time
                 if current_time_str == self.config.reminder_time:
                     self._trigger_reminder()
-                
+
                 # Check for missed reminder
                 if self.config.send_reminder_if_missed:
                     self._check_missed_reminder(current_time)
-                
+
                 # Wait before next check
                 self._stop_event.wait(timeout=60)  # Check every minute
-            
+
             except Exception as e:
                 logger.error(f"Monitor loop error: {e}")
-    
+
     def _trigger_reminder(self):
         """Trigger the morning routine reminder."""
         with self._lock:
             if self.config.mode == RoutineMode.OFF:
                 return
-            
+
             today = datetime.now().strftime("%Y-%m-%d")
-            
+
             # Check if already executed today
             if any(exec.date == today for exec in self.execution_history):
                 logger.info(f"Morning routine already executed today: {today}")
                 return
-            
+
             # Create new execution record
             execution = RoutineExecution(
                 date=today,
                 scheduled_time=self.config.reminder_time,
                 actual_time=datetime.now().strftime("%H:%M"),
-                status=RoutineStatus.WAITING_FOR_PHOTO
+                status=RoutineStatus.WAITING_FOR_PHOTO,
             )
             self.current_execution = execution
             self.status = RoutineStatus.WAITING_FOR_PHOTO
-            
+
             # Trigger callback
             if self.status_callback:
                 try:
-                    self.status_callback(RoutineStatus.WAITING_FOR_PHOTO, 
-                                       f"Morning routine reminder at {self.config.reminder_time}")
+                    self.status_callback(
+                        RoutineStatus.WAITING_FOR_PHOTO,
+                        f"Morning routine reminder at {self.config.reminder_time}",
+                    )
                 except Exception as e:
                     logger.error(f"Status callback failed: {e}")
-            
+
             logger.info(f"Morning routine reminder triggered: {today}")
-    
+
     def _check_missed_reminder(self, current_time: datetime):
         """Check if reminder was missed and send follow-up."""
         with self._lock:
             if not self.current_execution:
                 return
-            
+
             if self.current_execution.status != RoutineStatus.WAITING_FOR_PHOTO:
                 return
-            
+
             # Calculate time since scheduled reminder
             scheduled_dt = datetime.strptime(self.current_execution.scheduled_time, "%H:%M")
-            scheduled_dt = scheduled_dt.replace(year=current_time.year, month=current_time.month, day=current_time.day)
-            
+            scheduled_dt = scheduled_dt.replace(
+                year=current_time.year, month=current_time.month, day=current_time.day
+            )
+
             time_diff = (current_time - scheduled_dt).total_seconds()
-            
+
             # If past the delay threshold and no photo received
             if time_diff > (self.config.reminder_delay_minutes * 60):
                 self._send_followup_reminder()
-    
+
     def _send_followup_reminder(self):
         """Send a follow-up reminder for missed photo."""
         if not self.current_execution:
             return
 
-        message = f"Morgenroutine: Du hast das Hautfoto noch nicht hochgeladen. " \
-                  f"Möchtest du es jetzt nachholen?"
+        message = (
+            f"Morgenroutine: Du hast das Hautfoto noch nicht hochgeladen. "
+            f"Möchtest du es jetzt nachholen?"
+        )
 
         try:
             from actions.reminder import create_reminder
 
             # Use the reminder system
             create_reminder(
-                task_name="morning_skin_check_followup",
-                message=message,
-                delay_minutes=0
+                task_name="morning_skin_check_followup", message=message, delay_minutes=0
             )
-            
+
             self.current_execution.reminder_sent = True
             self.current_execution.notes.append("Follow-up reminder sent")
-            
+
             logger.info("Follow-up reminder sent for missed morning routine")
-        
+
         except Exception as e:
             logger.error(f"Failed to send follow-up reminder: {e}")
-    
+
     def submit_photo(self, photo_path: Path) -> bool:
         """
         Submit a photo for morning routine analysis.
-        
+
         Args:
             photo_path: Path to the photo file
-        
+
         Returns:
             True if photo accepted
         """
@@ -253,38 +260,35 @@ class MorningRoutine:
             if not self.current_execution:
                 logger.warning("No active routine execution to submit photo to")
                 return False
-            
+
             if not photo_path.exists():
                 logger.error(f"Photo file not found: {photo_path}")
                 return False
-            
+
             self.current_execution.photo_path = str(photo_path)
             self.current_execution.status = RoutineStatus.ANALYZING
             self.status = RoutineStatus.ANALYZING
-            
+
             # Trigger callback
             if self.status_callback:
                 try:
-                    self.status_callback(RoutineStatus.ANALYZING, 
-                                       f"Analyzing photo: {photo_path.name}")
+                    self.status_callback(
+                        RoutineStatus.ANALYZING, f"Analyzing photo: {photo_path.name}"
+                    )
                 except Exception as e:
                     logger.error(f"Status callback failed: {e}")
-            
+
             # Perform analysis in background
-            threading.Thread(
-                target=self._analyze_photo,
-                args=(photo_path,),
-                daemon=True
-            ).start()
-            
+            threading.Thread(target=self._analyze_photo, args=(photo_path,), daemon=True).start()
+
             return True
-    
+
     def _analyze_photo(self, photo_path: Path):
         """Analyze the submitted photo."""
         try:
             # Use local analyzer for skin analysis
             result = self.local_analyzer.analyze_skin_image(photo_path)
-            
+
             with self._lock:
                 if self.current_execution:
                     self.current_execution.analysis_result = result
@@ -292,55 +296,53 @@ class MorningRoutine:
                     self.status = RoutineStatus.COMPLETED
                     self.execution_history.append(self.current_execution)
                     self._save_history()
-                    
+
                     # Trigger callback
                     if self.status_callback:
                         try:
-                            self.status_callback(RoutineStatus.COMPLETED, 
-                                               "Skin analysis completed")
+                            self.status_callback(RoutineStatus.COMPLETED, "Skin analysis completed")
                         except Exception as e:
                             logger.error(f"Status callback failed: {e}")
-            
+
             logger.info(f"Photo analysis completed: {photo_path}")
-        
+
         except Exception as e:
             logger.error(f"Photo analysis failed: {e}")
-            
+
             with self._lock:
                 if self.current_execution:
                     self.current_execution.status = RoutineStatus.FAILED
                     self.current_execution.notes.append(f"Analysis error: {str(e)}")
                     self.status = RoutineStatus.FAILED
-                    
+
                     # Trigger callback
                     if self.status_callback:
                         try:
-                            self.status_callback(RoutineStatus.FAILED, 
-                                               f"Analysis failed: {str(e)}")
+                            self.status_callback(RoutineStatus.FAILED, f"Analysis failed: {str(e)}")
                         except Exception as e:
                             logger.error(f"Status callback failed: {e}")
-    
+
     def skip_today(self):
         """Skip today's routine."""
         with self._lock:
             if not self.current_execution:
                 logger.warning("No active routine execution to skip")
                 return
-            
+
             self.current_execution.status = RoutineStatus.SKIPPED
             self.current_execution.notes.append("Skipped by user")
             self.execution_history.append(self.current_execution)
             self._save_history()
-            
+
             self.status = RoutineStatus.SKIPPED
             self.current_execution = None
-            
+
             logger.info("Morning routine skipped for today")
-    
+
     def get_current_status(self) -> Dict[str, Any]:
         """
         Get current routine status.
-        
+
         Returns:
             Dictionary with status information
         """
@@ -348,85 +350,87 @@ class MorningRoutine:
             return {
                 "status": self.status.value,
                 "mode": self.config.mode.value,
-                "current_execution": self.current_execution.to_dict() if self.current_execution else None,
+                "current_execution": (
+                    self.current_execution.to_dict() if self.current_execution else None
+                ),
                 "reminder_time": self.config.reminder_time,
                 "today_completed": any(
-                    exec.date == datetime.now().strftime("%Y-%m-%d") and 
-                    exec.status == RoutineStatus.COMPLETED 
+                    exec.date == datetime.now().strftime("%Y-%m-%d")
+                    and exec.status == RoutineStatus.COMPLETED
                     for exec in self.execution_history
-                )
+                ),
             }
-    
+
     def get_history(self, days: int = 7) -> List[RoutineExecution]:
         """
         Get routine execution history.
-        
+
         Args:
             days: Number of days to look back
-        
+
         Returns:
             List of routine executions
         """
         with self._lock:
             cutoff = datetime.now().timestamp() - (days * 24 * 3600)
             recent = []
-            
+
             for exec in reversed(self.execution_history):
                 exec_date = datetime.strptime(exec.date, "%Y-%m-%d").timestamp()
                 if exec_date >= cutoff:
                     recent.append(exec)
                 else:
                     break
-            
+
             return recent
-    
+
     def _load_history(self):
         """Load execution history from persistence."""
         try:
             if not self.persistence_file.exists():
                 return
-            
-            with open(self.persistence_file, 'r', encoding='utf-8') as f:
+
+            with open(self.persistence_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
-            
-            for exec_data in data.get('executions', []):
+
+            for exec_data in data.get("executions", []):
                 execution = RoutineExecution(**exec_data)
                 self.execution_history.append(execution)
-            
+
             logger.info(f"Loaded {len(self.execution_history)} routine executions from history")
-        
+
         except Exception as e:
             logger.error(f"Failed to load routine history: {e}")
-    
+
     def _save_history(self):
         """Save execution history to persistence."""
         try:
             data = {
-                'saved_at': datetime.now().isoformat(),
-                'config': {
-                    'mode': self.config.mode.value,
-                    'reminder_time': self.config.reminder_time
+                "saved_at": datetime.now().isoformat(),
+                "config": {
+                    "mode": self.config.mode.value,
+                    "reminder_time": self.config.reminder_time,
                 },
-                'executions': [
+                "executions": [
                     {
-                        'date': exec.date,
-                        'scheduled_time': exec.scheduled_time,
-                        'actual_time': exec.actual_time,
-                        'status': exec.status.value,
-                        'photo_path': exec.photo_path,
-                        'analysis_result': exec.analysis_result,
-                        'reminder_sent': exec.reminder_sent,
-                        'notes': exec.notes
+                        "date": exec.date,
+                        "scheduled_time": exec.scheduled_time,
+                        "actual_time": exec.actual_time,
+                        "status": exec.status.value,
+                        "photo_path": exec.photo_path,
+                        "analysis_result": exec.analysis_result,
+                        "reminder_sent": exec.reminder_sent,
+                        "notes": exec.notes,
                     }
                     for exec in self.execution_history
-                ]
+                ],
             }
-            
-            with open(self.persistence_file, 'w', encoding='utf-8') as f:
+
+            with open(self.persistence_file, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2, default=str)
-            
+
             logger.debug("Routine history saved")
-        
+
         except Exception as e:
             logger.error(f"Failed to save routine history: {e}")
 

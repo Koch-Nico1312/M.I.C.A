@@ -5,19 +5,21 @@ Defines permission levels (safe, normal, admin) and checks if actions are allowe
 Extended with tool metadata and configurable action disabling.
 """
 
-from enum import Enum
-from typing import Dict, Any, Optional, Set
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any, Dict, Optional, Set
+
 
 class PermissionLevel(Enum):
-    SAFE = "safe"      # Read-only, no modifications
+    SAFE = "safe"  # Read-only, no modifications
     NORMAL = "normal"  # Modification allowed, dangerous actions require confirmation
-    ADMIN = "admin"    # No restrictions
+    ADMIN = "admin"  # No restrictions
 
 
 @dataclass
 class ToolMetadata:
     """Metadata for a tool/action."""
+
     name: str
     description: str
     risk_level: str  # low, medium, high
@@ -37,11 +39,9 @@ DESTRUCTIVE_ACTIONS = {
     "toggle_wifi",
     "sleep_display",
     "lock_screen",
-    
     # File Controller
     "delete",
     "delete_file",
-    
     # Computer Control / Input automation
     "type",
     "type_text",
@@ -63,7 +63,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="low",
         requires_confirmation=False,
         reversible=False,
-        tags={"search", "web", "information"}
+        tags={"search", "web", "information"},
     ),
     "weather_report": ToolMetadata(
         name="weather_report",
@@ -71,7 +71,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="low",
         requires_confirmation=False,
         reversible=False,
-        tags={"weather", "information"}
+        tags={"weather", "information"},
     ),
     "open_app": ToolMetadata(
         name="open_app",
@@ -79,7 +79,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="medium",
         requires_confirmation=False,
         reversible=False,
-        tags={"application", "system"}
+        tags={"application", "system"},
     ),
     "browser_control": ToolMetadata(
         name="browser_control",
@@ -87,7 +87,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="medium",
         requires_confirmation=True,
         reversible=False,
-        tags={"browser", "web", "automation"}
+        tags={"browser", "web", "automation"},
     ),
     "file_controller": ToolMetadata(
         name="file_controller",
@@ -95,7 +95,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="medium",
         requires_confirmation=True,
         reversible=True,
-        tags={"file", "system", "data"}
+        tags={"file", "system", "data"},
     ),
     "send_message": ToolMetadata(
         name="send_message",
@@ -103,7 +103,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="high",
         requires_confirmation=True,
         reversible=False,
-        tags={"communication", "messaging"}
+        tags={"communication", "messaging"},
     ),
     "gmail_manager": ToolMetadata(
         name="gmail_manager",
@@ -111,7 +111,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="high",
         requires_confirmation=True,
         reversible=False,
-        tags={"email", "communication", "integration"}
+        tags={"email", "communication", "integration"},
     ),
     "calendar_manager": ToolMetadata(
         name="calendar_manager",
@@ -119,7 +119,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="high",
         requires_confirmation=True,
         reversible=True,
-        tags={"calendar", "scheduling", "integration"}
+        tags={"calendar", "scheduling", "integration"},
     ),
     "computer_settings": ToolMetadata(
         name="computer_settings",
@@ -127,7 +127,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="high",
         requires_confirmation=True,
         reversible=True,
-        tags={"system", "settings"}
+        tags={"system", "settings"},
     ),
     "delete": ToolMetadata(
         name="delete",
@@ -135,7 +135,7 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         risk_level="high",
         requires_confirmation=True,
         reversible=False,
-        tags={"file", "destructive"}
+        tags={"file", "destructive"},
     ),
 }
 
@@ -143,49 +143,64 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
 # Disabled actions (can be configured at runtime)
 DISABLED_ACTIONS: Set[str] = set()
 
+
 def check_action(profile: str, action: str, parameters: dict = None) -> tuple[bool, str]:
     """
     Checks if an action is allowed under the current permission profile.
     Also checks if action is disabled.
-    
+
     Returns:
         (is_allowed, status_message)
     """
     if parameters is None:
         parameters = {}
-        
+
     profile_lower = str(profile).lower().strip()
     action_lower = str(action).lower().strip()
-    
+
     # Check if action is disabled
     if action_lower in DISABLED_ACTIONS:
         return False, f"Action '{action}' is disabled by configuration."
-    
+
     # Admin has absolute access (unless disabled)
     if profile_lower == PermissionLevel.ADMIN.value:
         return True, "Allowed"
-        
+
     # Safe blocks all destructive/modification actions
     if profile_lower == PermissionLevel.SAFE.value:
         if action_lower in DESTRUCTIVE_ACTIONS:
             return False, f"Action '{action}' is blocked under the 'safe' permission profile."
-            
+
         # File modifications are blocked in safe mode
-        if action_lower in ("create_file", "create_folder", "write", "move", "copy", "rename", "organize_desktop"):
-            return False, f"File modification action '{action}' is blocked under the 'safe' permission profile."
-            
+        if action_lower in (
+            "create_file",
+            "create_folder",
+            "write",
+            "move",
+            "copy",
+            "rename",
+            "organize_desktop",
+        ):
+            return (
+                False,
+                f"File modification action '{action}' is blocked under the 'safe' permission profile.",
+            )
+
         return True, "Allowed"
-        
+
     # Normal mode (Default)
     if profile_lower == PermissionLevel.NORMAL.value:
         if action_lower in DESTRUCTIVE_ACTIONS:
             # Check for confirmation
             confirmed = str(parameters.get("confirmed", "")).lower()
             if confirmed not in ("yes", "true", "1", "confirm"):
-                return False, f"Confirmation required: Action '{action}' is classified as a destructive or system-altering operation. Call again with 'confirmed=yes'."
-                
+                return (
+                    False,
+                    f"Confirmation required: Action '{action}' is classified as a destructive or system-altering operation. Call again with 'confirmed=yes'.",
+                )
+
         return True, "Allowed"
-        
+
     # Default fallback to Normal mode checks if profile name is invalid
     return check_action(PermissionLevel.NORMAL.value, action, parameters)
 
@@ -193,10 +208,10 @@ def check_action(profile: str, action: str, parameters: dict = None) -> tuple[bo
 def get_tool_metadata(tool_name: str) -> Optional[ToolMetadata]:
     """
     Get metadata for a tool.
-    
+
     Args:
         tool_name: Name of the tool
-    
+
     Returns:
         ToolMetadata or None if not found
     """
@@ -206,7 +221,7 @@ def get_tool_metadata(tool_name: str) -> Optional[ToolMetadata]:
 def register_tool_metadata(metadata: ToolMetadata):
     """
     Register or update tool metadata.
-    
+
     Args:
         metadata: ToolMetadata to register
     """
@@ -216,7 +231,7 @@ def register_tool_metadata(metadata: ToolMetadata):
 def disable_action(action: str):
     """
     Disable an action by name.
-    
+
     Args:
         action: Action name to disable
     """
@@ -226,7 +241,7 @@ def disable_action(action: str):
 def enable_action(action: str):
     """
     Enable a previously disabled action.
-    
+
     Args:
         action: Action name to enable
     """
@@ -236,10 +251,10 @@ def enable_action(action: str):
 def is_action_enabled(action: str) -> bool:
     """
     Check if an action is enabled.
-    
+
     Args:
         action: Action name to check
-    
+
     Returns:
         True if enabled, False if disabled
     """
@@ -249,7 +264,7 @@ def is_action_enabled(action: str) -> bool:
 def get_all_tool_metadata() -> Dict[str, ToolMetadata]:
     """
     Get all registered tool metadata.
-    
+
     Returns:
         Dictionary of tool metadata
     """
@@ -259,7 +274,7 @@ def get_all_tool_metadata() -> Dict[str, ToolMetadata]:
 def get_disabled_actions() -> Set[str]:
     """
     Get all disabled actions.
-    
+
     Returns:
         Set of disabled action names
     """

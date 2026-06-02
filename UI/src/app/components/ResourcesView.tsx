@@ -38,9 +38,9 @@ export function ResourcesView({
       tone: "from-amber-400/20 to-amber-400/5",
     },
     {
-      label: "Alerts",
-      value: `${performance.recent_alerts ?? 0}`,
-      icon: AlertTriangle,
+      label: "Network",
+      value: "↓ 0 KB/s ↑ 0 KB/s",
+      icon: Activity,
       tone: "from-violet-400/20 to-violet-400/5",
     },
   ];

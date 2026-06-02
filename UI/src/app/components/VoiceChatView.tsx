@@ -97,8 +97,8 @@ export function VoiceChatView({
   };
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="grid flex-1 gap-4 overflow-hidden p-5 md:grid-cols-[1.2fr_1fr] md:p-6">
+    <div className="flex h-full flex-col overflow-hidden">
+      <div className="grid flex-1 gap-4 overflow-y-auto p-5 md:grid-cols-[1.2fr_1fr] md:p-6">
         <section className="rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(0,212,255,0.12),rgba(255,255,255,0.04))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.25)]">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -190,7 +190,7 @@ export function VoiceChatView({
             </div>
           </div>
 
-          <ScrollArea className="h-[calc(100%-220px)] pr-3">
+          <ScrollArea className="h-[400px] pr-3">
             <div className="space-y-3 pr-1">
               {visibleMessages.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-400">
@@ -204,7 +204,7 @@ export function VoiceChatView({
         </section>
       </div>
 
-      <div className="border-t border-white/10 bg-[#051018]/80 p-4 backdrop-blur-xl md:p-5">
+      <div className="border-t border-white/10 bg-[#051018]/80 p-4 backdrop-blur-xl md:p-5 shrink-0">
         <div className="flex gap-3">
           <div className="flex-1">
             <Textarea

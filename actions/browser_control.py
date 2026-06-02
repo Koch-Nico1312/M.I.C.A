@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import asyncio
@@ -9,20 +8,23 @@ import shutil
 import subprocess
 import threading
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from playwright.async_api import (
-    async_playwright,
     BrowserContext,
     Page,
     Playwright,
-    TimeoutError as PlaywrightTimeout,
+)
+from playwright.async_api import TimeoutError as PlaywrightTimeout
+from playwright.async_api import (
+    async_playwright,
 )
 
 from core.logger import get_logger
 
 logger = get_logger(__name__)
-_OS = platform.system()   # "Windows" | "Darwin" | "Linux"
+_OS = platform.system()  # "Windows" | "Darwin" | "Linux"
+
 
 def _normalize_url(url: str) -> str:
     """
@@ -62,46 +64,50 @@ def _user_agent() -> str:
 
 
 def _real_profile_dir(browser: str) -> str:
-    home  = Path.home()
+    home = Path.home()
     local = os.environ.get("LOCALAPPDATA", "")
-    roam  = os.environ.get("APPDATA", "")
+    roam = os.environ.get("APPDATA", "")
 
     candidates: list[Path] = []
 
     if _OS == "Windows":
         m = {
-            "chrome":   [Path(local) / "Google"          / "Chrome"          / "User Data"],
-            "edge":     [Path(local) / "Microsoft"        / "Edge"            / "User Data"],
-            "brave":    [Path(local) / "BraveSoftware"    / "Brave-Browser"   / "User Data"],
-            "vivaldi":  [Path(local) / "Vivaldi"          / "User Data"],
-            "opera":    [Path(roam)  / "Opera Software"   / "Opera Stable",
-                         Path(local) / "Opera Software"   / "Opera Stable"],
-            "operagx":  [Path(roam)  / "Opera Software"   / "Opera GX Stable",
-                         Path(local) / "Opera Software"   / "Opera GX Stable"],
+            "chrome": [Path(local) / "Google" / "Chrome" / "User Data"],
+            "edge": [Path(local) / "Microsoft" / "Edge" / "User Data"],
+            "brave": [Path(local) / "BraveSoftware" / "Brave-Browser" / "User Data"],
+            "vivaldi": [Path(local) / "Vivaldi" / "User Data"],
+            "opera": [
+                Path(roam) / "Opera Software" / "Opera Stable",
+                Path(local) / "Opera Software" / "Opera Stable",
+            ],
+            "operagx": [
+                Path(roam) / "Opera Software" / "Opera GX Stable",
+                Path(local) / "Opera Software" / "Opera GX Stable",
+            ],
         }
         candidates = m.get(browser, [])
 
     elif _OS == "Darwin":
         lib = home / "Library" / "Application Support"
         m = {
-            "chrome":   [lib / "Google"             / "Chrome"],
-            "edge":     [lib / "Microsoft Edge"],
-            "brave":    [lib / "BraveSoftware"       / "Brave-Browser"],
-            "vivaldi":  [lib / "Vivaldi"],
-            "opera":    [lib / "com.operasoftware.Opera"],
-            "operagx":  [lib / "com.operasoftware.OperaGX"],
+            "chrome": [lib / "Google" / "Chrome"],
+            "edge": [lib / "Microsoft Edge"],
+            "brave": [lib / "BraveSoftware" / "Brave-Browser"],
+            "vivaldi": [lib / "Vivaldi"],
+            "opera": [lib / "com.operasoftware.Opera"],
+            "operagx": [lib / "com.operasoftware.OperaGX"],
         }
         candidates = m.get(browser, [])
 
     elif _OS == "Linux":
         cfg = home / ".config"
         m = {
-            "chrome":   [cfg / "google-chrome", cfg / "chromium"],
-            "edge":     [cfg / "microsoft-edge"],
-            "brave":    [cfg / "BraveSoftware" / "Brave-Browser"],
-            "vivaldi":  [cfg / "vivaldi"],
-            "opera":    [cfg / "opera"],
-            "operagx":  [cfg / "opera-gx"],
+            "chrome": [cfg / "google-chrome", cfg / "chromium"],
+            "edge": [cfg / "microsoft-edge"],
+            "brave": [cfg / "BraveSoftware" / "Brave-Browser"],
+            "vivaldi": [cfg / "vivaldi"],
+            "opera": [cfg / "opera"],
+            "operagx": [cfg / "opera-gx"],
         }
         candidates = m.get(browser, [])
 
@@ -114,6 +120,7 @@ def _real_profile_dir(browser: str) -> str:
     fallback.mkdir(parents=True, exist_ok=True)
     logger.warning(f"Real profile not found for {browser}, using: {fallback}")
     return str(fallback)
+
 
 def _firefox_profile_dir() -> Optional[str]:
     home = Path.home()
@@ -154,16 +161,17 @@ def _firefox_profile_dir() -> Optional[str]:
         return default_path
     return None
 
+
 def _find_opera_windows() -> Optional[str]:
-    local  = os.environ.get("LOCALAPPDATA", "")
-    prog   = os.environ.get("PROGRAMFILES", "")
+    local = os.environ.get("LOCALAPPDATA", "")
+    prog = os.environ.get("PROGRAMFILES", "")
     prog86 = os.environ.get("PROGRAMFILES(X86)", "")
 
     candidates = [
-        Path(local)  / "Programs" / "Opera"    / "opera.exe",
-        Path(local)  / "Programs" / "Opera GX" / "opera.exe",
-        Path(prog)   / "Opera"    / "opera.exe",
-        Path(prog86) / "Opera"    / "opera.exe",
+        Path(local) / "Programs" / "Opera" / "opera.exe",
+        Path(local) / "Programs" / "Opera GX" / "opera.exe",
+        Path(prog) / "Opera" / "opera.exe",
+        Path(prog86) / "Opera" / "opera.exe",
     ]
     for p in candidates:
         if p.exists():
@@ -172,6 +180,7 @@ def _find_opera_windows() -> Optional[str]:
 
     try:
         import winreg
+
         keys = [
             r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\opera.exe",
             r"SOFTWARE\Clients\StartMenuInternet\OperaStable\shell\open\command",
@@ -181,7 +190,7 @@ def _find_opera_windows() -> Optional[str]:
         for key_path in keys:
             for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
                 try:
-                    k   = winreg.OpenKey(hive, key_path)
+                    k = winreg.OpenKey(hive, key_path)
                     val = winreg.QueryValue(k, None)
                     winreg.CloseKey(k)
                     exe = val.strip().strip('"').split('"')[0].split(" --")[0].strip()
@@ -195,9 +204,11 @@ def _find_opera_windows() -> Optional[str]:
 
     return shutil.which("opera") or None
 
+
 def _find_exe_windows(prog_name: str) -> Optional[str]:
     try:
         import winreg
+
         paths_to_try = [
             rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{prog_name}.exe",
             rf"SOFTWARE\Clients\StartMenuInternet\{prog_name}\shell\open\command",
@@ -205,7 +216,7 @@ def _find_exe_windows(prog_name: str) -> Optional[str]:
         for key_path in paths_to_try:
             for hive in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
                 try:
-                    k   = winreg.OpenKey(hive, key_path)
+                    k = winreg.OpenKey(hive, key_path)
                     val = winreg.QueryValue(k, None)
                     winreg.CloseKey(k)
                     exe = val.strip().strip('"').split('"')[0].split(" --")[0].strip()
@@ -217,64 +228,76 @@ def _find_exe_windows(prog_name: str) -> Optional[str]:
         pass
     return None
 
+
 _BROWSER_SPECS: dict[str, dict] = {
     "Windows": {
-        "chrome":   {"engine": "chromium", "channel": "chrome",  "bins": []},
-        "edge":     {"engine": "chromium", "channel": "msedge",  "bins": []},
-        "firefox":  {"engine": "firefox",  "channel": None,      "bins": ["firefox.exe"]},
-        "opera":    {"engine": "chromium", "channel": None,      "bins": ["opera.exe"],  "special": "opera_windows"},
-        "operagx":  {"engine": "chromium", "channel": None,      "bins": [],             "special": "opera_windows"},
-        "brave":    {"engine": "chromium", "channel": None,      "bins": ["brave.exe"]},
-        "vivaldi":  {"engine": "chromium", "channel": None,      "bins": ["vivaldi.exe"]},
-        "safari":   None,
+        "chrome": {"engine": "chromium", "channel": "chrome", "bins": []},
+        "edge": {"engine": "chromium", "channel": "msedge", "bins": []},
+        "firefox": {"engine": "firefox", "channel": None, "bins": ["firefox.exe"]},
+        "opera": {
+            "engine": "chromium",
+            "channel": None,
+            "bins": ["opera.exe"],
+            "special": "opera_windows",
+        },
+        "operagx": {"engine": "chromium", "channel": None, "bins": [], "special": "opera_windows"},
+        "brave": {"engine": "chromium", "channel": None, "bins": ["brave.exe"]},
+        "vivaldi": {"engine": "chromium", "channel": None, "bins": ["vivaldi.exe"]},
+        "safari": None,
     },
     "Darwin": {
-        "chrome":   {"engine": "chromium", "channel": "chrome",  "bins": []},
-        "edge":     {"engine": "chromium", "channel": "msedge",  "bins": ["microsoft-edge"]},
-        "firefox":  {"engine": "firefox",  "channel": None,      "bins": ["firefox"]},
-        "opera":    {"engine": "chromium", "channel": None,      "bins": ["opera"]},
-        "operagx":  {"engine": "chromium", "channel": None,      "bins": ["opera"]},
-        "brave":    {"engine": "chromium", "channel": None,      "bins": ["brave browser", "brave"]},
-        "vivaldi":  {"engine": "chromium", "channel": None,      "bins": ["vivaldi"]},
-        "safari":   {"engine": "webkit",   "channel": None,      "bins": []},
+        "chrome": {"engine": "chromium", "channel": "chrome", "bins": []},
+        "edge": {"engine": "chromium", "channel": "msedge", "bins": ["microsoft-edge"]},
+        "firefox": {"engine": "firefox", "channel": None, "bins": ["firefox"]},
+        "opera": {"engine": "chromium", "channel": None, "bins": ["opera"]},
+        "operagx": {"engine": "chromium", "channel": None, "bins": ["opera"]},
+        "brave": {"engine": "chromium", "channel": None, "bins": ["brave browser", "brave"]},
+        "vivaldi": {"engine": "chromium", "channel": None, "bins": ["vivaldi"]},
+        "safari": {"engine": "webkit", "channel": None, "bins": []},
     },
     "Linux": {
-        "chrome":   {"engine": "chromium", "channel": None,
-                     "bins": ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"]},
-        "edge":     {"engine": "chromium", "channel": None,
-                     "bins": ["microsoft-edge", "microsoft-edge-stable"]},
-        "firefox":  {"engine": "firefox",  "channel": None, "bins": ["firefox"]},
-        "opera":    {"engine": "chromium", "channel": None, "bins": ["opera", "opera-stable"]},
-        "operagx":  {"engine": "chromium", "channel": None, "bins": ["opera", "opera-stable"]},
-        "brave":    {"engine": "chromium", "channel": None, "bins": ["brave-browser", "brave"]},
-        "vivaldi":  {"engine": "chromium", "channel": None, "bins": ["vivaldi-stable", "vivaldi"]},
-        "safari":   None,
+        "chrome": {
+            "engine": "chromium",
+            "channel": None,
+            "bins": ["google-chrome", "google-chrome-stable", "chromium-browser", "chromium"],
+        },
+        "edge": {
+            "engine": "chromium",
+            "channel": None,
+            "bins": ["microsoft-edge", "microsoft-edge-stable"],
+        },
+        "firefox": {"engine": "firefox", "channel": None, "bins": ["firefox"]},
+        "opera": {"engine": "chromium", "channel": None, "bins": ["opera", "opera-stable"]},
+        "operagx": {"engine": "chromium", "channel": None, "bins": ["opera", "opera-stable"]},
+        "brave": {"engine": "chromium", "channel": None, "bins": ["brave-browser", "brave"]},
+        "vivaldi": {"engine": "chromium", "channel": None, "bins": ["vivaldi-stable", "vivaldi"]},
+        "safari": None,
     },
 }
 
 _ALIASES: dict[str, str] = {
-    "google chrome":   "chrome",
-    "google-chrome":   "chrome",
-    "microsoft edge":  "edge",
-    "ms edge":         "edge",
-    "msedge":          "edge",
+    "google chrome": "chrome",
+    "google-chrome": "chrome",
+    "microsoft edge": "edge",
+    "ms edge": "edge",
+    "msedge": "edge",
     "mozilla firefox": "firefox",
-    "opera gx":        "operagx",
-    "opera_gx":        "operagx",
+    "opera gx": "operagx",
+    "opera_gx": "operagx",
 }
 
 
 def _resolve_browser(name: str) -> dict | None:
-    name   = _ALIASES.get(name.lower().strip(), name.lower().strip())
+    name = _ALIASES.get(name.lower().strip(), name.lower().strip())
     os_map = _BROWSER_SPECS.get(_OS, {})
-    spec   = os_map.get(name)
+    spec = os_map.get(name)
     if spec is None:
         return None
 
-    engine  = spec["engine"]
+    engine = spec["engine"]
     channel = spec.get("channel")
-    bins    = spec.get("bins", [])
-    exe     = None
+    bins = spec.get("bins", [])
+    exe = None
 
     if spec.get("special") == "opera_windows":
         exe = _find_opera_windows()
@@ -290,11 +313,11 @@ def _resolve_browser(name: str) -> dict | None:
 
     if not exe and _OS == "Darwin":
         app_names = {
-            "chrome":  ["Google Chrome.app"],
-            "edge":    ["Microsoft Edge.app"],
+            "chrome": ["Google Chrome.app"],
+            "edge": ["Microsoft Edge.app"],
             "firefox": ["Firefox.app"],
-            "opera":   ["Opera.app", "Opera GX.app"],
-            "brave":   ["Brave Browser.app"],
+            "opera": ["Opera.app", "Opera GX.app"],
+            "brave": ["Brave Browser.app"],
             "vivaldi": ["Vivaldi.app"],
         }
         for app in app_names.get(name, []):
@@ -315,6 +338,7 @@ def _detect_default_browser() -> str:
     try:
         if _OS == "Windows":
             import winreg
+
             k = winreg.OpenKey(
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\Shell\Associations"
@@ -327,10 +351,16 @@ def _detect_default_browser() -> str:
                     return kw
         elif _OS == "Darwin":
             out = subprocess.run(
-                ["defaults", "read",
-                 "com.apple.LaunchServices/com.apple.launchservices.secure",
-                 "LSHandlers"],
-                capture_output=True, text=True, timeout=5, encoding='utf-8',
+                [
+                    "defaults",
+                    "read",
+                    "com.apple.LaunchServices/com.apple.launchservices.secure",
+                    "LSHandlers",
+                ],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                encoding="utf-8",
             ).stdout.lower()
             for kw in ("firefox", "opera", "brave", "vivaldi", "safari", "chrome", "edge"):
                 if kw in out:
@@ -338,7 +368,10 @@ def _detect_default_browser() -> str:
         elif _OS == "Linux":
             out = subprocess.run(
                 ["xdg-settings", "get", "default-web-browser"],
-                capture_output=True, text=True, timeout=5, encoding='utf-8',
+                capture_output=True,
+                text=True,
+                timeout=5,
+                encoding="utf-8",
             ).stdout.lower()
             for kw in ("firefox", "opera", "brave", "vivaldi", "chrome", "edge"):
                 if kw in out:
@@ -420,23 +453,19 @@ class _BrowserSession:
             return
 
         if self._spec is None:
-            raise RuntimeError(
-                f"'{self.browser_name}' is not supported on this platform ({_OS})."
-            )
+            raise RuntimeError(f"'{self.browser_name}' is not supported on this platform ({_OS}).")
 
         engine_name = self._spec["engine"]
-        exe         = self._spec["exe"]
-        channel     = self._spec["channel"]
-        engine_obj  = getattr(self._pw, engine_name)
+        exe = self._spec["exe"]
+        channel = self._spec["channel"]
+        engine_obj = getattr(self._pw, engine_name)
 
         if engine_name == "firefox":
-            profile = _firefox_profile_dir() or str(
-                Path.home() / ".jarvis_profiles" / "firefox"
-            )
+            profile = _firefox_profile_dir() or str(Path.home() / ".jarvis_profiles" / "firefox")
             kwargs: dict = {
-                "headless":    False,
-                "slow_mo":     0,
-                "viewport":    None,
+                "headless": False,
+                "slow_mo": 0,
+                "viewport": None,
                 "no_viewport": True,
             }
             if exe:
@@ -458,9 +487,9 @@ class _BrowserSession:
             safari_profile = str(Path.home() / ".jarvis_profiles" / "safari")
             Path(safari_profile).mkdir(parents=True, exist_ok=True)
             kwargs = {
-                "headless":    False,
-                "slow_mo":     0,
-                "viewport":    None,
+                "headless": False,
+                "slow_mo": 0,
+                "viewport": None,
                 "no_viewport": True,
             }
             self._context = await engine_obj.launch_persistent_context(safari_profile, **kwargs)
@@ -472,9 +501,9 @@ class _BrowserSession:
         profile = _real_profile_dir(self.browser_name)
 
         kwargs = {
-            "headless":    False,
-            "slow_mo":     0,
-            "viewport":    None,
+            "headless": False,
+            "slow_mo": 0,
+            "viewport": None,
             "no_viewport": True,
             "args": [
                 "--start-maximized",
@@ -517,7 +546,6 @@ class _BrowserSession:
         except Exception as e2:
             raise RuntimeError(f"Could not launch {self.browser_name}: {e2}") from e2
 
-
     async def _get_page(self) -> Page:
         await self._launch()
         # If somehow page got closed, open a fresh one
@@ -528,8 +556,8 @@ class _BrowserSession:
 
     async def go_to(self, url: str) -> str:
 
-        url      = _normalize_url(url)
-        page     = await self._get_page()
+        url = _normalize_url(url)
+        page = await self._get_page()
         prev_url = page.url
 
         async def _do_goto(p: Page) -> str:
@@ -538,14 +566,18 @@ class _BrowserSession:
                 await p.goto(url, wait_until="domcontentloaded", timeout=30_000)
                 await asyncio.sleep(0.3)
             except PlaywrightTimeout:
-                pass   # page may have partially loaded — check URL below
+                pass  # page may have partially loaded — check URL below
             except Exception as e:
                 logger.error(f"goto exception (non-fatal): {e}")
             return p.url
 
         result_url = await _do_goto(page)
 
-        if result_url in ("about:blank", "", None, prev_url) and prev_url in ("about:blank", "", None):
+        if result_url in ("about:blank", "", None, prev_url) and prev_url in (
+            "about:blank",
+            "",
+            None,
+        ):
             logger.warning(f"Still blank after goto — retrying on new tab: {url}")
             try:
                 new_page = await self._context.new_page()
@@ -560,10 +592,10 @@ class _BrowserSession:
 
     async def search(self, query: str, engine: str = "google") -> str:
         _engines = {
-            "google":     "https://www.google.com/search?q=",
-            "bing":       "https://www.bing.com/search?q=",
+            "google": "https://www.google.com/search?q=",
+            "bing": "https://www.bing.com/search?q=",
             "duckduckgo": "https://duckduckgo.com/?q=",
-            "yandex":     "https://yandex.com/search/?text=",
+            "yandex": "https://yandex.com/search/?text=",
         }
         base = _engines.get(engine.lower(), _engines["google"])
         return await self.go_to(base + query.replace(" ", "+"))
@@ -583,8 +615,9 @@ class _BrowserSession:
         except Exception as e:
             return f"Click error: {e}"
 
-    async def type_text(self, selector: str = None, text: str = "",
-                        clear_first: bool = True) -> str:
+    async def type_text(
+        self, selector: str = None, text: str = "", clear_first: bool = True
+    ) -> str:
         page = await self._get_page()
         try:
             el = page.locator(selector).first if selector else page.locator(":focus")
@@ -625,7 +658,7 @@ class _BrowserSession:
         return page.url
 
     async def fill_form(self, fields: dict) -> str:
-        page    = await self._get_page()
+        page = await self._get_page()
         results = []
         for selector, value in fields.items():
             try:
@@ -666,10 +699,10 @@ class _BrowserSession:
         page = await self._get_page()
         candidates = [
             ("placeholder", page.get_by_placeholder(description, exact=False)),
-            ("label",       page.get_by_label(description, exact=False)),
-            ("role",        page.get_by_role("textbox", name=description)),
-            ("searchbox",   page.get_by_role("searchbox")),
-            ("combobox",    page.get_by_role("combobox", name=description)),
+            ("label", page.get_by_label(description, exact=False)),
+            ("role", page.get_by_role("textbox", name=description)),
+            ("searchbox", page.get_by_role("searchbox")),
+            ("combobox", page.get_by_role("combobox", name=description)),
         ]
         for method, loc in candidates:
             try:
@@ -685,8 +718,8 @@ class _BrowserSession:
 
     async def new_tab(self, url: str = "") -> str:
         page = await self._get_page()
-        ctx  = page.context
-        new  = await ctx.new_page()
+        ctx = page.context
+        new = await ctx.new_page()
         self._page = new
         if url:
             return await self.go_to(url)
@@ -695,7 +728,7 @@ class _BrowserSession:
     async def close_tab(self) -> str:
         page = self._page
         if page and not page.is_closed():
-            ctx   = page.context
+            ctx = page.context
             await page.close()
             pages = ctx.pages
             self._page = pages[-1] if pages else None
@@ -738,6 +771,7 @@ class _BrowserSession:
     async def close_browser(self) -> str:
         await self._async_close()
         return f"{self.browser_name} closed."
+
 
 class _SessionRegistry:
     """Manages all active browser sessions."""
@@ -808,16 +842,17 @@ class _SessionRegistry:
 
 _registry = _SessionRegistry()
 
+
 def browser_control(
-    parameters:    dict = None,
+    parameters: dict = None,
     response=None,
     player=None,
     session_memory=None,
 ) -> str:
-    params  = parameters or {}
-    action  = params.get("action", "").lower().strip()
+    params = parameters or {}
+    action = params.get("action", "").lower().strip()
     browser = params.get("browser", "").lower().strip() or None
-    result  = "Unknown action."
+    result = "Unknown action."
 
     if action == "switch":
         target = browser or params.get("target", "").lower().strip()
@@ -850,16 +885,23 @@ def browser_control(
         elif action == "click":
             result = sess.run(sess.click(params.get("selector"), params.get("text")))
         elif action == "type":
-            result = sess.run(sess.type_text(
-                params.get("selector"), params.get("text", ""), params.get("clear_first", True)))
+            result = sess.run(
+                sess.type_text(
+                    params.get("selector"), params.get("text", ""), params.get("clear_first", True)
+                )
+            )
         elif action == "scroll":
-            result = sess.run(sess.scroll(params.get("direction", "down"), int(params.get("amount", 500))))
+            result = sess.run(
+                sess.scroll(params.get("direction", "down"), int(params.get("amount", 500)))
+            )
         elif action == "fill_form":
             result = sess.run(sess.fill_form(params.get("fields", {})))
         elif action == "smart_click":
             result = sess.run(sess.smart_click(params.get("description", "")))
         elif action == "smart_type":
-            result = sess.run(sess.smart_type(params.get("description", ""), params.get("text", "")))
+            result = sess.run(
+                sess.smart_type(params.get("description", ""), params.get("text", ""))
+            )
         elif action == "get_text":
             result = sess.run(sess.get_text())
         elif action == "get_url":

@@ -2,16 +2,18 @@
 Tests for the action history system.
 """
 
-import pytest
 import tempfile
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
+
+import pytest
+
 from core.action_history import (
     ActionHistory,
     ActionRecord,
-    ActionType,
     ActionStatus,
-    get_action_history
+    ActionType,
+    get_action_history,
 )
 
 
@@ -20,7 +22,7 @@ def test_action_history_initialization():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         assert len(history.get_history()) == 0
         assert history_file.parent.exists()
 
@@ -30,15 +32,15 @@ def test_record_action():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         record = history.record_action(
             tool_name="file_controller",
             action="delete",
             parameters={"path": "/tmp/test"},
             result="File deleted",
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         assert record.tool_name == "file_controller"
         assert record.action == "delete"
         assert record.status == ActionStatus.SUCCESS
@@ -50,7 +52,7 @@ def test_get_history():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record multiple actions
         for i in range(5):
             history.record_action(
@@ -58,13 +60,13 @@ def test_get_history():
                 action=f"action_{i}",
                 parameters={"index": i},
                 result=f"Result {i}",
-                status=ActionStatus.SUCCESS
+                status=ActionStatus.SUCCESS,
             )
-        
+
         # Get all history
         all_history = history.get_history(limit=10)
         assert len(all_history) == 5
-        
+
         # Get limited history
         limited_history = history.get_history(limit=3)
         assert len(limited_history) == 3
@@ -75,23 +77,23 @@ def test_get_history_by_type():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record file operations
         history.record_action(
             tool_name="file_controller",
             action="delete",
             parameters={"path": "/tmp/test"},
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         # Record config change
         history.record_action(
             tool_name="computer_settings",
             action="volume",
             parameters={"level": 50},
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         # Filter by file operation type
         file_ops = history.get_history(action_type=ActionType.FILE_OPERATION)
         assert len(file_ops) == 1
@@ -103,7 +105,7 @@ def test_undo_action():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record an action with undo data
         record = history.record_action(
             tool_name="file_controller",
@@ -111,16 +113,16 @@ def test_undo_action():
             parameters={"path": "/tmp/test"},
             result="File deleted",
             status=ActionStatus.SUCCESS,
-            undo_data={"original_path": "/tmp/test", "backup_path": "/tmp/backup"}
+            undo_data={"original_path": "/tmp/test", "backup_path": "/tmp/backup"},
         )
-        
+
         assert record.can_undo is True
-        
+
         # Undo the action
         success, message = history.undo_action(record.id)
         assert success is True
         assert "undone" in message.lower()
-        
+
         # Check status
         updated_record = history.get_record(record.id)
         assert updated_record.status == ActionStatus.UNDONE
@@ -131,18 +133,18 @@ def test_undo_non_undoable_action():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record an action without undo data
         record = history.record_action(
             tool_name="file_controller",
             action="list",
             parameters={"path": "/tmp"},
             result="Files listed",
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         assert record.can_undo is False
-        
+
         # Try to undo
         success, message = history.undo_action(record.id)
         assert success is False
@@ -154,7 +156,7 @@ def test_undo_failed_action():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record a failed action
         record = history.record_action(
             tool_name="file_controller",
@@ -162,9 +164,9 @@ def test_undo_failed_action():
             parameters={"path": "/tmp/test"},
             result="Permission denied",
             status=ActionStatus.FAILED,
-            undo_data={"backup_path": "/tmp/backup"}
+            undo_data={"backup_path": "/tmp/backup"},
         )
-        
+
         # Try to undo
         success, message = history.undo_action(record.id)
         assert success is False
@@ -176,24 +178,24 @@ def test_get_undoable_actions():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record undoable action
         history.record_action(
             tool_name="file_controller",
             action="delete",
             parameters={"path": "/tmp/test"},
             status=ActionStatus.SUCCESS,
-            undo_data={"backup": "/tmp/backup"}
+            undo_data={"backup": "/tmp/backup"},
         )
-        
+
         # Record non-undoable action
         history.record_action(
             tool_name="file_controller",
             action="list",
             parameters={"path": "/tmp"},
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         # Get undoable actions
         undoable = history.get_undoable_actions()
         assert len(undoable) == 1
@@ -205,18 +207,18 @@ def test_clear_history():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record some actions
         for i in range(5):
             history.record_action(
                 tool_name="file_controller",
                 action=f"action_{i}",
                 parameters={"index": i},
-                status=ActionStatus.SUCCESS
+                status=ActionStatus.SUCCESS,
             )
-        
+
         assert len(history.get_history()) == 5
-        
+
         # Clear all history
         history.clear_history()
         assert len(history.get_history()) == 0
@@ -227,32 +229,33 @@ def test_clear_history_before_date():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record actions
         history.record_action(
             tool_name="file_controller",
             action="old_action",
             parameters={},
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         # Wait a bit
         import time
+
         time.sleep(0.1)
-        
+
         cutoff = datetime.now()
-        
+
         # Record more actions
         history.record_action(
             tool_name="file_controller",
             action="new_action",
             parameters={},
-            status=ActionStatus.SUCCESS
+            status=ActionStatus.SUCCESS,
         )
-        
+
         # Clear before cutoff
         history.clear_history(before_date=cutoff)
-        
+
         # Should only have the new action
         remaining = history.get_history()
         assert len(remaining) == 1
@@ -264,28 +267,25 @@ def test_get_stats():
     with tempfile.TemporaryDirectory() as tmpdir:
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
-        
+
         # Record various actions
         history.record_action(
             tool_name="file_controller",
             action="delete",
             parameters={},
             status=ActionStatus.SUCCESS,
-            undo_data={"backup": "/tmp/backup"}
+            undo_data={"backup": "/tmp/backup"},
         )
         history.record_action(
-            tool_name="file_controller",
-            action="list",
-            parameters={},
-            status=ActionStatus.SUCCESS
+            tool_name="file_controller", action="list", parameters={}, status=ActionStatus.SUCCESS
         )
         history.record_action(
             tool_name="computer_settings",
             action="volume",
             parameters={},
-            status=ActionStatus.FAILED
+            status=ActionStatus.FAILED,
         )
-        
+
         stats = history.get_stats()
         assert stats["total_actions"] == 3
         assert stats["undoable_count"] == 1
@@ -301,19 +301,19 @@ def test_action_record_serialization():
         action="delete",
         parameters={"path": "/tmp/test"},
         result="Deleted",
-        status=ActionStatus.SUCCESS
+        status=ActionStatus.SUCCESS,
     )
-    
+
     # Add undo data
     record.undo_data = {"backup": "/tmp/backup"}
     record.can_undo = True
-    
+
     # Serialize
     data = record.to_dict()
     assert data["tool_name"] == "file_controller"
     assert data["action"] == "delete"
     assert data["can_undo"] is True
-    
+
     # Deserialize
     restored = ActionRecord.from_dict(data)
     assert restored.tool_name == record.tool_name
@@ -334,15 +334,15 @@ def test_max_history_size():
         history_file = Path(tmpdir) / "test_history.json"
         history = ActionHistory(history_file=history_file)
         history._max_history_size = 10
-        
+
         # Record more than max size
         for i in range(15):
             history.record_action(
                 tool_name="file_controller",
                 action=f"action_{i}",
                 parameters={"index": i},
-                status=ActionStatus.SUCCESS
+                status=ActionStatus.SUCCESS,
             )
-        
+
         # Should only keep max size
         assert len(history.get_history()) == 10
