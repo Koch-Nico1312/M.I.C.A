@@ -56,5 +56,6 @@ bandit==1.9.4
 # Performance optimization dependencies
 aiohttp==3.13.5
 watchfiles==1.2.0
+watchdog>=4.0.0
 zstandard>=0.22.0
 redis==8.0.0  # Optional for vector cache

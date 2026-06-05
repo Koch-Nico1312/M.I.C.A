@@ -3,18 +3,105 @@ File Watcher for JARVIS AI Assistant.
 
 This module provides file system monitoring capabilities to trigger actions
 when files are created, modified, or deleted.
+Supports both polling (legacy) and event-based (watchdog) monitoring.
 """
 
 import os
 import threading
 import time
-from datetime import datetime
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 from core.logger import get_logger
+from core.performance_flags import get_performance_flags
+
+try:
+    from watchdog.observers import Observer
+    from watchdog.events import FileSystemEventHandler, FileSystemEvent
+    WATCHDOG_AVAILABLE = True
+except ImportError:
+    WATCHDOG_AVAILABLE = False
 
 logger = get_logger(__name__)
+
+
+class Debouncer:
+    """Debounces rapid file events to prevent callback spam."""
+    
+    def __init__(self, debounce_seconds: float = 1.0):
+        self.debounce_seconds = debounce_seconds
+        self._pending_events: Dict[str, datetime] = {}
+        self._lock = threading.Lock()
+    
+    def should_process(self, path: str) -> bool:
+        """
+        Check if event should be processed (not debounced).
+        
+        Args:
+            path: File path to check
+            
+        Returns:
+            True if event should be processed
+        """
+        with self._lock:
+            now = datetime.now()
+            if path in self._pending_events:
+                last_time = self._pending_events[path]
+                if (now - last_time).total_seconds() < self.debounce_seconds:
+                    return False
+            
+            self._pending_events[path] = now
+            return True
+    
+    def cleanup_old(self):
+        """Clean up old entries from debouncer."""
+        with self._lock:
+            now = datetime.now()
+            cutoff = now - timedelta(seconds=self.debounce_seconds * 2)
+            self._pending_events = {
+                k: v for k, v in self._pending_events.items() 
+                if v > cutoff
+            }
+
+
+class WatchdogEventHandler(FileSystemEventHandler):
+    """Watchdog event handler that converts events to FileEvents."""
+    
+    def __init__(self, callback: Callable[[FileEvent], None], debouncer: Optional[Debouncer] = None):
+        super().__init__()
+        self.callback = callback
+        self.debouncer = debouncer
+    
+    def _process_event(self, event: FileSystemEvent, event_type: str):
+        """Process a watchdog event."""
+        if self.debouncer and not self.debouncer.should_process(event.src_path):
+            return
+        
+        file_event = FileEvent(event_type, event.src_path)
+        try:
+            self.callback(file_event)
+        except Exception as e:
+            logger.error(f"Error in event callback: {e}")
+    
+    def on_created(self, event):
+        if not event.is_directory:
+            self._process_event(event, "created")
+    
+    def on_modified(self, event):
+        if not event.is_directory:
+            self._process_event(event, "modified")
+    
+    def on_deleted(self, event):
+        if not event.is_directory:
+            self._process_event(event, "deleted")
+    
+    def on_moved(self, event):
+        if not event.is_directory:
+            # Handle as delete of source and create of destination
+            self._process_event(FileSystemEvent("deleted", event.src_path), "deleted")
+            self._process_event(FileSystemEvent("created", event.dest_path), "created")
 
 
 class FileEvent:
@@ -116,15 +203,22 @@ class FileWatcher:
     File system watcher for JARVIS.
     
     Monitors directories for file changes and triggers callbacks.
+    Supports both polling (legacy) and event-based (watchdog) monitoring.
     """
     
-    def __init__(self, check_interval: float = 1.0):
+    def __init__(self, check_interval: float = 1.0, debounce_seconds: float = 1.0):
         self._watched_paths: Dict[str, WatchedPath] = {}
         self._check_interval = check_interval
+        self._debounce_seconds = debounce_seconds
         self._running = False
         self._watcher_thread: Optional[threading.Thread] = None
         self._stop_event = threading.Event()
         self._event_handlers: List[Callable] = []
+        
+        # Event-based monitoring
+        self._observer = None
+        self._debouncer = Debouncer(debounce_seconds)
+        self._use_event_based = False
     
     def add_watch(
         self,
@@ -222,13 +316,60 @@ class FileWatcher:
             logger.warning("File watcher already running")
             return
         
+        # Check if event-based monitoring is enabled
+        perf_flags = get_performance_flags()
+        use_event_based = perf_flags.is_enabled("event_file_watching") and WATCHDOG_AVAILABLE
+        
         self._running = True
         self._stop_event.clear()
+        self._use_event_based = use_event_based
         
-        self._watcher_thread = threading.Thread(target=self._watch_loop, daemon=True)
-        self._watcher_thread.start()
-        
-        logger.info("File watcher started")
+        if use_event_based:
+            # Use event-based monitoring with watchdog
+            self._observer = Observer()
+            
+            # Create event handler
+            def event_callback(file_event: FileEvent):
+                """Callback for watchdog events."""
+                # Call specific callbacks
+                for path, watched in self._watched_paths.items():
+                    if file_event.path.startswith(path):
+                        if file_event.event_type == "created" and watched.on_created:
+                            try:
+                                watched.on_created(file_event)
+                            except Exception as e:
+                                logger.error(f"Error in on_created callback: {e}")
+                        elif file_event.event_type == "modified" and watched.on_modified:
+                            try:
+                                watched.on_modified(file_event)
+                            except Exception as e:
+                                logger.error(f"Error in on_modified callback: {e}")
+                        elif file_event.event_type == "deleted" and watched.on_deleted:
+                            try:
+                                watched.on_deleted(file_event)
+                            except Exception as e:
+                                logger.error(f"Error in on_deleted callback: {e}")
+                
+                # Call global handlers
+                for handler in self._event_handlers:
+                    try:
+                        handler(file_event)
+                    except Exception as e:
+                        logger.error(f"Error in event handler: {e}")
+            
+            # Add watches for all paths
+            for path, watched in self._watched_paths.items():
+                handler = WatchdogEventHandler(event_callback, self._debouncer)
+                self._observer.schedule(handler, path, recursive=watched.recursive)
+                logger.info(f"Added event-based watch for: {path}")
+            
+            self._observer.start()
+            logger.info("File watcher started (event-based)")
+        else:
+            # Use polling (legacy)
+            self._watcher_thread = threading.Thread(target=self._watch_loop, daemon=True)
+            self._watcher_thread.start()
+            logger.info("File watcher started (polling)")
     
     def stop(self):
         """Stop the file watcher."""
@@ -238,10 +379,19 @@ class FileWatcher:
         self._running = False
         self._stop_event.set()
         
-        if self._watcher_thread:
+        if self._use_event_based and self._observer:
+            # Stop watchdog observer
+            self._observer.stop()
+            self._observer.join(timeout=5)
+            self._observer = None
+            logger.info("File watcher stopped (event-based)")
+        elif self._watcher_thread:
+            # Stop polling thread
             self._watcher_thread.join(timeout=5)
+            logger.info("File watcher stopped (polling)")
         
-        logger.info("File watcher stopped")
+        # Cleanup debouncer
+        self._debouncer.cleanup_old()
     
     def is_running(self) -> bool:
         """Check if the watcher is running."""
@@ -257,17 +407,18 @@ class FileWatcher:
 _file_watcher: Optional[FileWatcher] = None
 
 
-def get_file_watcher(check_interval: float = 1.0) -> FileWatcher:
+def get_file_watcher(check_interval: float = 1.0, debounce_seconds: float = 1.0) -> FileWatcher:
     """
     Get the global file watcher instance.
     
     Args:
-        check_interval: Interval between checks in seconds
+        check_interval: Interval between checks in seconds (for polling mode)
+        debounce_seconds: Debounce time for rapid events (for event-based mode)
         
     Returns:
         FileWatcher: The global file watcher
     """
     global _file_watcher
     if _file_watcher is None:
-        _file_watcher = FileWatcher(check_interval=check_interval)
+        _file_watcher = FileWatcher(check_interval=check_interval, debounce_seconds=debounce_seconds)
     return _file_watcher

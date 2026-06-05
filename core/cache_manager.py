@@ -11,6 +11,7 @@ This module provides:
 import hashlib
 import json
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from dataclasses import asdict, dataclass
@@ -54,13 +55,67 @@ class CacheManager:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.cache_dir / "jarvis_cache.db"
         self.default_ttl = default_ttl_hours * 3600  # Convert to seconds
+        
+        # Connection pool for SQLite
+        self._connection_pool = []
+        self._max_pool_size = 5
+        self._pool_lock = threading.Lock()
 
         self._initialize_db()
         logger.info(f"Cache manager initialized: {self.db_path}")
 
+    def _get_connection(self):
+        """Get a connection from the pool or create a new one."""
+        from core.performance_flags import get_performance_flags
+        
+        if get_performance_flags().is_enabled("db_connection_pooling"):
+            with self._pool_lock:
+                if self._connection_pool:
+                    return self._connection_pool.pop()
+        
+        conn = sqlite3.connect(self.db_path)
+        
+        # Enable WAL mode for better concurrency
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA mmap_size=268435456")  # 256MB memory-mapped I/O
+        except Exception as e:
+            logger.warning(f"Failed to enable WAL mode: {e}")
+        
+        return conn
+
+    def _return_connection(self, conn):
+        """Return a connection to the pool or close it."""
+        from core.performance_flags import get_performance_flags
+        
+        if get_performance_flags().is_enabled("db_connection_pooling"):
+            with self._pool_lock:
+                if len(self._connection_pool) < self._max_pool_size:
+                    self._connection_pool.append(conn)
+                    return
+        
+        conn.close()
+
+    def checkpoint_wal(self):
+        """Checkpoint the WAL file to reclaim disk space."""
+        try:
+            conn = self._get_connection()
+            try:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.commit()
+                logger.debug("WAL checkpoint completed")
+            finally:
+                self._return_connection(conn)
+        except Exception as e:
+            logger.warning(f"WAL checkpoint failed: {e}")
+
     def _initialize_db(self):
         """Initialize SQLite database with required tables."""
-        with closing(sqlite3.connect(self.db_path)) as conn:
+        conn = self._get_connection()
+        try:
             cursor = conn.cursor()
 
             # Main cache table
@@ -119,6 +174,8 @@ class CacheManager:
             )
 
             conn.commit()
+        finally:
+            self._return_connection(conn)
 
     def _generate_key(self, prefix: str, data: Any) -> str:
         """
@@ -171,7 +228,8 @@ class CacheManager:
 
             metadata_str = json.dumps(metadata) if metadata else None
 
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -182,8 +240,10 @@ class CacheManager:
                 )
                 conn.commit()
 
-            logger.debug(f"Cache set: {key}")
-            return True
+                logger.debug(f"Cache set: {key}")
+                return True
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to set cache: {e}")
@@ -200,7 +260,8 @@ class CacheManager:
             Cached value or None if not found/expired
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -244,6 +305,8 @@ class CacheManager:
 
                 logger.debug(f"Cache hit: {key}")
                 return value
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to get cache: {e}")
@@ -260,12 +323,15 @@ class CacheManager:
             True if successful
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute("DELETE FROM cache WHERE key = ?", (key,))
                 conn.commit()
-            logger.debug(f"Cache deleted: {key}")
-            return True
+                logger.debug(f"Cache deleted: {key}")
+                return True
+            finally:
+                self._return_connection(conn)
         except Exception as e:
             logger.error(f"Failed to delete cache: {e}")
             return False
@@ -278,7 +344,8 @@ class CacheManager:
             Number of entries cleared
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
 
                 # Clear expired from main cache
@@ -307,6 +374,8 @@ class CacheManager:
                 total = cache_count + llm_count + embed_count
                 logger.info(f"Cleared {total} expired cache entries")
                 return total
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to clear expired cache: {e}")
@@ -320,7 +389,8 @@ class CacheManager:
             Dictionary with cache statistics
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
 
                 # Main cache stats
@@ -372,6 +442,8 @@ class CacheManager:
                     "database_size_bytes": db_size,
                     "database_size_mb": db_size / (1024 * 1024),
                 }
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to get cache stats: {e}")
@@ -388,7 +460,8 @@ class CacheManager:
             Number of entries invalidated
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
 
                 # Invalidate from main cache
@@ -410,6 +483,8 @@ class CacheManager:
                 total = cache_count + llm_count + embed_count
                 logger.info(f"Invalidated {total} cache entries matching pattern: {pattern}")
                 return total
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to invalidate pattern: {e}")
@@ -426,7 +501,8 @@ class CacheManager:
             Number of entries invalidated
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
 
                 # Invalidate from main cache
@@ -437,6 +513,8 @@ class CacheManager:
 
                 logger.info(f"Invalidated {cache_count} cache entries with prefix: {prefix}")
                 return cache_count
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to invalidate prefix: {e}")
@@ -453,7 +531,8 @@ class CacheManager:
             Dictionary with hit rates for different cache types
         """
         try:
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
 
                 cutoff = time.time() - (hours * 3600)
@@ -511,6 +590,8 @@ class CacheManager:
                     "llm_response_hit_rate": llm_hit_rate,
                     "period_hours": hours,
                 }
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to calculate hit rate: {e}")
@@ -541,7 +622,8 @@ class CacheManager:
             prompt_hash = self._generate_key("llm", f"{model}:{prompt}")
             expires_at = time.time() + (ttl_hours * 3600)
 
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -553,8 +635,10 @@ class CacheManager:
                 )
                 conn.commit()
 
-            logger.debug(f"LLM response cached: {model}")
-            return True
+                logger.debug(f"LLM response cached: {model}")
+                return True
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to cache LLM response: {e}")
@@ -574,7 +658,8 @@ class CacheManager:
         try:
             prompt_hash = self._generate_key("llm", f"{model}:{prompt}")
 
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -608,6 +693,8 @@ class CacheManager:
 
                 logger.debug(f"LLM cache hit: {model}")
                 return response
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to get LLM response from cache: {e}")
@@ -635,7 +722,8 @@ class CacheManager:
             # Convert embedding to bytes
             embedding_bytes = json.dumps(embedding).encode()
 
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -647,8 +735,10 @@ class CacheManager:
                 )
                 conn.commit()
 
-            logger.debug(f"Embedding cached: {model}")
-            return True
+                logger.debug(f"Embedding cached: {model}")
+                return True
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to cache embedding: {e}")
@@ -668,7 +758,8 @@ class CacheManager:
         try:
             text_hash = self._generate_key("embed", f"{model}:{text}")
 
-            with closing(sqlite3.connect(self.db_path)) as conn:
+            conn = self._get_connection()
+            try:
                 cursor = conn.cursor()
                 cursor.execute(
                     """
@@ -705,6 +796,8 @@ class CacheManager:
 
                 logger.debug(f"Embedding cache hit: {model}")
                 return embedding
+            finally:
+                self._return_connection(conn)
 
         except Exception as e:
             logger.error(f"Failed to get embedding from cache: {e}")

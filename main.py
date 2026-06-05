@@ -67,27 +67,63 @@ except ImportError:
 import google.genai
 from google.genai import types
 
-from actions.browser_control import browser_control
-from actions.calendar_manager import calendar_manager
-from actions.code_helper import code_helper
-from actions.computer_control import computer_control
-from actions.computer_settings import computer_settings
-from actions.desktop import desktop_control
-from actions.dev_agent import dev_agent
-from actions.file_controller import file_controller
-from actions.file_processor import file_processor
-from actions.flight_finder import flight_finder
-from actions.game_updater import game_updater
-from actions.gmail_manager import gmail_manager
-from actions.open_app import open_app
-from actions.reminder import reminder
-from actions.roblox_controller import roblox_controller
-from actions.screen_processor import screen_process
-from actions.send_message import send_message
-from actions.spotify_controller import spotify_controller
-from actions.weather_report import weather_action
-from actions.web_search import web_search as web_search_action
-from actions.youtube_video import youtube_video
+# Lazy loading support for action modules
+_action_modules_cache = {}
+_action_loader = None
+
+def _get_action_loader():
+    """Get the global action loader instance."""
+    global _action_loader
+    if _action_loader is None:
+        _action_loader = get_action_loader()
+    return _action_loader
+
+def _get_action_module(action_name: str):
+    """Get action module with lazy loading support."""
+    global _action_modules_cache
+    perf_flags = get_performance_flags()
+    
+    if perf_flags.is_enabled("lazy_load_actions"):
+        loader = _get_action_loader()
+        module = loader.load_action(action_name)
+        if module:
+            _action_modules_cache[action_name] = module
+        return module
+    else:
+        # Direct import for non-lazy mode
+        if action_name in _action_modules_cache:
+            return _action_modules_cache[action_name]
+        
+        action_map = {
+            "browser_control": "actions.browser_control",
+            "calendar_manager": "actions.calendar_manager",
+            "code_helper": "actions.code_helper",
+            "computer_control": "actions.computer_control",
+            "computer_settings": "actions.computer_settings",
+            "desktop_control": "actions.desktop",
+            "dev_agent": "actions.dev_agent",
+            "file_controller": "actions.file_controller",
+            "file_processor": "actions.file_processor",
+            "flight_finder": "actions.flight_finder",
+            "game_updater": "actions.game_updater",
+            "gmail_manager": "actions.gmail_manager",
+            "open_app": "actions.open_app",
+            "reminder": "actions.reminder",
+            "roblox_controller": "actions.roblox_controller",
+            "screen_process": "actions.screen_processor",
+            "send_message": "actions.send_message",
+            "spotify_controller": "actions.spotify_controller",
+            "weather_report": "actions.weather_report",
+            "web_search": "actions.web_search",
+            "youtube_video": "actions.youtube_video",
+        }
+        
+        if action_name in action_map:
+            import importlib
+            module = importlib.import_module(action_map[action_name])
+            _action_modules_cache[action_name] = module
+            return module
+    return None
 from config.config_loader import get_config
 from core.action_history import get_action_history
 from core.approval_flow import get_approval_flow

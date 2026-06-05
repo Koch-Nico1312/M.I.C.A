@@ -8,6 +8,7 @@ Background OCR/Vision stream for short-term visual memory
 import asyncio
 import hashlib
 import json
+import queue
 import threading
 import time
 from collections import deque
@@ -113,6 +114,12 @@ class PassiveVision:
         self.running = False
         self.thread: Optional[threading.Thread] = None
         self.sct = None
+        
+        # Batch processing queue
+        self._screen_queue: queue.Queue = queue.Queue(maxsize=10)
+        self._batch_size = 3
+        self._batch_timeout = 2.0
+        self._processing_thread: Optional[threading.Thread] = None
 
         if self.enabled and VISION_AVAILABLE:
             self.sct = mss.mss()
@@ -193,8 +200,13 @@ class PassiveVision:
                 if image is not None:
                     # Check if batch processing is enabled
                     if perf_flags.is_enabled("batch_screen_processing"):
-                        # Batch processing: process OCR and hash in parallel
-                        self._batch_process_screens(image)
+                        # Queue-based batch processing
+                        try:
+                            self._screen_queue.put_nowait(image)
+                        except queue.Full:
+                            # Queue full, process immediately
+                            self._process_batch()
+                            self._screen_queue.put_nowait(image)
                     else:
                         # Sequential processing (original)
                         ocr_text = self._perform_ocr(image)
@@ -273,6 +285,74 @@ class PassiveVision:
                 "batch_screen_process", {"tasks_completed": 0, "success": False, "fallback": True}
             )
 
+    def _process_batch(self):
+        """
+        Process a batch of screens from the queue.
+        Processes multiple screens in parallel for better performance.
+        """
+        metrics = get_metrics_collector()
+        metrics.start_operation("process_batch")
+        
+        batch = []
+        try:
+            # Collect batch from queue
+            while len(batch) < self._batch_size:
+                try:
+                    image = self._screen_queue.get_nowait()
+                    batch.append(image)
+                except queue.Empty:
+                    break
+            
+            if not batch:
+                return
+            
+            # Process batch in parallel
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(batch), 4)) as executor:
+                # Submit all OCR tasks
+                ocr_futures = [executor.submit(self._perform_ocr, img) for img in batch]
+                # Submit all hash tasks
+                hash_futures = [executor.submit(self._compute_hash, img) for img in batch]
+                
+                # Wait for all to complete
+                ocr_results = [f.result() for f in ocr_futures]
+                hash_results = [f.result() for f in hash_futures]
+            
+            # Store results in memory
+            for i, (ocr_text, image_hash) in enumerate(zip(ocr_results, hash_results)):
+                self.memory.add(
+                    timestamp=datetime.now(),
+                    ocr_text=ocr_text,
+                    image_hash=image_hash,
+                    metadata={
+                        "resolution": batch[i].shape[:2],
+                        "batch_processed": True,
+                        "batch_size": len(batch),
+                    },
+                )
+            
+            metrics.end_operation("process_batch", {"batch_size": len(batch), "success": True})
+            print(f"[PassiveVision] 📦 Processed batch of {len(batch)} screens")
+            
+        except Exception as e:
+            print(f"[PassiveVision] ❌ Batch processing error: {e}")
+            # Fallback to sequential processing
+            for image in batch:
+                try:
+                    ocr_text = self._perform_ocr(image)
+                    image_hash = self._compute_hash(image)
+                    self.memory.add(
+                        timestamp=datetime.now(),
+                        ocr_text=ocr_text,
+                        image_hash=image_hash,
+                        metadata={"resolution": image.shape[:2], "batch_processed": False},
+                    )
+                except Exception as inner_e:
+                    print(f"[PassiveVision] ❌ Individual screen error: {inner_e}")
+            
+            metrics.end_operation("process_batch", {"batch_size": len(batch), "success": False, "fallback": True})
+
     def start(self):
         """Start passive vision monitoring"""
         if not self.enabled or not VISION_AVAILABLE:
@@ -284,14 +364,45 @@ class PassiveVision:
         self.running = True
         self.thread = threading.Thread(target=self._vision_loop, daemon=True)
         self.thread.start()
-        print("[PassiveVision] ▶️ Started monitoring")
+        
+        # Start batch processing thread if enabled
+        perf_flags = get_performance_flags()
+        if perf_flags.is_enabled("batch_screen_processing"):
+            self._processing_thread = threading.Thread(target=self._batch_processing_loop, daemon=True)
+            self._processing_thread.start()
+            print("[PassiveVision] ▶️ Started monitoring with batch processing")
+        else:
+            print("[PassiveVision] ▶️ Started monitoring")
+        
         return True
+
+    def _batch_processing_loop(self):
+        """Background thread for processing queued screens"""
+        perf_flags = get_performance_flags()
+        while self.running and perf_flags.is_enabled("batch_screen_processing"):
+            try:
+                # Process batch if queue has items
+                if not self._screen_queue.empty():
+                    self._process_batch()
+                # Small sleep to prevent busy waiting
+                time.sleep(0.1)
+            except Exception as e:
+                print(f"[PassiveVision] ❌ Batch processing loop error: {e}")
+                time.sleep(1)
 
     def stop(self):
         """Stop passive vision monitoring"""
         self.running = False
         if self.thread:
             self.thread.join(timeout=5)
+        if self._processing_thread:
+            self._processing_thread.join(timeout=5)
+        
+        # Process remaining items in queue
+        if not self._screen_queue.empty():
+            print("[PassiveVision] 🔄 Processing remaining queue items...")
+            self._process_batch()
+        
         print("[PassiveVision] ⏹️ Stopped monitoring")
 
     def query_memory(self, question: str) -> str:

@@ -162,20 +162,20 @@ performance:
     debounce_ui_updates: true         # Debounce UI updates to 1s interval
     async_logging: true               # Use async logging with queue
     # Phase 2: Medium-Impact
-    lazy_load_actions: false          # Lazy load action modules
-    connection_pooling: false         # Use connection pooling for external APIs
-    aggressive_compression: false     # Aggressive compression for old messages
-    db_connection_pooling: false      # Use connection pooling for databases
-    vector_db_cache: false           # Cache vector DB queries with 1-hour TTL
-    batch_screen_processing: false    # Batch process screen captures
-    event_file_watching: false        # Use event-based file watching
+    lazy_load_actions: true           # Lazy load action modules
+    connection_pooling: true          # Use connection pooling for external APIs
+    aggressive_compression: true      # Aggressive compression for old messages
+    db_connection_pooling: true       # Use connection pooling for databases
+    vector_db_cache: true            # Cache vector DB queries with 1-hour TTL
+    batch_screen_processing: true      # Batch process screen captures
+    event_file_watching: true        # Use event-based file watching
     # Phase 3: Complex Changes
-    reduce_memory_footprint: false    # Implement state sharding and GC
-    parallel_tool_execution: false    # Execute independent tools in parallel
-    async_workflow_engine: false     # Use async task queue for workflows
-    precompute_queries: false         # Precompute common queries
-    response_streaming: false        # Stream API responses
-    async_ui_server: false           # Use aiohttp for UI server
+    reduce_memory_footprint: true     # Implement state sharding and GC
+    parallel_tool_execution: true     # Execute independent tools in parallel
+    async_workflow_engine: true      # Use async task queue for workflows
+    precompute_queries: true         # Precompute common queries
+    response_streaming: true         # Stream API responses
+    async_ui_server: true            # Use aiohttp for UI server
 
 # Workflow & Orchestration Settings
 workflow:
