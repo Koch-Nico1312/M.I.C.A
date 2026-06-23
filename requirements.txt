@@ -12,7 +12,6 @@ pygetwindow==0.0.9
 opencv-python==4.13.0.92
 numpy==2.4.6
 mss==10.2.0
-Pillow==12.2.0
 psutil==7.2.2
 comtypes==1.4.16
 pycaw==20251023
@@ -54,7 +53,6 @@ isort==8.0.1
 bandit==1.9.4
 
 # Performance optimization dependencies
-aiohttp==3.13.5
 watchfiles==1.2.0
 watchdog>=4.0.0
 zstandard>=0.22.0

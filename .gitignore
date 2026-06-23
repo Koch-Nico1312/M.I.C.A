@@ -28,4 +28,14 @@ build/
 dist/
 htmlcov/
 node_modules/
+UI/build/
+
+# Cache directories
+.uv-cache/
+.benchmarks/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
 

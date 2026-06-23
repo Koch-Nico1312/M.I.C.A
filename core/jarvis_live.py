@@ -52,6 +52,7 @@ from memory.memory_manager import (
     load_memory,
     update_memory,
 )
+from memory.brain import get_memory_brain
 from memory.obsidian_vault import get_obsidian_bridge
 from ui_bridge import JarvisUI
 
@@ -254,6 +255,7 @@ class JarvisLive:
         self.vscode = get_vscode_bridge()
         self.cross_device = get_cross_device()
         self.obsidian_bridge = get_obsidian_bridge()
+        self.memory_brain = get_memory_brain()
         self.session_context = get_session_manager()
         self.session_context.start_session(force=True)
         self.conversation_started = False
@@ -682,6 +684,29 @@ class JarvisLive:
             self._context_signature = self._get_context_signature()
         self._note_user_input(text)
         self.session_context.record_user_message(text)
+
+        memory_reply = self.memory_brain.handle_memory_query(text)
+        if memory_reply:
+            self.session_context.record_jarvis_response(memory_reply)
+            self.ui.write_log(f"Jarvis: {memory_reply}")
+            return
+
+        forgotten, forget_reply = self.memory_brain.handle_forget_request(text)
+        if forgotten:
+            self.session_context.record_jarvis_response(forget_reply)
+            self.ui.write_log(f"Jarvis: {forget_reply}")
+            return
+
+        handled, candidates = self.memory_brain.handle_direct_request(text, source="ui")
+        if handled:
+            ack = "Ich habe mir das gemerkt."
+            if candidates:
+                primary = candidates[0]
+                ack = f"Ich habe mir das gemerkt: {primary.value}."
+            self.session_context.record_jarvis_response(ack)
+            self.ui.write_log(f"Jarvis: {ack}")
+            return
+
         asyncio.run_coroutine_threadsafe(
             self.session.send_client_content(turns={"parts": [{"text": text}]}, turn_complete=True),
             self._loop,
@@ -891,7 +916,18 @@ class JarvisLive:
             key = args.get("key", "")
             value = args.get("value", "")
             if key and value:
-                update_memory({category: {key: {"value": value}}})
+                update_memory(
+                    {
+                        category: {
+                            key: {
+                                "value": value,
+                                "source": "tool_call",
+                                "confidence": "high",
+                                "tags": ["save_memory", "tool_call"],
+                            }
+                        }
+                    }
+                )
                 logger.info(f"Memory saved: {category}/{key} = {value}")
                 # Keep the current live session alive. The saved memory will be
                 # available in the next natural reconnect, but we don't force a
@@ -901,6 +937,26 @@ class JarvisLive:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
                 id=fc.id, name=name, response={"result": "ok", "silent": True}
+            )
+
+        if name == "memory_brain":
+            action = str(args.get("action", "query")).lower()
+            query = str(args.get("query", "")).strip()
+            limit = int(args.get("limit", 6) or 6)
+
+            if action in {"query", "summary", "status"}:
+                result = self.memory_brain.describe_memory(query=query or None, limit=limit)
+            elif action == "forget":
+                handled, reply = self.memory_brain.handle_forget_request(f"vergiss {query}")
+                result = reply if handled else "I could not process that memory request."
+            else:
+                result = f"Unknown memory_brain action: {action}"
+
+            self.proactive.track_action(name, success=True)
+            if not self.ui.muted:
+                self.ui.set_state("LISTENING")
+            return types.FunctionResponse(
+                id=fc.id, name=name, response={"result": result, "silent": False}
             )
 
         loop = asyncio.get_event_loop()
@@ -1422,6 +1478,7 @@ class JarvisLive:
                                 self._note_user_input(full_in)
                                 self.ui.write_log(f"You: {full_in}")
                                 self.session_context.record_user_message(full_in)
+                                self.memory_brain.observe(full_in, source="conversation")
                             in_buf = []
 
                             full_out = " ".join(out_buf).strip()

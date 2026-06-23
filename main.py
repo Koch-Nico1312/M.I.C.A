@@ -9,7 +9,7 @@ import traceback
 import warnings
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, List
+from typing import Any, Dict, List
 
 from core.action_loader import get_action_loader
 
@@ -39,7 +39,7 @@ from startup import (
 from core.logger import get_logger, setup_logging
 from core.memory_manager import get_memory_manager
 from core.metrics_collector import get_metrics_collector
-from core.paths import resolve_relative_path
+from core.paths import project_path, resolve_relative_path
 from core.performance_flags import get_performance_flags
 
 os.environ["PYTHONUTF8"] = "1"
@@ -255,8 +255,23 @@ def _clean_transcript(text: str) -> str:
 
 def main() -> None:
     """Main entry point for JARVIS AI Assistant."""
-    # Initialize application and UI
-    use_gui, ui = initialize_application()
+    # Check if GUI mode should be used (before UI initialization)
+    use_gui = "--cli" not in sys.argv
+    
+    # Create QApplication in main thread BEFORE any Qt operations if using GUI
+    if use_gui:
+        try:
+            from PyQt6.QtWidgets import QApplication
+            # Check if QApplication already exists
+            if QApplication.instance() is None:
+                app = QApplication(sys.argv)
+                app.setApplicationName("JARVIS")
+        except Exception as e:
+            logger.warning(f"Failed to create QApplication: {e}, falling back to CLI mode")
+            use_gui = False
+    
+    # Initialize application and UI (pass use_gui to ensure correct UI type)
+    _, ui = initialize_application(use_gui)
 
     # Load configuration
     config = get_config()

@@ -41,14 +41,7 @@ def create_ui_bridge(use_gui: bool = False) -> Any:
         print("Starting JARVIS with Qt window...")
         print()
         
-        # Import Qt components
-        try:
-            from PyQt6.QtWidgets import QApplication
-            app = QApplication(sys.argv)
-            app.setApplicationName("JARVIS")
-        except Exception:
-            app = None
-        
+        # Create JarvisUI - it will handle QApplication creation internally
         ui = JarvisUI(str(BASE_DIR / "face.png"))
     else:
         print("=" * 60)
@@ -63,15 +56,19 @@ def create_ui_bridge(use_gui: bool = False) -> Any:
     return ui
 
 
-def initialize_application() -> tuple[bool, Any]:
+def initialize_application(use_gui: bool | None = None) -> tuple[bool, Any]:
     """
     Initialize the JARVIS application.
+    
+    Args:
+        use_gui: If provided, forces GUI or CLI mode. If None, auto-detects from --gui argument.
     
     Returns:
         tuple: (use_gui, ui_bridge_instance)
     """
-    # Check for --gui argument
-    use_gui = "--gui" in sys.argv
+    # Check for --gui argument if use_gui not provided
+    if use_gui is None:
+        use_gui = "--gui" in sys.argv
     
     # Create UI bridge
     ui = create_ui_bridge(use_gui)

@@ -1,16 +1,245 @@
 {
   "current_session": {
-    "id": "20260602-095846-cfe8de8a",
-    "title": "Voice session",
-    "started_at": "2026-06-02T09:58:46.847914",
-    "updated_at": "2026-06-02T09:58:46.847914",
+    "id": "20260622-195139-fdd6d1d6",
+    "title": "Ha llo Javi.",
+    "started_at": "2026-06-22T19:51:39.501096",
+    "updated_at": "2026-06-22T19:52:19.958560",
     "ended_at": null,
-    "messages": [],
+    "messages": [
+      {
+        "id": "ade7450f61514823851571f5fb1846e6",
+        "role": "user",
+        "content": "Ha llo Javi.",
+        "timestamp": "2026-06-22T19:52:04.161729"
+      },
+      {
+        "id": "532ebdae7ad54a7aa1c9020893e8d669",
+        "role": "assistant",
+        "content": "Hallo! Du hattest eine Erinnerung gespeichert, die besagt, dass du die vorherige Sitzung fortsetzen möchtest. Soll ich dir dabei helfen?",
+        "timestamp": "2026-06-22T19:52:04.163239"
+      },
+      {
+        "id": "e23956c8551648a49da329215e0f6908",
+        "role": "user",
+        "content": "Was war die vor herige Sitzung noch mal?",
+        "timestamp": "2026-06-22T19:52:19.957055"
+      },
+      {
+        "id": "ed528b479fd74127a25fd289df4515bf",
+        "role": "assistant",
+        "content": "Ich kann den genauen Inhalt der letzten Sitzung nicht direkt abrufen. Möchtest du eine neue Konversation starten oder etwas Bestimmtes tun?",
+        "timestamp": "2026-06-22T19:52:19.958560"
+      }
+    ],
     "tool_results": [],
     "summary": "",
     "status": "active"
   },
   "sessions": [
+    {
+      "id": "20260605-212720-848890d8",
+      "title": "Ha llo ?",
+      "started_at": "2026-06-05T21:27:20.488174",
+      "updated_at": "2026-06-05T21:29:53.028999",
+      "ended_at": "2026-06-05T21:29:53.028999",
+      "messages": [
+        {
+          "id": "8affa6c53fa142d6af61ecc3980dd1c0",
+          "role": "user",
+          "content": "Ha llo ?",
+          "timestamp": "2026-06-05T21:27:35.938646"
+        },
+        {
+          "id": "789c4311ca154ed39d57c1e56de2b06c",
+          "role": "assistant",
+          "content": "Hallo! Was kann ich heute für dich tun?",
+          "timestamp": "2026-06-05T21:27:35.939652"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Ha llo ?",
+      "status": "completed"
+    },
+    {
+      "id": "20260605-212021-b882f227",
+      "title": "Hallo",
+      "started_at": "2026-06-05T21:20:21.291775",
+      "updated_at": "2026-06-05T21:24:42.714617",
+      "ended_at": "2026-06-05T21:24:42.714617",
+      "messages": [
+        {
+          "id": "b0d5490c9dd645a9abcc7063ff9b6274",
+          "role": "user",
+          "content": "Hallo",
+          "timestamp": "2026-06-05T21:20:50.397806"
+        },
+        {
+          "id": "4ed86675f00c41d1bee08cb95c0b4c3b",
+          "role": "assistant",
+          "content": "Hallo! Wie kann ich dir heute helfen?",
+          "timestamp": "2026-06-05T21:20:53.737439"
+        },
+        {
+          "id": "88bb87bdd20549d7961a2594ea1b2b0e",
+          "role": "user",
+          "content": "Öffne den Browser.",
+          "timestamp": "2026-06-05T21:21:13.838277"
+        },
+        {
+          "id": "b8629f224aa649fd9d5f684a46f80f98",
+          "role": "assistant",
+          "content": "Es tut mir leid, aber ich kann den Browser im Moment nicht öffnen, dafür habe ich keine Berechtigung. Gibt es etwas anderes, wobei ich dir helfen kann?",
+          "timestamp": "2026-06-05T21:21:13.839792"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Hallo",
+      "status": "completed"
+    },
+    {
+      "id": "20260605-211134-bea0860c",
+      "title": ".",
+      "started_at": "2026-06-05T21:11:34.955541",
+      "updated_at": "2026-06-05T21:15:47.272528",
+      "ended_at": "2026-06-05T21:15:47.272528",
+      "messages": [
+        {
+          "id": "fb84ada0782c4550ba243fadff3f025b",
+          "role": "user",
+          "content": ".",
+          "timestamp": "2026-06-05T21:11:47.808132"
+        },
+        {
+          "id": "0cc82b338938469295701c3a9e31acf9",
+          "role": "assistant",
+          "content": "Guten Abend! Was kann ich heute Abend noch für dich tun?",
+          "timestamp": "2026-06-05T21:11:47.809643"
+        },
+        {
+          "id": "0bcc41c187e94deb86bda789cff3e54f",
+          "role": "user",
+          "content": "Sonic.",
+          "timestamp": "2026-06-05T21:11:51.238344"
+        }
+      ],
+      "tool_results": [],
+      "summary": ".",
+      "status": "completed"
+    },
+    {
+      "id": "20260605-211039-d75ad791",
+      "title": "Hallo.",
+      "started_at": "2026-06-05T21:10:39.032565",
+      "updated_at": "2026-06-05T21:11:34.924932",
+      "ended_at": "2026-06-05T21:11:34.924932",
+      "messages": [
+        {
+          "id": "4b7b3b0429ec4a31800371ef88acc943",
+          "role": "user",
+          "content": "Hallo.",
+          "timestamp": "2026-06-05T21:10:54.648126"
+        },
+        {
+          "id": "16152ac4ec7f42d09ef46164216eb4f4",
+          "role": "assistant",
+          "content": "Hallo! Was kann ich heute für dich tun?",
+          "timestamp": "2026-06-05T21:10:54.650543"
+        },
+        {
+          "id": "1f5616c382c74ef3817d114c45cbe79c",
+          "role": "user",
+          "content": "Was man mit dem Bro wser su che nach gü nsti gen F lü gen nach LA .",
+          "timestamp": "2026-06-05T21:11:05.009791"
+        },
+        {
+          "id": "e5bf79df9f5b496aa866c473f411c215",
+          "role": "user",
+          "content": "von Mün chen , Wi en oder Li nz aus gehend sind.",
+          "timestamp": "2026-06-05T21:11:10.721107"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Hallo.",
+      "status": "completed"
+    },
+    {
+      "id": "20260605-210708-4bfa3070",
+      "title": "Hallo Javis.",
+      "started_at": "2026-06-05T21:07:08.298764",
+      "updated_at": "2026-06-05T21:10:16.751095",
+      "ended_at": "2026-06-05T21:10:16.751095",
+      "messages": [
+        {
+          "id": "a8615798d0494da7a0ae83566a4b915a",
+          "role": "user",
+          "content": "Hallo Javis.",
+          "timestamp": "2026-06-05T21:07:41.754725"
+        },
+        {
+          "id": "eaa549ef7d364560b4a751286f3244fd",
+          "role": "assistant",
+          "content": "Hallo! Wie kann ich dir heute helfen?",
+          "timestamp": "2026-06-05T21:07:41.756242"
+        },
+        {
+          "id": "a3df77abe1784a4295ee3f2b369a1d9c",
+          "role": "user",
+          "content": "zu wie viel Pro zent wird mein Ram gerade genutzt?",
+          "timestamp": "2026-06-05T21:08:07.354904"
+        },
+        {
+          "id": "a3aac8b4f2f546cd81a896cda020c62e",
+          "role": "assistant",
+          "content": "Leider kann ich die genaue RAM-Auslastung momentan nicht direkt überprüfen. Du kannst dies oft über den Task-Manager deines Betriebssystems tun.",
+          "timestamp": "2026-06-05T21:08:07.356414"
+        },
+        {
+          "id": "e92adc1c62a845b8ac86428597fe17c6",
+          "role": "user",
+          "content": "Kan nst du dem für mich starten?",
+          "timestamp": "2026-06-05T21:08:23.242702"
+        },
+        {
+          "id": "83c63d42dcda40e98a28edf2790f1d8a",
+          "role": "assistant",
+          "content": "Ich kann den Task-Manager leider nicht direkt starten, aber du kannst ihn ganz einfach mit der Tastenkombination Strg + Umschalt + Esc öffnen.",
+          "timestamp": "2026-06-05T21:08:23.244202"
+        },
+        {
+          "id": "6c27ceb850c14449925878cdb43217fe",
+          "role": "user",
+          "content": "das tot ist.",
+          "timestamp": "2026-06-05T21:08:27.611932"
+        },
+        {
+          "id": "978f74029a9d438484bcb563f1f9689f",
+          "role": "assistant",
+          "content": "Was meinst du damit? Was ist \"tot\"?",
+          "timestamp": "2026-06-05T21:08:27.612933"
+        },
+        {
+          "id": "db0c22862f8848139d0ec18593813590",
+          "role": "user",
+          "content": "bo ven weg . Ik denk dus.",
+          "timestamp": "2026-06-05T21:08:31.604120"
+        },
+        {
+          "id": "146b3a4f25da42d2afc18227c9cfb96b",
+          "role": "user",
+          "content": "beende ich.",
+          "timestamp": "2026-06-05T21:08:38.316415"
+        },
+        {
+          "id": "e8ea22c1c2314c7583e5277f28af4bdb",
+          "role": "assistant",
+          "content": "Alles klar! Wenn du noch etwas brauchst, bin ich da. Tschüss!",
+          "timestamp": "2026-06-05T21:08:38.317956"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Hallo Javis.",
+      "status": "completed"
+    },
     {
       "id": "20260602-091403-5f1c182a",
       "title": "Hallo",
@@ -120,5 +349,5 @@
       "status": "completed"
     }
   ],
-  "updated_at": "2026-06-02T09:58:46.847914"
+  "updated_at": "2026-06-22T19:52:19.958560"
 }

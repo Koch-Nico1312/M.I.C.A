@@ -51,6 +51,8 @@ logs/
 .cache/
 *.cache
 .pytest_cache/
+.uv-cache/
+.benchmarks/
 
 # Environment variables (secrets)
 .env

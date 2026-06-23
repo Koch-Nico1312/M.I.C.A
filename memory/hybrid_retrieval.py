@@ -27,6 +27,7 @@ class MemoryCategory(Enum):
     PROJECTS = "projects"
     RELATIONSHIPS = "relationships"
     WISHES = "wishes"
+    KNOWLEDGE = "knowledge"
     NOTES = "notes"
 
 

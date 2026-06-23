@@ -4,7 +4,7 @@ skips = ["B101"]  # Skip assert_used warning
 
 [tool.black]
 line-length = 100
-target-version = ['py312']
+target-version = ['py311']
 include = '\.pyi?$'
 
 [tool.isort]
@@ -17,7 +17,7 @@ use_parentheses = true
 ensure_newline_before_comments = true
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.11"
 ignore_missing_imports = true
 no_strict_optional = true
 warn_return_any = true

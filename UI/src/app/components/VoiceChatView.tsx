@@ -128,7 +128,7 @@ export function VoiceChatView({
           <div className="mt-8 flex items-center justify-center">
             <button
               onClick={() => onToggleMute(!muted)}
-              className={`relative flex h-56 w-56 items-center justify-center rounded-full border transition-all duration-300 ${
+              className={`relative flex h-56 w-56 items-center justify-center rounded-full border ${
                 speaking
                   ? "border-cyan-300/50 bg-cyan-400/15 shadow-[0_0_60px_rgba(34,211,238,0.25)]"
                   : muted

@@ -3,6 +3,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
+from typing import Any
 
 
 def get_base_dir() -> Path:
@@ -16,6 +17,19 @@ MEMORY_PATH = BASE_DIR / "memory" / "long_term.json"
 _lock = Lock()
 MAX_VALUE_LENGTH = 380
 MEMORY_MAX_CHARS = 2200
+DEFAULT_MEMORY_CATEGORIES = (
+    "identity",
+    "preferences",
+    "projects",
+    "relationships",
+    "wishes",
+    "knowledge",
+    "notes",
+)
+
+
+def _resolve_memory_path(memory_path: Path | None = None) -> Path:
+    return memory_path or MEMORY_PATH
 
 
 def _empty_memory() -> dict:
@@ -25,16 +39,18 @@ def _empty_memory() -> dict:
         "projects": {},
         "relationships": {},
         "wishes": {},
+        "knowledge": {},
         "notes": {},
     }
 
 
-def load_memory() -> dict:
-    if not MEMORY_PATH.exists():
+def load_memory(memory_path: Path | None = None) -> dict:
+    path = _resolve_memory_path(memory_path)
+    if not path.exists():
         return _empty_memory()
     with _lock:
         try:
-            data = json.loads(MEMORY_PATH.read_text(encoding="utf-8"))
+            data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict):
                 base = _empty_memory()
                 for key in base:
@@ -58,7 +74,7 @@ def _all_entries(memory: dict) -> list[tuple]:
     return entries
 
 
-def _trim_to_limit(memory: dict) -> dict:
+def _trim_to_limit(memory: dict, memory_path: Path | None = None) -> dict:
     if len(json.dumps(memory, ensure_ascii=False)) <= MEMORY_MAX_CHARS:
         return memory
     entries = _all_entries(memory)
@@ -67,17 +83,18 @@ def _trim_to_limit(memory: dict) -> dict:
         if len(json.dumps(memory, ensure_ascii=False)) <= MEMORY_MAX_CHARS:
             break
         del memory[cat][key]
-        print(f"[Memory] 🗑️  Trimmed {cat}/{key}")
+        print(f"[Memory] Trimmed {cat}/{key}")
     return memory
 
 
-def save_memory(memory: dict) -> None:
+def save_memory(memory: dict, memory_path: Path | None = None) -> None:
     if not isinstance(memory, dict):
         return
-    memory = _trim_to_limit(memory)
-    MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
+    path = _resolve_memory_path(memory_path)
+    memory = _trim_to_limit(memory, memory_path=path)
+    path.parent.mkdir(parents=True, exist_ok=True)
     with _lock:
-        MEMORY_PATH.write_text(
+        path.write_text(
             json.dumps(memory, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
@@ -103,22 +120,45 @@ def _recursive_update(target: dict, updates: dict) -> bool:
             if _recursive_update(target[key], value):
                 changed = True
         else:
-            new_val = _truncate_value(str(value["value"] if isinstance(value, dict) else value))
-            entry = {"value": new_val, "updated": datetime.now().strftime("%Y-%m-%d")}
+            raw_value = value["value"] if isinstance(value, dict) else value
+            new_val = _truncate_value(str(raw_value))
             existing = target.get(key, {})
-            if not isinstance(existing, dict) or existing.get("value") != new_val:
+            metadata = {}
+            if isinstance(value, dict):
+                metadata = {
+                    meta_key: meta_value
+                    for meta_key, meta_value in value.items()
+                    if meta_key != "value" and meta_value is not None
+                }
+
+            if not isinstance(existing, dict):
+                existing = {}
+
+            entry = dict(existing)
+            entry_changed = entry.get("value") != new_val
+            entry["value"] = new_val
+            entry["updated"] = datetime.now().strftime("%Y-%m-%d")
+            if "created" not in entry:
+                entry["created"] = entry["updated"]
+
+            for meta_key, meta_value in metadata.items():
+                if entry.get(meta_key) != meta_value:
+                    entry[meta_key] = meta_value
+                    entry_changed = True
+
+            if entry_changed or existing != entry:
                 target[key] = entry
                 changed = True
     return changed
 
 
-def update_memory(memory_update: dict) -> dict:
+def update_memory(memory_update: dict, memory_path: Path | None = None) -> dict:
     if not isinstance(memory_update, dict) or not memory_update:
-        return load_memory()
-    memory = load_memory()
+        return load_memory(memory_path=memory_path)
+    memory = load_memory(memory_path=memory_path)
     if _recursive_update(memory, memory_update):
-        save_memory(memory)
-        print(f"[Memory] 💾 Saved: {list(memory_update.keys())}")
+        save_memory(memory, memory_path=memory_path)
+        print(f"[Memory] Saved: {list(memory_update.keys())}")
     return memory
 
 
@@ -161,6 +201,15 @@ def format_memory_for_prompt(memory: dict | None) -> str:
             if val:
                 lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
 
+    knowledge = memory.get("knowledge", {})
+    if knowledge:
+        lines.append("")
+        lines.append("Recently learned facts:")
+        for key, entry in list(knowledge.items())[:10]:
+            val = entry.get("value") if isinstance(entry, dict) else entry
+            if val:
+                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
+
     rels = memory.get("relationships", {})
     if rels:
         lines.append("")
@@ -199,21 +248,23 @@ def format_memory_for_prompt(memory: dict | None) -> str:
     return result + "\n"
 
 
-def remember(key: str, value: str, category: str = "notes") -> str:
-    valid = {"identity", "preferences", "projects", "relationships", "wishes", "notes"}
+def remember(
+    key: str, value: str, category: str = "notes", memory_path: Path | None = None
+) -> str:
+    valid = set(DEFAULT_MEMORY_CATEGORIES)
     if category not in valid:
         category = "notes"
-    update_memory({category: {key: {"value": value}}})
+    update_memory({category: {key: {"value": value}}}, memory_path=memory_path)
     return f"Remembered: {category}/{key} = {value}"
 
 
-def forget(key: str, category: str = "notes") -> str:
-    memory = load_memory()
+def forget(key: str, category: str = "notes", memory_path: Path | None = None) -> str:
+    memory = load_memory(memory_path=memory_path)
     cat = memory.get(category, {})
     if key in cat:
         del cat[key]
         memory[category] = cat
-        save_memory(memory)
+        save_memory(memory, memory_path=memory_path)
         return f"Forgotten: {category}/{key}"
     return f"Not found: {category}/{key}"
 

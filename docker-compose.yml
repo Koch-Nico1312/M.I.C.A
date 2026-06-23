@@ -24,8 +24,16 @@ services:
     devices:
       # Add audio device access if needed (Linux only)
       # - /dev/snd:/dev/snd
-    network_mode: host  # Required for audio and network access
-    # For production, consider using a proper network instead of host mode
+    ports:
+      - "8080:8080"
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; import os; sys.exit(0 if os.path.exists('main.py') else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # Optional: Ollama for local LLM fallback
   ollama:
@@ -36,8 +44,20 @@ services:
       - ollama_data:/root/.ollama
     ports:
       - "11434:11434"
+    networks:
+      - jarvis-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     profiles:
       - with-ollama
+
+networks:
+  jarvis-network:
+    driver: bridge
 
 volumes:
   ollama_data:

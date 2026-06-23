@@ -56,7 +56,7 @@ export default function App() {
     };
 
     tick();
-    const timer = window.setInterval(tick, 1000);
+    const timer = window.setInterval(tick, 3000);
 
     return () => {
       alive = false;

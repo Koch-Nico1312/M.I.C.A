@@ -76,6 +76,14 @@ class _JARVISWindow(QMainWindow):
         self.setWindowTitle("J.A.R.V.I.S")
         self.resize(1460, 960)
         self.setMinimumSize(1180, 760)
+        
+        # Set window flags to prevent flickering and disappearing
+        from PyQt6.QtCore import Qt
+        self.setWindowFlags(
+            Qt.WindowType.Window |
+            Qt.WindowType.WindowMinMaxButtonsHint |
+            Qt.WindowType.WindowCloseButtonHint
+        )
 
         if QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
@@ -121,7 +129,7 @@ class JarvisUI:
         self._state_dirty = False
         self._last_state_hash = None
         self._last_update_time = 0
-        self._debounce_interval = 1.0  # 1 second debounce interval
+        self._debounce_interval = 2.0  # 2 second debounce interval to reduce flickering
 
         self._ensure_ui_assets()
         self._start_http_server()
@@ -754,7 +762,7 @@ class JarvisUI:
         if QApplication is None or QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
 
-        # Always use Vite dev server
+        # Use Vite dev server
         vite_dev_url = "http://localhost:5173"
         self._start_vite_dev_server()
         
@@ -768,7 +776,13 @@ class JarvisUI:
             app.setApplicationName("JARVIS")
         self._app = app
 
+        # Show and activate window to prevent flickering
         self._window.show()
+        self._window.activateWindow()
+        self._window.raise_()
+        
+        # Force immediate update to prevent initial flickering
+        app.processEvents()
 
         try:
             app.exec()

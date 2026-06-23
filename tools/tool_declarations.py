@@ -692,7 +692,8 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         "description": (
             "Save an important personal fact about the user to long-term memory. "
             "Call this silently whenever the user reveals something worth remembering: "
-            "name, age, city, job, preferences, hobbies, relationships, projects, or future plans. "
+            "name, age, city, job, preferences, hobbies, relationships, projects, future plans, or durable facts learned from conversation. "
+            "Also use it for direct requests like 'füge ... hinzu', 'merke dir ...', or 'remember that ...'. "
             "Do NOT call for: weather, reminders, searches, or one-time commands. "
             "Do NOT announce that you are saving — just call it silently. "
             "Values must be in English regardless of the conversation language."
@@ -708,6 +709,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
                         "projects — active projects, goals, things being built | "
                         "relationships — friends, family, partner, colleagues | "
                         "wishes — future plans, things to buy, travel dreams | "
+                        "knowledge — durable facts learned from conversation | "
                         "notes — habits, schedule, anything else worth remembering"
                     ),
                 },
@@ -721,6 +723,32 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
                 },
             },
             "required": ["category", "key", "value"],
+        },
+    },
+    {
+        "name": "memory_brain",
+        "description": (
+            "Queries, summarizes, or forgets entries from JARVIS long-term memory. "
+            "Use this when the user asks what JARVIS remembers, wants a summary of stored facts, "
+            "or asks to delete a memory."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "query | summary | forget | status",
+                },
+                "query": {
+                    "type": "STRING",
+                    "description": "Search term or memory topic, e.g. name, city, projects, football",
+                },
+                "limit": {
+                    "type": "INTEGER",
+                    "description": "Maximum number of entries to return for summaries",
+                },
+            },
+            "required": ["action"],
         },
     },
     {

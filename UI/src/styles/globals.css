@@ -35,9 +35,9 @@
   background: rgba(99, 142, 203, 0.6);
 }
 
-/* Smooth transitions */
-* {
+/* Smooth transitions - disabled to prevent flickering */
+/* * {
   transition-property: background-color, border-color, color, fill, stroke, opacity, box-shadow, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 200ms;
-}
+} */
