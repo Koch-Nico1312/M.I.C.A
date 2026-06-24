@@ -121,6 +121,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=True,
         tags={"calendar", "scheduling", "integration"},
     ),
+    "contact_manager": ToolMetadata(
+        name="contact_manager",
+        description="Manages local contacts",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"contacts", "communication", "integration"},
+    ),
     "computer_settings": ToolMetadata(
         name="computer_settings",
         description="Controls computer settings",

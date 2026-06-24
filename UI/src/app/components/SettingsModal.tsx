@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { GlassModal } from "./GlassModal";
-import { CalendarRange, CheckCircle2, Key, RefreshCw, Sparkles } from "lucide-react";
+import { Bot, CalendarRange, CheckCircle2, Key, Link2, RefreshCw, Sparkles } from "lucide-react";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { jarvisApi } from "../lib/api";
-import type { DashboardSettings, CalendarStatus } from "../lib/types";
+import type { DashboardSettings, CalendarStatus, ModelsPayload, SetupPayload } from "../lib/types";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -25,11 +25,23 @@ const DEFAULT_SETTINGS: DashboardSettings = {
     credentials_path: "./config/gmail_credentials.json",
     token_path: "./config/calendar_token.json",
   },
+  model_router: {
+    preferred_profile: "fast",
+    model_scope: "linked",
+    cost_mode: "balanced",
+  },
 };
 
 export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) {
   const [settings, setSettings] = useState<DashboardSettings>(DEFAULT_SETTINGS);
   const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  const [setup, setSetup] = useState<SetupPayload | null>(null);
+  const [models, setModels] = useState<ModelsPayload | null>(null);
+  const [geminiKey, setGeminiKey] = useState("");
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [ollamaEnabled, setOllamaEnabled] = useState(false);
+  const [ollamaModel, setOllamaModel] = useState("llama3.1");
+  const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -43,10 +55,17 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setError(null);
     setMessage(null);
 
-    Promise.all([jarvisApi.getSettings(), jarvisApi.getCalendarStatus()])
-      .then(([nextSettings, nextCalendar]) => {
+    Promise.all([
+      jarvisApi.getSettings(),
+      jarvisApi.getCalendarStatus(),
+      jarvisApi.getSetup(),
+      jarvisApi.getModels(),
+    ])
+      .then(([nextSettings, nextCalendar, nextSetup, nextModels]) => {
         if (cancelled) return;
         const settingsData = nextSettings as DashboardSettings | null;
+        const setupData = nextSetup as SetupPayload;
+        const modelData = nextModels as ModelsPayload;
         setSettings({
           ui: {
             default_view: settingsData?.ui?.default_view ?? DEFAULT_SETTINGS.ui.default_view,
@@ -57,8 +76,28 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
             credentials_path: settingsData?.calendar?.credentials_path ?? DEFAULT_SETTINGS.calendar.credentials_path,
             token_path: settingsData?.calendar?.token_path ?? DEFAULT_SETTINGS.calendar.token_path,
           },
+          model_router: {
+            preferred_profile:
+              settingsData?.model_router?.preferred_profile
+              ?? modelData?.preferred_profile
+              ?? DEFAULT_SETTINGS.model_router?.preferred_profile
+              ?? "fast",
+            model_scope:
+              settingsData?.model_router?.model_scope
+              ?? modelData?.scope
+              ?? DEFAULT_SETTINGS.model_router?.model_scope
+              ?? "linked",
+            cost_mode:
+              settingsData?.model_router?.cost_mode
+              ?? DEFAULT_SETTINGS.model_router?.cost_mode
+              ?? "balanced",
+          },
         });
         setCalendar(nextCalendar as CalendarStatus);
+        setSetup(setupData);
+        setModels(modelData);
+        setOllamaBaseUrl(setupData?.ollama_base_url || "http://localhost:11434");
+        setOllamaEnabled(Boolean(modelData?.all_models?.some((model) => model.provider === "ollama" && model.enabled)));
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -81,12 +120,32 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setSettings((current) => ({ ...current, calendar: { ...current.calendar, ...patch } }));
   };
 
+  const updateModelRouter = (patch: Partial<NonNullable<DashboardSettings["model_router"]>>) => {
+    setSettings((current) => ({
+      ...current,
+      model_router: {
+        preferred_profile: current.model_router?.preferred_profile ?? "fast",
+        model_scope: current.model_router?.model_scope ?? "linked",
+        cost_mode: current.model_router?.cost_mode ?? "balanced",
+        ...patch,
+      },
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setError(null);
     setMessage(null);
 
     try {
+      await jarvisApi.saveSetup({
+        gemini_api_key: geminiKey,
+        openai_api_key: openaiKey,
+        ollama_base_url: ollamaBaseUrl,
+        ollama_enabled: ollamaEnabled,
+        ollama_model: ollamaModel,
+        model_router: settings.model_router,
+      });
       await jarvisApi.saveSettings(settings as unknown as Record<string, unknown>);
       if (settings.calendar.enabled) {
         const result = await jarvisApi.connectCalendar(settings.calendar) as { message?: string } | null;
@@ -115,7 +174,72 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     <GlassModal isOpen={isOpen} onClose={onClose} title="Einstellungen">
       <div className="space-y-6 text-slate-100">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          Jarvis ist voice-first. Textchat bleibt optional. Google Calendar wird hier verbunden.
+          Jarvis ist voice-first. Textchat bleibt optional. Modelle, API-Keys und Google Calendar werden hier verbunden.
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-white">
+            <Key className="h-4 w-4 text-cyan-300" />
+            Erststart & API-Keys
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Gemini API-Key</Label>
+              <Input
+                type="password"
+                value={geminiKey}
+                onChange={(event) => setGeminiKey(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-slate-500"
+                placeholder={setup?.has_gemini_key ? "Bereits gespeichert" : "AIza..."}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-white">OpenAI-kompatibler Key</Label>
+              <Input
+                type="password"
+                value={openaiKey}
+                onChange={(event) => setOpenaiKey(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-slate-500"
+                placeholder={setup?.has_openai_key ? "Bereits gespeichert" : "Optional"}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Ollama URL</Label>
+              <Input
+                value={ollamaBaseUrl}
+                onChange={(event) => setOllamaBaseUrl(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-slate-500"
+                placeholder="http://localhost:11434"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Lokales Modell</Label>
+              <Input
+                value={ollamaModel}
+                onChange={(event) => setOllamaModel(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-slate-500"
+                placeholder="llama3.1"
+              />
+            </div>
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-black/10 px-4 py-3">
+              <Link2 className="h-4 w-4 text-cyan-300" />
+              <Switch checked={ollamaEnabled} onCheckedChange={setOllamaEnabled} />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-xs text-slate-300">
+            <div className="flex items-center justify-between gap-3">
+              <span>Setup</span>
+              <span className={setup?.configured ? "text-emerald-300" : "text-amber-300"}>
+                {setup?.configured ? "Konfiguriert" : "Offen"}
+              </span>
+            </div>
+            <div className="mt-2 truncate text-slate-400">{setup?.api_keys_path ?? "config/api_keys.json"}</div>
+          </div>
         </div>
 
         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -153,6 +277,79 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
                 <SelectItem value="resources">Ressourcen</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+          <div className="flex items-center gap-2 text-sm font-medium text-white">
+            <Bot className="h-4 w-4 text-cyan-300" />
+            Modellwahl
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Sichtbare Modelle</Label>
+              <Select
+                value={settings.model_router?.model_scope ?? "linked"}
+                onValueChange={(value) => updateModelRouter({ model_scope: value })}
+              >
+                <SelectTrigger className="border-white/10 bg-black/20 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="linked">Verknüpfte Modelle</SelectItem>
+                  <SelectItem value="all">Alle möglichen Modelle</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Standardprofil</Label>
+              <Select
+                value={settings.model_router?.preferred_profile ?? "fast"}
+                onValueChange={(value) => updateModelRouter({ preferred_profile: value })}
+              >
+                <SelectTrigger className="border-white/10 bg-black/20 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {(models?.all_models?.length ? models.all_models : models?.models ?? []).map((model) => (
+                    <SelectItem key={model.name} value={model.name}>
+                      {model.name} · {model.provider}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm text-white">Kostenmodus</Label>
+              <Select
+                value={settings.model_router?.cost_mode ?? "balanced"}
+                onValueChange={(value) => updateModelRouter({ cost_mode: value })}
+              >
+                <SelectTrigger className="border-white/10 bg-black/20 text-white">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="balanced">Ausgewogen</SelectItem>
+                  <SelectItem value="economy">Sparsam</SelectItem>
+                  <SelectItem value="quality">Qualität</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-2">
+            {(models?.models ?? []).slice(0, 6).map((model) => (
+              <div key={`${model.provider}-${model.name}`} className="rounded-xl border border-white/10 bg-black/10 px-4 py-3 text-xs text-slate-300">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-medium text-white">{model.name}</span>
+                  <span className={model.linked ? "text-emerald-300" : "text-slate-400"}>
+                    {model.linked ? "verknüpft" : "nicht verknüpft"}
+                  </span>
+                </div>
+                <div className="mt-1 truncate text-slate-400">{model.model_id}</div>
+              </div>
+            ))}
           </div>
         </div>
 

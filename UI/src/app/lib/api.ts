@@ -2,8 +2,15 @@ import type {
   CockpitPayload,
   DashboardResponse,
   DocumentsPayload,
+  MemoryPayload,
+  ModelsPayload,
+  ActionHistoryPayload,
+  ApprovalsPayload,
+  DevicesPayload,
+  PermissionsPayload,
   ResumePayload,
   SessionPayload,
+  SetupPayload,
   UploadDocumentsResponse,
 } from "./types";
 
@@ -157,6 +164,66 @@ function getMockData<T>(path: string): T {
     documents: {
       files: [],
     },
+    setup: {
+      configured: false,
+      api_keys_path: "config/api_keys.json",
+      example_path: "config/api_keys.example.json",
+      has_gemini_key: false,
+      has_openai_key: false,
+      ollama_base_url: "http://localhost:11434",
+      settings: {
+        ui: {
+          default_view: "home",
+          voice_first: true,
+        },
+        calendar: {
+          enabled: false,
+          credentials_path: "",
+          token_path: "",
+        },
+        model_router: {
+          preferred_profile: "fast",
+          model_scope: "linked",
+          cost_mode: "balanced",
+        },
+      },
+    },
+    models: {
+      scope: "linked",
+      preferred_profile: "fast",
+      models: [],
+      all_models: [],
+      linked_models: [],
+    },
+    memory: {
+      categories: [],
+      entries: [],
+      raw: {},
+    },
+    devices: {
+      current: {
+        id: "local",
+        name: "Local device",
+        status: "online",
+      },
+      items: [],
+    },
+    action_history: {
+      records: [],
+      undoable: [],
+      stats: {},
+    },
+    approvals: {
+      permission_level: "normal",
+      pending: [],
+    },
+    permissions: {
+      tools: [],
+      disabled_actions: [],
+    },
+    quick_actions: {
+      items: [],
+    },
   };
 
   if (path === "/api/dashboard") {
@@ -171,6 +238,27 @@ function getMockData<T>(path: string): T {
   if (path === "/api/documents") {
     return mockDashboard.documents as T;
   }
+  if (path === "/api/setup") {
+    return mockDashboard.setup as T;
+  }
+  if (path === "/api/models") {
+    return mockDashboard.models as T;
+  }
+  if (path === "/api/memory" || path === "/api/memory/export") {
+    return mockDashboard.memory as T;
+  }
+  if (path === "/api/actions/history") {
+    return mockDashboard.action_history as T;
+  }
+  if (path === "/api/approvals") {
+    return mockDashboard.approvals as T;
+  }
+  if (path === "/api/permissions") {
+    return mockDashboard.permissions as T;
+  }
+  if (path === "/api/devices") {
+    return mockDashboard.devices as T;
+  }
 
   return {} as T;
 }
@@ -180,6 +268,14 @@ export const jarvisApi = {
   getCockpit: () => requestJson<CockpitPayload>("/api/cockpit"),
   getResume: () => requestJson<ResumePayload>("/api/session/resume"),
   getDocuments: () => requestJson<DocumentsPayload>("/api/documents"),
+  getSetup: () => requestJson<SetupPayload>("/api/setup"),
+  getModels: () => requestJson<ModelsPayload>("/api/models"),
+  getMemory: () => requestJson<MemoryPayload>("/api/memory"),
+  exportMemory: () => requestJson<MemoryPayload>("/api/memory/export"),
+  getActionHistory: () => requestJson<ActionHistoryPayload>("/api/actions/history"),
+  getApprovals: () => requestJson<ApprovalsPayload>("/api/approvals"),
+  getPermissions: () => requestJson<PermissionsPayload>("/api/permissions"),
+  getDevices: () => requestJson<DevicesPayload>("/api/devices"),
   getSettings: () => requestJson("/api/settings"),
   getCalendarStatus: () => requestJson("/api/calendar/status"),
   getChatSession: (sessionId: string) =>
@@ -198,6 +294,36 @@ export const jarvisApi = {
     requestJson("/api/settings", {
       method: "POST",
       body: JSON.stringify(settings),
+    }),
+  saveSetup: (settings: Record<string, unknown>) =>
+    requestJson("/api/setup", {
+      method: "POST",
+      body: JSON.stringify(settings),
+    }),
+  upsertMemory: (entry: Record<string, unknown>) =>
+    requestJson<{ status: string; memory: MemoryPayload }>("/api/memory/upsert", {
+      method: "POST",
+      body: JSON.stringify(entry),
+    }),
+  forgetMemory: (entry: { category: string; key: string }) =>
+    requestJson<{ status: string; memory: MemoryPayload }>("/api/memory/forget", {
+      method: "POST",
+      body: JSON.stringify(entry),
+    }),
+  approveAction: (request: { tool_name: string; action: string }) =>
+    requestJson<ApprovalsPayload>("/api/approvals/approve", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
+  denyAction: (request: { tool_name: string; action: string }) =>
+    requestJson<ApprovalsPayload>("/api/approvals/deny", {
+      method: "POST",
+      body: JSON.stringify(request),
+    }),
+  setPermissionLevel: (level: string) =>
+    requestJson<ApprovalsPayload>("/api/permissions/level", {
+      method: "POST",
+      body: JSON.stringify({ level }),
     }),
   connectCalendar: (settings: Record<string, unknown>) =>
     requestJson("/api/calendar/connect", {

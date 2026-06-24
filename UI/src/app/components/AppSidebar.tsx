@@ -3,6 +3,7 @@ import {
   Cpu,
   HardDrive,
   Home,
+  Brain,
   MessageSquareText,
   Mic,
   Settings,
@@ -35,6 +36,7 @@ const menuItems = [
   { title: "Startseite", icon: Home, id: "home" },
   { title: "Sprechen", icon: Mic, id: "voice-chat" },
   { title: "Chats", icon: MessageSquareText, id: "chats" },
+  { title: "Memory", icon: Brain, id: "memory" },
   { title: "Dokumente", icon: FileText, id: "documents" },
   { title: "Ressourcen", icon: Waves, id: "resources" },
 ];

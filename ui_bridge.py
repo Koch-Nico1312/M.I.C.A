@@ -5,6 +5,7 @@ import contextlib
 import json
 import mimetypes
 import os
+import platform
 import re
 import shutil
 import subprocess
@@ -391,7 +392,172 @@ class JarvisUI:
                     )
                 ),
             },
+            "model_router": {
+                "preferred_profile": str(
+                    self._config.get("model_router.preferred_profile", "fast")
+                ),
+                "model_scope": str(self._config.get("model_router.model_scope", "linked")),
+                "cost_mode": str(self._config.get("model_router.cost_mode", "balanced")),
+            },
         }
+
+    def _setup_payload(self) -> Dict[str, Any]:
+        api_file = BASE_DIR / "config" / "api_keys.json"
+        example_file = BASE_DIR / "config" / "api_keys.example.json"
+        keys: Dict[str, Any] = {}
+        if api_file.exists():
+            with contextlib.suppress(Exception):
+                keys = json.loads(api_file.read_text(encoding="utf-8"))
+
+        return {
+            "configured": bool(str(self._config.get_api_key("gemini") or "").strip()),
+            "api_keys_path": str(api_file),
+            "example_path": str(example_file),
+            "has_gemini_key": bool(str(keys.get("gemini_api_key", "")).strip()),
+            "has_openai_key": bool(str(keys.get("openai_api_key", "")).strip()),
+            "ollama_base_url": str(
+                keys.get("ollama_base_url")
+                or self._config.get("ollama.base_url", "http://localhost:11434")
+            ),
+            "settings": self._settings_payload(),
+        }
+
+    def _models_payload(self) -> Dict[str, Any]:
+        try:
+            from core.model_registry import get_model_registry
+
+            registry = get_model_registry()
+            registry.reload()
+            models = [self._model_profile_payload(model) for model in registry.models.values()]
+        except Exception as exc:
+            logger.debug("Could not load model registry: %s", exc)
+            models = []
+
+        linked = [model for model in models if model["linked"]]
+        configured_scope = str(self._config.get("model_router.model_scope", "linked"))
+        visible = models if configured_scope == "all" else linked
+        return {
+            "scope": configured_scope,
+            "preferred_profile": str(self._config.get("model_router.preferred_profile", "fast")),
+            "models": visible,
+            "all_models": models,
+            "linked_models": linked,
+        }
+
+    def _model_profile_payload(self, model: Any) -> Dict[str, Any]:
+        provider = str(getattr(model, "provider", ""))
+        linked = bool(getattr(model, "enabled", False))
+        if provider == "gemini":
+            linked = linked and bool(str(self._config.get_api_key("gemini") or "").strip())
+        elif provider == "ollama":
+            linked = linked or bool(self._config.get("ollama.enabled", False))
+        elif provider == "openai":
+            linked = linked and bool(str(self._config.get_api_key("openai") or "").strip())
+
+        return {
+            "name": str(getattr(model, "name", "")),
+            "model_id": str(getattr(model, "model_id", "")),
+            "provider": provider,
+            "capabilities": list(getattr(model, "capabilities", ()) or ()),
+            "context_window": int(getattr(model, "context_window", 0) or 0),
+            "cost_tier": str(getattr(model, "cost_tier", "")),
+            "latency_tier": str(getattr(model, "latency_tier", "")),
+            "enabled": bool(getattr(model, "enabled", False)),
+            "linked": linked,
+        }
+
+    def _memory_payload(self) -> Dict[str, Any]:
+        try:
+            from memory.memory_manager import DEFAULT_MEMORY_CATEGORIES, MEMORY_PATH, load_memory
+
+            memory = load_memory()
+            entries: list[Dict[str, Any]] = []
+            for category in DEFAULT_MEMORY_CATEGORIES:
+                items = memory.get(category, {})
+                if not isinstance(items, dict):
+                    continue
+                for key, entry in items.items():
+                    if isinstance(entry, dict):
+                        row = dict(entry)
+                        value = row.pop("value", "")
+                    else:
+                        row = {}
+                        value = entry
+                    entries.append(
+                        {
+                            "id": f"{category}:{key}",
+                            "category": category,
+                            "key": key,
+                            "value": value,
+                            "metadata": row,
+                            "updated": row.get("updated"),
+                            "created": row.get("created"),
+                            "tags": row.get("tags", []),
+                        }
+                    )
+            entries.sort(key=lambda item: str(item.get("updated") or ""), reverse=True)
+            return {
+                "categories": list(DEFAULT_MEMORY_CATEGORIES),
+                "entries": entries,
+                "raw": memory,
+                "path": str(MEMORY_PATH),
+            }
+        except Exception as exc:
+            logger.error("Could not load memory payload: %s", exc)
+            return {"categories": [], "entries": [], "raw": {}, "error": str(exc)}
+
+    def _save_setup_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from memory.config_manager import save_setup_config
+
+        model_router = payload.get("model_router", {}) if isinstance(payload, dict) else {}
+        save_setup_config(
+            gemini_api_key=str(payload.get("gemini_api_key", "")).strip(),
+            openai_api_key=str(payload.get("openai_api_key", "")).strip(),
+            ollama_base_url=str(payload.get("ollama_base_url", "")).strip(),
+            preferred_model=str(model_router.get("preferred_profile") or "fast"),
+            model_scope=str(model_router.get("model_scope") or "linked"),
+        )
+        if payload.get("ollama_enabled") is not None or payload.get("ollama_model"):
+            get_config().update_local_settings(
+                {
+                    "ollama": {
+                        "enabled": bool(payload.get("ollama_enabled")),
+                        "model": str(payload.get("ollama_model") or "llama3.1"),
+                        "base_url": str(
+                            payload.get("ollama_base_url") or "http://localhost:11434"
+                        ),
+                    }
+                }
+            )
+        with contextlib.suppress(Exception):
+            from core.model_registry import get_model_registry
+
+            get_model_registry().reload()
+        return {"status": "saved", "setup": self._setup_payload(), "models": self._models_payload()}
+
+    def _save_memory_entry(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from memory.memory_manager import DEFAULT_MEMORY_CATEGORIES, remember_structured
+
+        category = str(payload.get("category", "notes")).strip()
+        key = str(payload.get("key", "")).strip()
+        value = str(payload.get("value", "")).strip()
+        tags_raw = payload.get("tags", [])
+        tags = tags_raw if isinstance(tags_raw, list) else str(tags_raw).split(",")
+        if category not in DEFAULT_MEMORY_CATEGORIES:
+            return {"error": "unknown category", "memory": self._memory_payload()}
+        if not key or not value:
+            return {"error": "key and value are required", "memory": self._memory_payload()}
+        remember_structured(category, key, value, tags=[str(tag).strip() for tag in tags if str(tag).strip()])
+        return {"status": "saved", "memory": self._memory_payload()}
+
+    def _forget_memory_entry(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from memory.memory_manager import forget
+
+        category = str(payload.get("category", "notes")).strip()
+        key = str(payload.get("key", "")).strip()
+        if not key:
+            return {"error": "key is required", "memory": self._memory_payload()}
+        return {"status": forget(key, category), "memory": self._memory_payload()}
 
     def _calendar_payload(self) -> Dict[str, Any]:
         calendar_cfg = self._settings_payload()["calendar"]
@@ -462,6 +628,93 @@ class JarvisUI:
         return {
             "files": existing,
             "upload_dir": str(UPLOAD_DIR),
+        }
+
+    def _devices_payload(self) -> Dict[str, Any]:
+        proc = psutil.Process()
+        return {
+            "current": {
+                "id": platform.node() or "local",
+                "name": platform.node() or "Local device",
+                "os": platform.platform(),
+                "python": platform.python_version(),
+                "pid": os.getpid(),
+                "process": proc.name(),
+                "started_at": datetime.fromtimestamp(proc.create_time()).isoformat(),
+            },
+            "items": [
+                {
+                    "id": platform.node() or "local",
+                    "name": platform.node() or "Local device",
+                    "status": "online",
+                    "kind": "desktop",
+                    "last_seen": datetime.now().isoformat(),
+                }
+            ],
+        }
+
+    def _action_history_payload(self) -> Dict[str, Any]:
+        try:
+            from core.action_history import get_action_history
+
+            history = get_action_history()
+            records = [record.to_dict() for record in history.get_history(limit=40)]
+            undoable = [record.to_dict() for record in history.get_undoable_actions()[-20:]][::-1]
+            return {
+                "records": records,
+                "undoable": undoable,
+                "stats": history.get_stats(),
+            }
+        except Exception as exc:
+            logger.debug("Could not load action history: %s", exc)
+            return {"records": [], "undoable": [], "stats": {}, "error": str(exc)}
+
+    def _approvals_payload(self) -> Dict[str, Any]:
+        try:
+            from core.approval_flow import get_approval_flow
+
+            flow = get_approval_flow()
+            return {
+                "permission_level": flow.get_permission_level(),
+                "pending": [request.to_dict() for request in flow.get_pending_requests()],
+            }
+        except Exception as exc:
+            logger.debug("Could not load approvals: %s", exc)
+            return {"permission_level": "normal", "pending": [], "error": str(exc)}
+
+    def _permissions_payload(self) -> Dict[str, Any]:
+        try:
+            from core.permission_profiles import get_all_tool_metadata, get_disabled_actions
+
+            tools = []
+            for metadata in get_all_tool_metadata().values():
+                tools.append(
+                    {
+                        "name": metadata.name,
+                        "description": metadata.description,
+                        "risk_level": metadata.risk_level,
+                        "requires_confirmation": metadata.requires_confirmation,
+                        "requires_permission": metadata.requires_permission,
+                        "reversible": metadata.reversible,
+                        "tags": sorted(metadata.tags),
+                        "enabled": metadata.enabled
+                        and metadata.name.lower() not in get_disabled_actions(),
+                    }
+                )
+            tools.sort(key=lambda item: (item["risk_level"], item["name"]))
+            return {"tools": tools, "disabled_actions": sorted(get_disabled_actions())}
+        except Exception as exc:
+            logger.debug("Could not load permissions: %s", exc)
+            return {"tools": [], "disabled_actions": [], "error": str(exc)}
+
+    def _quick_actions_payload(self) -> Dict[str, Any]:
+        return {
+            "items": [
+                {"id": "new_session", "label": "Neue Sitzung", "command": "/session new"},
+                {"id": "healthcheck", "label": "Healthcheck", "command": "run healthcheck"},
+                {"id": "open_uploads", "label": "Uploads pruefen", "command": "show uploaded documents"},
+                {"id": "summarize_day", "label": "Tag zusammenfassen", "command": "summarize today"},
+            ]
         }
 
     def _analyze_upload(self, path: Path) -> str | None:
@@ -697,6 +950,14 @@ class JarvisUI:
             "cockpit": self._cockpit_payload(),
             "resume": self._resume_payload(),
             "documents": self._documents_payload(),
+            "setup": self._setup_payload(),
+            "models": self._models_payload(),
+            "memory": self._memory_payload(),
+            "devices": self._devices_payload(),
+            "action_history": self._action_history_payload(),
+            "approvals": self._approvals_payload(),
+            "permissions": self._permissions_payload(),
+            "quick_actions": self._quick_actions_payload(),
         }
 
     def _recent_chats_payload(self) -> Dict[str, Any]:
@@ -869,6 +1130,22 @@ class JarvisUI:
             return request._send_json(200, self._resume_payload())  # type: ignore[attr-defined]
         if path == "/api/documents":
             return request._send_json(200, self._documents_payload())  # type: ignore[attr-defined]
+        if path == "/api/setup":
+            return request._send_json(200, self._setup_payload())  # type: ignore[attr-defined]
+        if path == "/api/models":
+            return request._send_json(200, self._models_payload())  # type: ignore[attr-defined]
+        if path == "/api/memory":
+            return request._send_json(200, self._memory_payload())  # type: ignore[attr-defined]
+        if path == "/api/memory/export":
+            return request._send_json(200, self._memory_payload())  # type: ignore[attr-defined]
+        if path == "/api/actions/history":
+            return request._send_json(200, self._action_history_payload())  # type: ignore[attr-defined]
+        if path == "/api/approvals":
+            return request._send_json(200, self._approvals_payload())  # type: ignore[attr-defined]
+        if path == "/api/permissions":
+            return request._send_json(200, self._permissions_payload())  # type: ignore[attr-defined]
+        if path == "/api/devices":
+            return request._send_json(200, self._devices_payload())  # type: ignore[attr-defined]
         if path == "/api/state":
             return request._send_json(200, self._current_state())  # type: ignore[attr-defined]
         if path == "/api/resources":
@@ -966,15 +1243,61 @@ class JarvisUI:
                     from actions.calendar_manager import reset_calendar_manager
 
                     reset_calendar_manager()
+            if "model_router" in updates or "ollama" in updates:
+                with contextlib.suppress(Exception):
+                    from core.model_registry import get_model_registry
+
+                    get_model_registry().reload()
 
             return request._send_json(
                 200,
                 {
                     "status": "saved",
                     "settings": self._settings_payload(),
+                    "models": self._models_payload(),
                     "raw": changed,
                 },
             )  # type: ignore[attr-defined]
+
+        if path == "/api/setup":
+            return request._send_json(200, self._save_setup_payload(payload))  # type: ignore[attr-defined]
+
+        if path == "/api/memory/upsert":
+            result = self._save_memory_entry(payload)
+            status = 400 if "error" in result else 200
+            return request._send_json(status, result)  # type: ignore[attr-defined]
+
+        if path == "/api/memory/forget":
+            result = self._forget_memory_entry(payload)
+            status = 400 if "error" in result else 200
+            return request._send_json(status, result)  # type: ignore[attr-defined]
+
+        if path == "/api/approvals/approve":
+            from core.approval_flow import get_approval_flow
+
+            get_approval_flow().approve_request(
+                str(payload.get("tool_name", "")),
+                str(payload.get("action", "")),
+            )
+            return request._send_json(200, self._approvals_payload())  # type: ignore[attr-defined]
+
+        if path == "/api/approvals/deny":
+            from core.approval_flow import get_approval_flow
+
+            get_approval_flow().deny_request(
+                str(payload.get("tool_name", "")),
+                str(payload.get("action", "")),
+            )
+            return request._send_json(200, self._approvals_payload())  # type: ignore[attr-defined]
+
+        if path == "/api/permissions/level":
+            from core.approval_flow import get_approval_flow
+
+            level = str(payload.get("level", "normal")).lower()
+            if level not in {"safe", "normal", "admin"}:
+                return request._send_json(400, {"error": "invalid permission level"})  # type: ignore[attr-defined]
+            get_approval_flow().set_permission_level(level)
+            return request._send_json(200, self._approvals_payload())  # type: ignore[attr-defined]
 
         if path == "/api/calendar/connect":
             updates = payload if isinstance(payload, dict) else {}

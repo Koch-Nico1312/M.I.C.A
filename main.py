@@ -130,6 +130,7 @@ from core.approval_flow import get_approval_flow
 from core.background_task_manager import get_background_task_manager
 from core.cross_device import get_cross_device
 from core.daily_briefing import daily_briefing
+from core.first_run_wizard import ensure_gemini_api_key
 from core.healthcheck import build_runtime_report, format_runtime_report
 from core.hud_overlay import get_hud_manager
 from core.jarvis_live import JarvisLive
@@ -269,6 +270,10 @@ def main() -> None:
         except Exception as e:
             logger.warning(f"Failed to create QApplication: {e}, falling back to CLI mode")
             use_gui = False
+
+    if not ensure_gemini_api_key(use_gui=use_gui):
+        logger.error("JARVIS cannot start without a valid Gemini API key.")
+        return
     
     # Initialize application and UI (pass use_gui to ensure correct UI type)
     _, ui = initialize_application(use_gui)

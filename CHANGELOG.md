@@ -4,6 +4,16 @@ All notable changes to the Jarvis AI Assistant project will be documented in thi
 
 ## [Unreleased] - 2026-06-01
 
+### Assistant Runtime Hardening
+
+- Added first-run API key and model setup support with a safe `config/api_keys.example.json`.
+- Wired routed model preferences and Gemini/Ollama fallback behavior into the runtime model path.
+- Added Memory management to the React dashboard for viewing, editing, exporting, and forgetting entries.
+- Added central tool approval checks and action-history recording in `core/tool_executor.py`.
+- Expanded dashboard telemetry with device status, sessions, file-transfer history, tool history, approvals, and permissions.
+- Added a local contact manager integration backed by `data/contacts.json`.
+- Added a local release archive script and release documentation.
+
 ### Performance Optimizations - Phase 3 (Complex Architectural Changes)
 
 This release implements 6 complex architectural performance optimizations as part of the performance improvement initiative. All optimizations are behind feature flags for safe gradual rollout.

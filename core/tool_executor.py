@@ -10,12 +10,13 @@ This module provides:
 """
 
 import asyncio
-import concurrent.futures
 import time
 import traceback
 from typing import Any, Callable, Dict, List, Optional
 
 from core.logger import get_logger
+from core.action_history import ActionStatus, get_action_history
+from core.approval_flow import get_approval_flow
 from core.metrics_collector import get_metrics_collector
 from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor
@@ -79,6 +80,39 @@ class ToolExecutor:
         error = None
         result = "Done."
         action = str(args.get("action", name) or name)
+        history = get_action_history()
+
+        try:
+            allowed, approval_message = get_approval_flow().check_and_request_approval(
+                name, action, args
+            )
+        except Exception as approval_error:
+            allowed = False
+            approval_message = f"Approval check failed: {approval_error}"
+
+        if not allowed:
+            duration_ms = (time.perf_counter() - start_perf) * 1000
+            result = approval_message
+            error = approval_message
+            try:
+                history.record_action(
+                    tool_name=name,
+                    action=action,
+                    parameters=args,
+                    result=str(result),
+                    status=ActionStatus.FAILED,
+                )
+            except Exception as history_error:
+                logger.debug(f"Tool history write skipped: {history_error}")
+            return {
+                "name": name,
+                "result": result,
+                "success": False,
+                "error": error,
+                "duration_ms": duration_ms,
+                "approval_required": "confirmation" in approval_message.lower()
+                or "approval" in approval_message.lower(),
+            }
 
         try:
             if name in self.tool_registry:
@@ -91,6 +125,8 @@ class ToolExecutor:
                     result = await loop.run_in_executor(None, func, args, player, speak)
             else:
                 result = f"Unknown tool: {name}"
+                success = False
+                error = result
                 logger.warning(f"Attempted to execute unknown tool: {name}")
 
         except Exception as e:
@@ -102,6 +138,17 @@ class ToolExecutor:
 
         # Track performance
         duration_ms = (time.perf_counter() - start_perf) * 1000
+        try:
+            history.record_action(
+                tool_name=name,
+                action=action,
+                parameters=args,
+                result=str(result),
+                status=ActionStatus.SUCCESS if success else ActionStatus.FAILED,
+            )
+        except Exception as history_error:
+            logger.debug(f"Tool history write skipped: {history_error}")
+
         try:
             self.perf_monitor.track_tool_execution(
                 tool_name=name,

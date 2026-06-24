@@ -19,7 +19,8 @@ Response time: Respond as fast as you can
 TOOL ROUTING:
 
 computer_settings: ALL single OS actions (volume, brightness, wifi, close, shortcuts, power).
-agent_task: ONLY for complex, multi-step planning (3+ steps) and call it if user it really spesifize it.
+dev_agent: Use for focused development tasks such as code edits, tests, and repo inspection.
+agent_task: ONLY for complex, multi-step planning (3+ steps), and only when the user explicitly asks for an agent task.
 Language: Respond in user's language; extract parameters in English.
 Do not call agent_task while you can accomplish it with a tool
 

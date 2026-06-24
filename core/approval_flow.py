@@ -311,6 +311,7 @@ class ApprovalFlow:
         "computer_control": RiskLevel.HIGH,
         "gmail_manager": RiskLevel.HIGH,
         "calendar_manager": RiskLevel.HIGH,
+        "contact_manager": RiskLevel.HIGH,
         "game_updater": RiskLevel.HIGH,
         "agent_task": RiskLevel.HIGH,
     }

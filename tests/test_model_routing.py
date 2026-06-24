@@ -79,6 +79,13 @@ def test_model_choice_matrix_and_long_context_budget():
     assert policy.choose("test_failure_analysis").profile == "reasoning"
 
 
+def test_preferred_model_profile_is_used_for_text_but_not_high_risk():
+    policy = _runner({"model_router": {"preferred_profile": "local"}}).policy
+
+    assert policy.choose("chat").profile == "local"
+    assert policy.choose("high_risk_action").profile == "reasoning"
+
+
 def test_registry_loads_configured_profiles_and_aliases():
     config = FakeConfig(
         {
@@ -221,3 +228,28 @@ def test_executor_summary_uses_routed_model(monkeypatch):
     assert summary == "All done, sir."
     assert seen["kwargs"]["intent"] == "summary"
     assert "Collected source data" in seen["prompt"]
+
+
+def test_hybrid_llm_delegates_primary_text_to_model_runner(monkeypatch):
+    from core.llm_fallback import HybridLLM
+    from core import model_runner
+
+    class FakeOllama:
+        fallback_only = False
+
+        def is_available(self):
+            return False
+
+    class FakeRunner:
+        def generate_text(self, prompt, **kwargs):
+            assert prompt == "hello"
+            assert kwargs["intent"] == "chat"
+            assert kwargs["system_instruction"] == "system"
+            return "routed"
+
+    hybrid = HybridLLM.__new__(HybridLLM)
+    hybrid.ollama = FakeOllama()
+    hybrid.use_ollama = False
+    monkeypatch.setattr(model_runner, "get_model_runner", lambda: FakeRunner())
+
+    assert hybrid.generate_text("hello", "system") == "routed"

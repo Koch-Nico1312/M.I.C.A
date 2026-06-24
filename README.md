@@ -1,123 +1,185 @@
-# MARK XXXIX
+# JARVIS
 
-MARK XXXIX is a desktop AI assistant built around voice interaction, tool calling, local automation, memory, and optional UI components. It can help with app launching, web search, reminders, messaging workflows, file handling, vision-based tasks, and other assistant-style actions through the modules in this repository.
+JARVIS is a local-first desktop AI assistant for Windows-oriented personal automation. It combines voice interaction, Gemini model calls, tool execution, memory, safety approvals, optional retrieval, and a PyQt-based desktop UI. The repository also contains a React/Vite UI workspace under `UI/` for the frontend assets used by the assistant experience.
 
-## What it does
+The project is designed as a modular assistant runtime: `main.py` starts the app, `tools/` declares what the model can call, `actions/` implements those tools, and `core/` provides shared services such as configuration, logging, approvals, memory, monitoring, plugins, sessions, and workflow execution.
 
-- Voice-driven assistant loop with live interaction
-- Tool-based automation for desktop and browser tasks
-- Memory persistence and backups
-- Optional semantic search and retrieval support
-- Optional passive vision and screen processing
-- Optional integrations for Gmail, VS Code, Telegram, Discord, and Obsidian
-- React/Vite desktop UI under `UI/`
+## Features
+
+- Voice-capable assistant loop using Gemini live/audio models.
+- Tool calling for browser control, desktop automation, files, weather, reminders, messaging, YouTube, Spotify, Gmail, Google Calendar, and more.
+- Safety and approval flow for medium- and high-risk actions.
+- Persistent action history, session state, long-term memory, backups, and optional Obsidian integration.
+- Optional semantic search/RAG with ChromaDB and sentence-transformers.
+- Optional passive vision, screen processing, OCR, and HUD overlay features.
+- Optional local LLM fallback through Ollama.
+- Performance monitoring, health checks, cache support, and feature flags.
+- React/Vite UI workspace in `UI/` plus PyQt/PyQt WebEngine runtime dependencies.
 
 ## Repository Layout
 
-- `main.py` - main application entry point
-- `ui.py` - legacy compatibility shim for shared UI theme imports
-- `core/` - core assistant logic, memory, monitoring, safety, and integrations
-- `actions/` - action handlers for specific tasks like browser, files, weather, and messaging
-- `memory/` - memory management, backups, and long-term storage helpers
-- `config/` - configuration loading and integration settings
-- `docs/` - setup and feature documentation
-- `UI/` - React/Vite frontend and bundled desktop UI assets
-- `tests/` - automated tests for selected subsystems
+```text
+.
+|-- actions/          # Concrete action implementations called by tools
+|-- agent/            # Planner, executor, task queue, and orchestration helpers
+|-- config/           # Config loaders, startup config, MCP server config
+|-- core/             # Runtime services: memory, safety, plugins, health, UI bridge, etc.
+|-- data/             # Local runtime data such as history and vector DB files
+|-- docs/             # Architecture, API, setup, troubleshooting, and integration docs
+|-- memory/           # Memory managers, backups, retrieval, Obsidian bridge
+|-- plugins/          # Local plugin directory
+|-- startup/          # Application, safety, and performance initialization
+|-- tests/            # Unit, integration, and benchmark tests
+|-- tools/            # Gemini tool declarations
+|-- UI/               # React/Vite frontend workspace
+|-- main.py           # Main runtime entry point
+|-- ui_bridge.py      # PyQt UI bridge and app surface
+|-- config.yaml       # Main YAML configuration
+`-- .env.example      # Environment variable template
+```
 
 ## Requirements
 
 - Python 3.11+
-- A Gemini API key
-- Optional: microphone and speakers for voice mode
-- Optional: Playwright browsers for browser automation
+- A Gemini API key in `GEMINI_API_KEY`
+- Windows is the primary target for desktop automation features
+- Optional microphone and speakers for voice interaction
+- Optional Node.js/npm for working on the `UI/` frontend
+- Optional Ollama for local model fallback
+- Optional Playwright browsers for browser automation
 
-Some features rely on platform-specific packages or integrations, so not every module will be available in every environment.
+Some integrations require additional credentials or local setup, for example Gmail, Google Calendar, Spotify, Telegram, Discord, VS Code, Obsidian, OCR tools, or smart-home services.
 
 ## Setup
 
-1. Create a virtual environment:
+Create and activate a virtual environment:
 
-```bash
+```powershell
 python -m venv venv
+.\venv\Scripts\activate
 ```
 
-2. Activate it:
+Install Python dependencies:
 
-```bash
-venv\Scripts\activate
-```
-
-3. Install dependencies:
-
-```bash
+```powershell
 pip install -r requirements.txt
 ```
 
-4. Install Playwright browsers:
+Install Playwright browsers if you want browser automation:
 
-```bash
+```powershell
 python -m playwright install
 ```
 
-5. Create your local config file:
+Create your local environment file:
 
-```bash
+```powershell
 copy .env.example .env
 ```
 
-6. Add your API key and any optional integrations to `.env`.
+Then set at least:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+You can also run the helper setup script, which installs requirements, Playwright browsers, and pre-commit hooks:
+
+```powershell
+python setup.py
+```
 
 ## Configuration
 
-The project uses `.env` for runtime configuration. The example file contains the supported variables, including:
+JARVIS reads configuration from `config.yaml` and environment variables. Environment variables are useful for secrets and local overrides, while `config.yaml` contains the broader runtime defaults.
+
+Common settings include:
 
 - `GEMINI_API_KEY`
-- `LIVE_MODEL`
-- `TEXT_MODEL`
-- `VISION_MODEL`
-- `OLLAMA_ENABLED`
+- `LIVE_MODEL`, `TEXT_MODEL`, `VISION_MODEL`
+- `OLLAMA_ENABLED`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
 - `PASSIVE_VISION_ENABLED`
-- `RAG_ENABLED`
+- `RAG_ENABLED`, `RAG_INDEX_PATH`
 - `HUD_ENABLED`
 - `PROACTIVE_SUGGESTIONS_ENABLED`
-- `VSCODE_BRIDGE_ENABLED`
-- `GMAIL_ENABLED`
-- `OBSIDIAN_ENABLED`
+- `GMAIL_ENABLED`, `CALENDAR_ENABLED`
+- `SPOTIFY_ENABLED`
+- `OBSIDIAN_ENABLED`, `OBSIDIAN_VAULT_PATH`
+- `PERMISSION_PROFILE`, `DISABLED_ACTIONS`
 
-See `.env.example` for the full list and default values.
+See `.env.example` and `config.yaml` for the current list of supported options.
 
-## Run
+## Running JARVIS
 
-```bash
+Start the desktop assistant:
+
+```powershell
 .\venv\Scripts\python.exe .\main.py
 ```
 
-The assistant will start its UI and wait for the configured API key before launching the main runtime.
+Run in CLI mode:
 
-## Optional UI Workspace
+```powershell
+.\venv\Scripts\python.exe .\main.py --cli
+```
 
-The `UI/` folder is the React frontend workspace.
+The startup flow checks configuration, initializes safety and performance systems, starts the UI when enabled, and then launches the assistant runtime.
 
-```bash
+## Frontend Workspace
+
+The `UI/` directory contains the React/Vite workspace.
+
+```powershell
 cd UI
 npm install
 npm run dev
 ```
 
-## Development Notes
+Build the frontend:
 
-- Do not commit `.env`, local caches, logs, or virtual environments.
-- The repository already includes a `.gitignore` for common local artifacts.
-- `setup.py` can also be used to install dependencies and Playwright browsers automatically.
+```powershell
+npm run build
+```
 
-## Tests
+## Tests and Quality
 
-Run the test suite with:
+Run the main test suite:
 
-```bash
+```powershell
 pytest
 ```
 
+Run with coverage:
+
+```powershell
+pytest --cov=. --cov-report=term-missing
+```
+
+Useful focused commands:
+
+```powershell
+pytest tests/test_healthcheck.py
+pytest tests/test_model_routing.py
+pytest tests/integration
+pytest tests/benchmarks
+```
+
+The project includes configuration for pytest, Black, isort, mypy, Bandit, and pre-commit.
+
+## Documentation
+
+- `docs/Architecture.md` - architecture and component overview
+- `docs/API.md` - API and integration surfaces
+- `docs/Troubleshooting.md` - common runtime issues
+- `docs/GMAIL_SETUP.md` - Gmail setup
+- `docs/OBSIDIAN_SETUP.md` - Obsidian setup
+- `docs/Performance-Guide.md` - performance features and tuning
+- `PERFORMANCE_FEATURES_ANLEITUNG.md` - German performance feature guide
+
+## Local Data and Secrets
+
+Do not commit `.env`, local credentials, tokens, logs, caches, virtual environments, coverage output, or generated runtime data. The repository includes `.gitignore` entries for common local artifacts, but check changes before committing because this app touches many local integrations.
+
 ## License
 
-No explicit license is defined in this repository yet. Add one before publishing or sharing broadly.
+This project is licensed under the MIT License. See `LICENSE`.

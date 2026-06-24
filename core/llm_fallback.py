@@ -8,7 +8,6 @@ import json
 import subprocess
 import sys
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 try:
@@ -237,9 +236,14 @@ class HybridLLM:
             except Exception as e:
                 print(f"[HybridLLM] Ollama failed: {e}")
 
-        # If Ollama fails or not in fallback mode, this would call Gemini
-        # This is a placeholder - the actual Gemini integration is in main.py
-        raise NotImplementedError("Primary LLM (Gemini) should be called from main.py")
+        from core.model_runner import get_model_runner
+
+        return get_model_runner().generate_text(
+            prompt,
+            intent="chat",
+            system_instruction=system_prompt,
+            use_cache=False,
+        )
 
     def should_use_fallback(self, error: Exception) -> bool:
         """Determine if we should switch to fallback based on error"""

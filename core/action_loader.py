@@ -48,6 +48,7 @@ class ActionLoader:
             "game_updater": "actions.game_updater",
             "gmail_manager": "actions.gmail_manager",
             "calendar_manager": "actions.calendar_manager",
+            "contact_manager": "actions.contact_manager",
             "roblox_controller": "actions.roblox_controller",
             "spotify_controller": "actions.spotify_controller",
             "daily_briefing": "core.daily_briefing",

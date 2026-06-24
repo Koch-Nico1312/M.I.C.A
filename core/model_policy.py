@@ -116,6 +116,7 @@ class ModelPolicy:
         }
         profile, reason = matrix.get(resolved_intent, ("fast", "default fast route"))
         profile = self._maybe_adjust_for_budget(profile, context_chars)
+        profile = self._maybe_apply_preferred_profile(profile, resolved_intent)
         fallbacks = self.fallback_chain(profile)
         return ModelDecision(
             intent=resolved_intent,
@@ -134,6 +135,20 @@ class ModelPolicy:
         if mode == "economy" and profile in {"reasoning", "long_context"}:
             return "fast"
         return profile
+
+    def _maybe_apply_preferred_profile(self, profile: str, intent: str) -> str:
+        if intent in {"vision", "high_risk_action"}:
+            return profile
+        preferred = str(self.config.get("model_router.preferred_profile", "") or "").strip()
+        if not preferred:
+            return profile
+        try:
+            candidate = self.registry.get(preferred)
+        except KeyError:
+            return profile
+        if not candidate.enabled or not candidate.supports("text"):
+            return profile
+        return candidate.name
 
     def fallback_chain(self, profile: str) -> tuple[str, ...]:
         configured = self.config.get(f"model_router.fallbacks.{profile}", None)

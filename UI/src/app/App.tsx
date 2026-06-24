@@ -4,6 +4,7 @@ import { SidebarProvider, SidebarTrigger, SidebarInset } from "./components/ui/s
 import { AppSidebar } from "./components/AppSidebar";
 import { DocumentsView } from "./components/DocumentsView";
 import { HomeView } from "./components/HomeView";
+import { MemoryView } from "./components/MemoryView";
 import { VoiceChatView } from "./components/VoiceChatView";
 import { ChatsView } from "./components/ChatsView";
 import { ResourcesView } from "./components/ResourcesView";
@@ -14,6 +15,7 @@ const viewTitles: Record<string, string> = {
   home: "Dashboard",
   "voice-chat": "Sprechen",
   chats: "Chats",
+  memory: "Memory",
   documents: "Dokumente",
   resources: "Ressourcen",
 };
@@ -235,6 +237,7 @@ export default function App() {
                     {activeView === "documents" && (
                       <DocumentsView currentFile={state?.current_file ?? null} />
                     )}
+                    {activeView === "memory" && <MemoryView />}
                     {activeView === "resources" && <ResourcesView dashboard={dashboard} />}
                   </>
                 )}

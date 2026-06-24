@@ -54,6 +54,11 @@ export interface DashboardSettings {
     credentials_path: string;
     token_path: string;
   };
+  model_router?: {
+    preferred_profile: string;
+    model_scope: "linked" | "all" | string;
+    cost_mode: string;
+  };
 }
 
 export interface CalendarStatus {
@@ -84,6 +89,14 @@ export interface DashboardResponse {
   cockpit?: CockpitPayload;
   resume?: ResumePayload;
   documents?: DocumentsPayload;
+  setup?: SetupPayload;
+  models?: ModelsPayload;
+  memory?: MemoryPayload;
+  devices?: DevicesPayload;
+  action_history?: ActionHistoryPayload;
+  approvals?: ApprovalsPayload;
+  permissions?: PermissionsPayload;
+  quick_actions?: QuickActionsPayload;
 }
 
 export interface SessionPayload {
@@ -156,4 +169,136 @@ export interface UploadDocumentsResponse {
   files: DocumentRecord[];
   errors: Array<{ name: string; error: string }>;
   indexed: boolean;
+}
+
+export interface SetupPayload {
+  configured: boolean;
+  api_keys_path: string;
+  example_path: string;
+  has_gemini_key: boolean;
+  has_openai_key: boolean;
+  ollama_base_url: string;
+  settings: DashboardSettings;
+}
+
+export interface ModelProfilePayload {
+  name: string;
+  model_id: string;
+  provider: string;
+  capabilities: string[];
+  context_window: number;
+  cost_tier: string;
+  latency_tier: string;
+  enabled: boolean;
+  linked: boolean;
+}
+
+export interface ModelsPayload {
+  scope: "linked" | "all" | string;
+  preferred_profile: string;
+  models: ModelProfilePayload[];
+  all_models: ModelProfilePayload[];
+  linked_models: ModelProfilePayload[];
+}
+
+export interface MemoryEntry {
+  id: string;
+  category: string;
+  key: string;
+  value: string;
+  metadata: Record<string, unknown>;
+  updated?: string | null;
+  created?: string | null;
+  tags?: string[];
+}
+
+export interface MemoryPayload {
+  categories: string[];
+  entries: MemoryEntry[];
+  raw: Record<string, unknown>;
+  path?: string;
+  error?: string;
+}
+
+export interface DeviceRecord {
+  id: string;
+  name: string;
+  status: string;
+  kind?: string;
+  os?: string;
+  python?: string;
+  pid?: number;
+  process?: string;
+  last_seen?: string;
+  started_at?: string;
+}
+
+export interface DevicesPayload {
+  current: DeviceRecord;
+  items: DeviceRecord[];
+}
+
+export interface ActionRecordPayload {
+  id: string;
+  action_type: string;
+  tool_name: string;
+  action: string;
+  parameters: Record<string, unknown>;
+  result: string;
+  status: string;
+  timestamp: string;
+  can_undo: boolean;
+  undo_plan?: Record<string, unknown> | null;
+}
+
+export interface ActionHistoryPayload {
+  records: ActionRecordPayload[];
+  undoable: ActionRecordPayload[];
+  stats: Record<string, unknown>;
+  error?: string;
+}
+
+export interface ApprovalPayload {
+  tool_name: string;
+  action: string;
+  permission_level: string;
+  reason: string;
+  risk_level: string;
+  status: string;
+  timestamp: string;
+  summary: string;
+  context?: Record<string, unknown>;
+}
+
+export interface ApprovalsPayload {
+  permission_level: string;
+  pending: ApprovalPayload[];
+  error?: string;
+}
+
+export interface PermissionToolPayload {
+  name: string;
+  description: string;
+  risk_level: string;
+  requires_confirmation: boolean;
+  requires_permission: boolean;
+  reversible: boolean;
+  tags: string[];
+  enabled: boolean;
+}
+
+export interface PermissionsPayload {
+  tools: PermissionToolPayload[];
+  disabled_actions: string[];
+  error?: string;
+}
+
+export interface QuickActionPayload {
+  id: string;
+  label: string;
+  command: string;
+}
+
+export interface QuickActionsPayload {
+  items: QuickActionPayload[];
 }
