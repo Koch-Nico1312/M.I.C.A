@@ -14,18 +14,17 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
-from core.action_history import ActionStatus, get_action_history
-from core.approval_flow import RiskLevel, get_approval_flow
-from core.background_task_manager import TaskPriority, get_background_task_manager
+from core.action_history import get_action_history
+from core.approval_flow import get_approval_flow
+from core.background_task_manager import get_background_task_manager
 from core.logger import get_logger
 from core.metrics_collector import get_metrics_collector
 from core.paths import project_path
 from core.performance_flags import get_performance_flags
-from core.performance_tracker import TaskStatus as PerfTaskStatus
 from core.performance_tracker import get_performance_tracker
-from core.permission_profiles import PermissionLevel, check_action
+from core.permission_profiles import check_action
 
 logger = get_logger(__name__)
 
@@ -263,6 +262,47 @@ class WorkflowEngine:
         logger.info(f"Workflow created: {name} (ID: {workflow_id}) with {len(steps)} steps")
         return workflow
 
+    def create_routine_flow(
+        self,
+        command: str,
+        *,
+        priority: WorkflowPriority = WorkflowPriority.NORMAL,
+    ) -> Workflow:
+        """Create a lightweight workflow definition for common day/session commands."""
+        normalized = " ".join(str(command or "").lower().split())
+        step_map: Dict[str, List[Dict[str, Any]]] = {
+            "start my day": [
+                {"name": "Generate morning briefing", "action": "daily_briefing", "parameters": {"action": "morning"}, "risk_level": "low"},
+                {"name": "Select focus block", "action": "routine_flow", "parameters": {"command": "focus mode"}, "risk_level": "low"},
+            ],
+            "wrap up": [
+                {"name": "Generate evening briefing", "action": "daily_briefing", "parameters": {"action": "evening"}, "risk_level": "low"},
+                {"name": "Persist day summary", "action": "memory", "parameters": {"kind": "daily_summary"}, "risk_level": "low"},
+            ],
+            "meeting prep": [
+                {"name": "Collect meeting context", "action": "calendar_manager", "parameters": {"action": "next"}, "risk_level": "low"},
+                {"name": "Draft agenda points", "action": "routine_flow", "parameters": {"command": "meeting prep"}, "risk_level": "low"},
+            ],
+            "focus mode": [
+                {"name": "Start focus mode", "action": "routine_flow", "parameters": {"command": "focus mode"}, "risk_level": "low"},
+            ],
+            "summarize last hour": [
+                {"name": "Summarize last hour", "action": "session_resume", "parameters": {"action": "summarize_last_hour"}, "risk_level": "low"},
+            ],
+            "what changed since yesterday": [
+                {"name": "Review changes since yesterday", "action": "session_resume", "parameters": {"action": "changed_since_yesterday"}, "risk_level": "low"},
+            ],
+        }
+        steps = step_map.get(normalized, step_map["focus mode"])
+        return self.create_workflow(
+            name=f"Routine: {normalized or 'focus mode'}",
+            goal=f"Run routine command '{normalized or 'focus mode'}'",
+            description="Quick day/session routine flow",
+            steps=steps,
+            priority=priority,
+            overall_risk_level="low",
+        )
+
     def submit_workflow(self, workflow: Workflow) -> str:
         """
         Submit a workflow for execution.
@@ -360,12 +400,10 @@ class WorkflowEngine:
             workflow: Workflow to execute
         """
         perf_flags = get_performance_flags()
-        metrics = get_metrics_collector()
-
         logger.info(f"Executing workflow: {workflow.name} (ID: {workflow.workflow_id})")
 
         # Track workflow in performance tracker
-        task_id = self.performance_tracker.start_task(
+        self.performance_tracker.start_task(
             task_id=workflow.workflow_id, task_name=workflow.name, total_steps=len(workflow.steps)
         )
 
@@ -383,7 +421,7 @@ class WorkflowEngine:
                 workflow.error = str(e)
                 workflow.error_classification = ErrorClassification.SYSTEM
                 workflow.completed_at = datetime.now()
-                self.active_workflows.discard(workflow_id)
+                self.active_workflows.discard(workflow.workflow_id)
 
     def _execute_workflow_sequential(self, workflow: Workflow):
         """

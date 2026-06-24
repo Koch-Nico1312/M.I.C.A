@@ -6,11 +6,13 @@ Lazy loads action modules to reduce startup time and memory footprint.
 
 import importlib
 import threading
-from typing import Any, Callable, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 from core.logger import get_logger
 from core.metrics_collector import get_metrics_collector
 from core.performance_flags import get_performance_flags
+from tools import FEATURE_TOOL_DECLARATIONS, TOOL_DECLARATIONS
 
 logger = get_logger(__name__)
 
@@ -25,6 +27,7 @@ class ActionLoader:
         """Initialize the action loader."""
         self._action_cache: Dict[str, Any] = {}
         self._lock = threading.Lock()
+        self.lazy_load = get_performance_flags().is_enabled("lazy_load_actions")
         self._action_map = {
             "file_processor": "actions.file_processor",
             "flight_finder": "actions.flight_finder",
@@ -62,10 +65,9 @@ class ActionLoader:
         Returns:
             Action module or None if not found
         """
-        perf_flags = get_performance_flags()
         metrics = get_metrics_collector()
 
-        if perf_flags.is_enabled("lazy_load_actions"):
+        if self.lazy_load:
             # Check cache first
             with self._lock:
                 if action_name in self._action_cache:
@@ -79,10 +81,8 @@ class ActionLoader:
 
             if action_name not in self._action_map:
                 logger.warning(f"Unknown action: {action_name}")
-                metrics.end_operation("action_load", {"action": action_name, "found": False})
-                return None
 
-            module_path = self._action_map[action_name]
+            module_path = self._action_map.get(action_name, f"actions.{action_name}")
 
             try:
                 module = importlib.import_module(module_path)
@@ -100,20 +100,42 @@ class ActionLoader:
             except ImportError as e:
                 logger.error(f"Failed to load action {action_name}: {e}")
                 metrics.end_operation("action_load", {"action": action_name, "error": str(e)})
-                return None
+                raise
         else:
             # Original behavior: import directly (already imported at top level)
             # This is a fallback when lazy loading is disabled
             try:
-                module_path = self._action_map.get(action_name)
-                if module_path:
-                    module = importlib.import_module(module_path)
-                    return module
+                module_path = self._action_map.get(action_name, f"actions.{action_name}")
+                module = importlib.import_module(module_path)
+                with self._lock:
+                    self._action_cache[action_name] = module
+                return module
             except ImportError as e:
                 logger.error(f"Failed to load action {action_name}: {e}")
-                return None
+                raise
 
         return None
+
+    def load_actions(self, action_names: list[str] | None = None) -> Dict[str, Any]:
+        """
+        Load multiple action modules and return the successfully loaded modules.
+
+        This preserves the older public ActionLoader API while still using the
+        lazy-loading cache internally.
+        """
+        if action_names is None:
+            action_names = list(self._action_map.keys())
+
+        loaded: Dict[str, Any] = {}
+        for action_name in action_names:
+            try:
+                module = self.load_action(action_name)
+            except ImportError:
+                logger.warning(f"Skipping unavailable action: {action_name}")
+                continue
+            if module is not None:
+                loaded[action_name] = module
+        return loaded
 
     def preload_actions(self, action_names: list = None) -> None:
         """
@@ -142,6 +164,36 @@ class ActionLoader:
             "action_preload", {"requested": len(action_names), "loaded": loaded_count}
         )
         logger.info(f"Preloaded {loaded_count}/{len(action_names)} actions")
+
+    def get_tool_declarations(self) -> list[dict[str, Any]]:
+        """
+        Return available tool declarations.
+
+        Static declarations are the source of truth for built-in tools; module
+        declarations are included when present for plugin-like action modules.
+        """
+        declarations: list[dict[str, Any]] = []
+        seen: set[str] = set()
+
+        for declaration in [*TOOL_DECLARATIONS, *FEATURE_TOOL_DECLARATIONS]:
+            name = declaration.get("name")
+            if name and name not in seen:
+                declarations.append(declaration)
+                seen.add(name)
+
+        for action_name in self._action_map:
+            try:
+                module = self.load_action(action_name)
+            except ImportError:
+                continue
+            declaration = getattr(module, "TOOL_DECLARATION", None)
+            if isinstance(declaration, dict):
+                name = declaration.get("name")
+                if name and name not in seen:
+                    declarations.append(declaration)
+                    seen.add(name)
+
+        return declarations
 
     def clear_cache(self) -> None:
         """Clear the action cache."""

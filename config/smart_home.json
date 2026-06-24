@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "home_assistant_url": "",
+  "api_token": "",
+  "verify_ssl": true,
+  "auto_sync": true,
+  "sync_interval_minutes": 5
+}

@@ -17,26 +17,17 @@ Supported types:
 """
 
 import json
-import os
 import re
 import shutil
 import subprocess
 import tempfile
-from datetime import datetime
 from pathlib import Path
 
-import google.generativeai as genai
-
-
-def _get_api_key() -> str:
-    config_path = Path(__file__).resolve().parent.parent / "config" / "api_keys.json"
-    with open(config_path, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+from core.model_runner import get_routed_model
 
 
 def _gemini_client():
-    genai.configure(api_key=_get_api_key())
-    return genai.GenerativeModel("gemini-2.5-flash")
+    return get_routed_model(use_cache=False)
 
 
 def _detect_type(path: Path) -> str:
@@ -722,7 +713,7 @@ def _process_video(path: Path, action: str, params: dict, speak=None) -> str:
         end = params.get("end", "")
         if not _ffmpeg_available():
             return "ffmpeg not found."
-        out = _output_path(path, f"trim", path.suffix)
+        out = _output_path(path, "trim", path.suffix)
         try:
             cmd = ["ffmpeg", "-i", str(path), "-ss", str(start)]
             if end:

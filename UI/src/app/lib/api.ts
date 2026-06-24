@@ -1,4 +1,11 @@
-import type { DashboardResponse, SessionPayload } from "./types";
+import type {
+  CockpitPayload,
+  DashboardResponse,
+  DocumentsPayload,
+  ResumePayload,
+  SessionPayload,
+  UploadDocumentsResponse,
+} from "./types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   try {
@@ -33,6 +40,35 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   }
 }
 
+async function uploadRequest<T>(path: string, formData: FormData): Promise<T> {
+  try {
+    const response = await fetch(path, {
+      method: "POST",
+      body: formData,
+    });
+
+    const text = await response.text();
+    let body: any = {};
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { raw: text };
+      }
+    }
+
+    if (!response.ok) {
+      const message = body?.error || body?.message || `Request failed: ${response.status}`;
+      throw new Error(message);
+    }
+
+    return body as T;
+  } catch (error) {
+    console.warn("Upload failed:", error);
+    throw error;
+  }
+}
+
 function getMockData<T>(path: string): T {
   const mockDashboard: DashboardResponse = {
     state: {
@@ -40,7 +76,7 @@ function getMockData<T>(path: string): T {
       muted: false,
       speaking: false,
       voice_focus: true,
-      default_view: "voice-chat",
+      default_view: "home",
       current_file: null,
       logs: [],
       session: null,
@@ -67,7 +103,7 @@ function getMockData<T>(path: string): T {
     },
     settings: {
       ui: {
-        default_view: "voice-chat",
+        default_view: "home",
         voice_first: true,
       },
       calendar: {
@@ -85,10 +121,55 @@ function getMockData<T>(path: string): T {
     },
     current_session: null,
     recent_sessions: [],
+    cockpit: {
+      calendar: {
+        items: [],
+        status: {
+          enabled: false,
+          configured: false,
+          authenticated: false,
+          credentials_path: "",
+          token_path: "",
+        },
+      },
+      weather: {
+        summary: "Keine Wetterdaten",
+        temperature: null,
+        condition: null,
+        location: null,
+      },
+      mail: {
+        open_count: 0,
+        items: [],
+      },
+      reminders: [],
+      tasks: [],
+      recent_activities: [],
+      next_best_step: null,
+    },
+    resume: {
+      last_activity: null,
+      open_ends: [],
+      recent_files: [],
+      summary: "",
+      session: null,
+    },
+    documents: {
+      files: [],
+    },
   };
 
   if (path === "/api/dashboard") {
     return mockDashboard as T;
+  }
+  if (path === "/api/cockpit") {
+    return mockDashboard.cockpit as T;
+  }
+  if (path === "/api/session/resume") {
+    return mockDashboard.resume as T;
+  }
+  if (path === "/api/documents") {
+    return mockDashboard.documents as T;
   }
 
   return {} as T;
@@ -96,6 +177,9 @@ function getMockData<T>(path: string): T {
 
 export const jarvisApi = {
   getDashboard: () => requestJson<DashboardResponse>("/api/dashboard"),
+  getCockpit: () => requestJson<CockpitPayload>("/api/cockpit"),
+  getResume: () => requestJson<ResumePayload>("/api/session/resume"),
+  getDocuments: () => requestJson<DocumentsPayload>("/api/documents"),
   getSettings: () => requestJson("/api/settings"),
   getCalendarStatus: () => requestJson("/api/calendar/status"),
   getChatSession: (sessionId: string) =>
@@ -130,5 +214,14 @@ export const jarvisApi = {
       method: "POST",
       body: JSON.stringify({ summary }),
     }),
+  uploadDocuments: (files: File[], options: { analyze: boolean; index: boolean }) => {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file);
+    }
+    formData.append("analyze", String(options.analyze));
+    formData.append("index", String(options.index));
+    return uploadRequest<UploadDocumentsResponse>("/api/documents/upload", formData);
+  },
 };
 

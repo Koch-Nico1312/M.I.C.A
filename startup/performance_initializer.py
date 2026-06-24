@@ -20,7 +20,7 @@ Example:
 """
 
 from config.config_loader import get_config
-from core.action_loader import get_action_loader
+from config.startup_config import get_startup_setting
 from core.background_task_manager import get_background_task_manager
 from core.logger import get_logger
 from core.memory_manager import get_memory_manager
@@ -42,7 +42,7 @@ def initialize_performance_system(action_loader_func):
     """
     config = get_config()
 
-    if not config.get("performance.enabled", True):
+    if not get_startup_setting("performance.enabled"):
         logger.info("Performance tracking disabled by configuration")
         return None, None
 
@@ -50,39 +50,34 @@ def initialize_performance_system(action_loader_func):
     perf_monitor = get_performance_monitor()
 
     # Configure thresholds
-    slow_threshold = config.get("performance.slow_operation_threshold_ms", 2000)
-    alert_threshold = config.get("performance.alert_threshold_ms", 5000)
+    slow_threshold = get_startup_setting("performance.slow_operation_threshold_ms")
+    alert_threshold = get_startup_setting("performance.alert_threshold_ms")
     perf_tracker.slow_operation_threshold_ms = slow_threshold
     perf_tracker.alert_threshold_ms = alert_threshold
 
     # Start resource monitoring if enabled
-    if config.get("performance.resource_monitoring", True):
+    if get_startup_setting("performance.resource_monitoring"):
         resource_interval = config.get("performance.resource_interval_seconds", 60)
         perf_monitor.resource_interval_seconds = resource_interval
         perf_monitor.start_monitoring()
 
     # Start background task manager if enabled
-    if config.get("performance.background_tasks_enabled", True):
+    if get_startup_setting("performance.background_tasks_enabled"):
         bg_manager = get_background_task_manager()
-        bg_workers = config.get("performance.background_workers", 4)
+        bg_workers = get_startup_setting("performance.background_workers")
         bg_manager.max_workers = bg_workers
         bg_manager.start()
 
     # Initialize action loader for lazy loading
-    if config.get("performance.flags.lazy_load_actions", False):
+    if get_startup_setting("performance.flags.lazy_load_actions"):
         action_loader = action_loader_func()
         # Preload critical actions
-        critical_actions = [
-            "file_processor",
-            "web_search",
-            "computer_control",
-            "gmail_manager",
-            "calendar_manager",
-        ]
-        action_loader.preload_actions(critical_actions)
+        critical_actions = config.get("performance.critical_actions", ["web_search"])
+        if action_loader is not None:
+            action_loader.preload_actions(critical_actions)
 
     # Initialize memory manager
-    if config.get("performance.flags.reduce_memory_footprint", False):
+    if get_startup_setting("performance.flags.reduce_memory_footprint"):
         memory_manager = get_memory_manager()
         memory_manager.start_gc_thread()
         logger.info("Memory manager started with GC thread")

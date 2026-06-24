@@ -11,6 +11,13 @@
     "status": "success",
     "timestamp": "2026-06-02T09:13:02.098034",
     "undo_data": null,
+    "undo_plan": null,
+    "revision": {
+      "number": 1,
+      "parent_id": null,
+      "reason": "initial",
+      "created_at": "2026-06-24T20:26:46.596590"
+    },
     "can_undo": false
   },
   {
@@ -25,6 +32,34 @@
     "status": "success",
     "timestamp": "2026-06-02T09:13:17.248396",
     "undo_data": null,
+    "undo_plan": null,
+    "revision": {
+      "number": 1,
+      "parent_id": null,
+      "reason": "initial",
+      "created_at": "2026-06-24T20:26:46.596590"
+    },
+    "can_undo": false
+  },
+  {
+    "id": "20260624_202751_357853",
+    "action_type": "api_call",
+    "tool_name": "test_tool",
+    "action": "test_action",
+    "parameters": {
+      "param": "value"
+    },
+    "result": "success",
+    "status": "success",
+    "timestamp": "2026-06-24T20:27:51.357853",
+    "undo_data": null,
+    "undo_plan": null,
+    "revision": {
+      "number": 1,
+      "parent_id": null,
+      "reason": "initial",
+      "created_at": "2026-06-24T20:27:51.357853"
+    },
     "can_undo": false
   }
 ]

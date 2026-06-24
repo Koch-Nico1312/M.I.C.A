@@ -8,8 +8,6 @@ used during application startup.
 import json
 import threading
 from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Optional
 
 from config.config_loader import get_config
 from core.metrics_collector import get_metrics_collector
@@ -27,6 +25,35 @@ DEFAULT_CHANNELS = 1
 DEFAULT_SEND_SAMPLE_RATE = 16000
 DEFAULT_RECEIVE_SAMPLE_RATE = 24000
 DEFAULT_CHUNK_SIZE = 1024
+STARTUP_DEFAULTS = {
+    # Keep boot predictable and fast unless the user explicitly enables heavier services.
+    "performance.enabled": True,
+    "performance.resource_monitoring": False,
+    "performance.background_tasks_enabled": False,
+    "performance.background_workers": 2,
+    "performance.flags.lazy_load_actions": True,
+    "performance.flags.reduce_memory_footprint": False,
+    "performance.slow_operation_threshold_ms": 2000,
+    "performance.alert_threshold_ms": 5000,
+    "security.permission_profile": "normal",
+    "security.permission_level": "normal",
+    "security.confirmation_medium_risk": False,
+    "security.confirmation_high_risk": True,
+    "security.disabled_actions": [],
+    "security.action_history_enabled": True,
+    "security.action_history_max_size": 1000,
+}
+
+
+def get_startup_setting(key: str, default=None):
+    """Read startup config with conservative defaults for missing keys."""
+    fallback = STARTUP_DEFAULTS.get(key, default)
+    return get_config().get(key, fallback)
+
+
+def get_startup_defaults() -> dict:
+    """Return a copy of the effective startup defaults for health/API surfaces."""
+    return dict(STARTUP_DEFAULTS)
 
 
 def get_api_key() -> str:

@@ -5,6 +5,7 @@ import contextlib
 import json
 import mimetypes
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -12,10 +13,13 @@ import threading
 import time
 import webbrowser
 from collections import deque
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import unquote, urlparse
+from uuid import uuid4
 
 import psutil
 
@@ -27,7 +31,6 @@ from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor
 from core.performance_tracker import get_performance_tracker
 from core.session_manager import get_session_manager
-from core.ui_theme import C
 
 try:
     if os.environ.get("JARVIS_NO_QT"):
@@ -52,6 +55,14 @@ BASE_DIR = resolve_project_root()
 UI_DIR = project_path("UI")
 UI_DIST_DIR = UI_DIR / "dist"
 VITE_BIN = UI_DIR / "node_modules" / "vite" / "bin" / "vite.js"
+UPLOAD_DIR = project_path("data", "uploads")
+DOCUMENT_INDEX_PATH = project_path("data", "ui_documents.json")
+
+
+class _MultipartUpload:
+    def __init__(self, filename: str, data: bytes):
+        self.filename = filename
+        self.file = BytesIO(data)
 
 
 def _find_node_executable() -> Optional[str]:
@@ -362,7 +373,7 @@ class JarvisUI:
     def _settings_payload(self) -> Dict[str, Any]:
         return {
             "ui": {
-                "default_view": self._config.get("ui.default_view", "voice"),
+                "default_view": self._config.get("ui.default_view", "home"),
                 "voice_first": bool(self._config.get("ui.voice_first", True)),
             },
             "calendar": {
@@ -399,6 +410,282 @@ class JarvisUI:
             "token_path": str(token),
         }
 
+    @staticmethod
+    def _size_label(size: int) -> str:
+        units = ("B", "KB", "MB", "GB")
+        value = float(max(0, size))
+        unit = units[0]
+        for unit in units:
+            if value < 1024 or unit == units[-1]:
+                break
+            value /= 1024
+        precision = 0 if unit == "B" else 1
+        return f"{value:.{precision}f} {unit}"
+
+    @staticmethod
+    def _safe_upload_name(name: str) -> str:
+        candidate = Path(str(name or "upload")).name
+        candidate = re.sub(r"[^A-Za-z0-9._ -]+", "_", candidate).strip(" .")
+        return candidate or f"upload-{uuid4().hex[:8]}"
+
+    @staticmethod
+    def _document_type(path: Path) -> str:
+        suffix = path.suffix.lstrip(".").upper()
+        return suffix or "FILE"
+
+    def _load_document_records(self) -> list[Dict[str, Any]]:
+        if not DOCUMENT_INDEX_PATH.exists():
+            return []
+        try:
+            data = json.loads(DOCUMENT_INDEX_PATH.read_text(encoding="utf-8"))
+            records = data.get("files", [])
+            return records if isinstance(records, list) else []
+        except Exception as exc:
+            logger.debug("Could not read UI document index: %s", exc)
+            return []
+
+    def _save_document_records(self, records: list[Dict[str, Any]]) -> None:
+        DOCUMENT_INDEX_PATH.parent.mkdir(parents=True, exist_ok=True)
+        DOCUMENT_INDEX_PATH.write_text(
+            json.dumps({"files": records[:200], "updated_at": datetime.now().isoformat()}, indent=2),
+            encoding="utf-8",
+        )
+
+    def _documents_payload(self) -> Dict[str, Any]:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        records = self._load_document_records()
+        existing: list[Dict[str, Any]] = []
+        for record in records:
+            path = Path(str(record.get("path", "")))
+            if path.exists():
+                existing.append(record)
+        return {
+            "files": existing,
+            "upload_dir": str(UPLOAD_DIR),
+        }
+
+    def _analyze_upload(self, path: Path) -> str | None:
+        if path.suffix.lower() not in {".txt", ".md", ".csv", ".json", ".py", ".ts", ".tsx"}:
+            return None
+        try:
+            text = path.read_text(encoding="utf-8", errors="ignore").strip()
+        except Exception:
+            return None
+        if not text:
+            return "Leere Datei"
+        first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+        return first_line[:240] if first_line else f"{len(text)} Zeichen"
+
+    def _index_uploads(self) -> tuple[bool, str | None]:
+        try:
+            from core.semantic_search import SemanticSearch
+
+            search = SemanticSearch(index_path=project_path("data", "vector_db"))
+            search.index_directory(UPLOAD_DIR)
+            return True, None
+        except Exception as exc:
+            logger.debug("Document indexing unavailable: %s", exc)
+            return False, str(exc)
+
+    def _save_uploaded_files(
+        self,
+        fields: list[Any],
+        *,
+        analyze: bool,
+        should_index: bool,
+    ) -> Dict[str, Any]:
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        records = self._load_document_records()
+        errors: list[Dict[str, str]] = []
+        saved: list[Dict[str, Any]] = []
+        now = datetime.now().isoformat()
+
+        for field in fields:
+            filename = self._safe_upload_name(getattr(field, "filename", "") or "")
+            destination = UPLOAD_DIR / filename
+            if destination.exists():
+                destination = UPLOAD_DIR / f"{destination.stem}-{uuid4().hex[:6]}{destination.suffix}"
+
+            try:
+                with destination.open("wb") as handle:
+                    shutil.copyfileobj(field.file, handle)
+                size = destination.stat().st_size
+                record = {
+                    "id": uuid4().hex,
+                    "name": destination.name,
+                    "type": self._document_type(destination),
+                    "size": size,
+                    "size_label": self._size_label(size),
+                    "uploaded_at": now,
+                    "path": str(destination),
+                    "analysis": self._analyze_upload(destination) if analyze else None,
+                    "indexed": False,
+                    "status": "uploaded",
+                    "error": None,
+                }
+                saved.append(record)
+                records.insert(0, record)
+                self._log(f"UPLOAD: {destination.name}")
+            except Exception as exc:
+                errors.append({"name": filename, "error": str(exc)})
+
+        indexed = False
+        index_error: str | None = None
+        if should_index and saved:
+            indexed, index_error = self._index_uploads()
+            for record in saved:
+                record["indexed"] = indexed
+                record["status"] = "indexed" if indexed else "uploaded"
+                if index_error and not indexed:
+                    record["error"] = index_error
+            for record in records:
+                if any(record.get("id") == item.get("id") for item in saved):
+                    record["indexed"] = indexed
+                    record["status"] = "indexed" if indexed else "uploaded"
+                    if index_error and not indexed:
+                        record["error"] = index_error
+
+        self._save_document_records(records)
+        return {
+            "status": "uploaded" if saved else "empty",
+            "files": self._documents_payload()["files"],
+            "errors": errors,
+            "indexed": indexed,
+        }
+
+    def _resume_payload(self) -> Dict[str, Any]:
+        current = self._session_manager.get_current_session()
+        recent = self._session_manager.get_recent_sessions(limit=8)
+        session = current or (recent[0] if recent else None)
+        messages = session.get("messages", []) if isinstance(session, dict) else []
+        last_message = messages[-1] if messages else None
+        recent_files = [
+            {
+                "id": record.get("id", ""),
+                "title": record.get("name", "Datei"),
+                "subtitle": record.get("analysis") or record.get("size_label"),
+                "status": "indexiert" if record.get("indexed") else "bereit",
+                "source": "documents",
+            }
+            for record in self._documents_payload()["files"][:5]
+        ]
+
+        summary = ""
+        if isinstance(session, dict):
+            summary = str(session.get("summary") or session.get("preview") or "").strip()
+            if not summary and last_message:
+                summary = str(last_message.get("content", ""))[:240]
+
+        return {
+            "last_activity": {
+                "id": str(last_message.get("id", "last")) if last_message else "session",
+                "title": str(last_message.get("content", ""))[:90] if last_message else (session or {}).get("title", ""),
+                "subtitle": (session or {}).get("title", ""),
+                "time": str(last_message.get("timestamp", "")) if last_message else (session or {}).get("updated_at"),
+                "source": "session",
+            }
+            if session
+            else None,
+            "open_ends": self._open_end_items(session),
+            "recent_files": recent_files,
+            "summary": summary,
+            "session": session,
+        }
+
+    def _open_end_items(self, session: Dict[str, Any] | None) -> list[Dict[str, Any]]:
+        if not session:
+            return []
+        messages = session.get("messages", []) if isinstance(session, dict) else []
+        items: list[Dict[str, Any]] = []
+        markers = ("?", "todo", "offen", "next", "näch", "naech", "weiter", "fix", "implement")
+        for message in reversed(messages[-20:]):
+            content = str(message.get("content", "")).strip()
+            if content and any(marker in content.lower() for marker in markers):
+                items.append(
+                    {
+                        "id": str(message.get("id", uuid4().hex)),
+                        "title": content[:90],
+                        "subtitle": str(message.get("role", "session")),
+                        "time": str(message.get("timestamp", "")),
+                        "source": "session",
+                    }
+                )
+            if len(items) >= 4:
+                break
+        return items
+
+    def _cockpit_payload(self) -> Dict[str, Any]:
+        calendar_status = self._calendar_payload()
+        resume = self._resume_payload()
+        state = self._current_state()
+        logs = state.get("logs", [])[-8:]
+        recent_activities = [
+            {
+                "id": f"log-{idx}",
+                "title": str(entry.get("text", ""))[:90],
+                "time": datetime.fromtimestamp(float(entry.get("timestamp", time.time()))).strftime("%H:%M"),
+                "source": "log",
+            }
+            for idx, entry in enumerate(reversed(logs))
+            if entry.get("text")
+        ]
+        tasks = []
+        performance = self._resource_snapshot().get("performance", {})
+        active_tasks = performance.get("active_tasks")
+        if active_tasks:
+            tasks.append(
+                {
+                    "id": "active-tasks",
+                    "title": f"{active_tasks} aktive Aufgabe(n)",
+                    "subtitle": str(performance.get("current_activity") or ""),
+                    "status": "aktiv",
+                    "source": "performance",
+                }
+            )
+
+        next_best_step = None
+        if resume["open_ends"]:
+            first = resume["open_ends"][0]
+            next_best_step = {
+                "title": first["title"],
+                "reason": "Aus der letzten offenen Sitzung",
+                "action": "Resume",
+            }
+        elif resume["recent_files"]:
+            first = resume["recent_files"][0]
+            next_best_step = {
+                "title": f"{first['title']} pruefen",
+                "reason": "Zuletzt importierte Datei",
+                "action": "Dokumente",
+            }
+        else:
+            next_best_step = {
+                "title": "Neuen Fokus setzen",
+                "reason": "Keine offenen lokalen Daten gefunden",
+                "action": "Start",
+            }
+
+        return {
+            "calendar": {
+                "items": [],
+                "status": calendar_status,
+            },
+            "weather": {
+                "summary": "Keine Wetterdaten",
+                "temperature": None,
+                "condition": None,
+                "location": None,
+            },
+            "mail": {
+                "open_count": 0,
+                "items": [],
+            },
+            "reminders": [],
+            "tasks": tasks,
+            "recent_activities": recent_activities,
+            "next_best_step": next_best_step,
+        }
+
     def _dashboard_payload(self) -> Dict[str, Any]:
         return {
             "state": self._current_state(),
@@ -407,6 +694,9 @@ class JarvisUI:
             "calendar": self._calendar_payload(),
             "current_session": self._session_manager.get_current_session(),
             "recent_sessions": self._session_manager.get_recent_sessions(limit=12),
+            "cockpit": self._cockpit_payload(),
+            "resume": self._resume_payload(),
+            "documents": self._documents_payload(),
         }
 
     def _recent_chats_payload(self) -> Dict[str, Any]:
@@ -466,6 +756,48 @@ class JarvisUI:
                 if not raw.strip():
                     return {}
                 return json.loads(raw)
+
+            def _read_multipart(self) -> tuple[list[Any], Dict[str, str]]:
+                content_type = self.headers.get("Content-Type", "")
+                boundary_match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type)
+                if not boundary_match:
+                    raise ValueError("missing multipart boundary")
+
+                boundary = (boundary_match.group(1) or boundary_match.group(2)).encode("utf-8")
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                raw = self.rfile.read(length)
+                fields: list[Any] = []
+                values: Dict[str, str] = {}
+
+                for part in raw.split(b"--" + boundary):
+                    part = part.strip(b"\r\n")
+                    if not part or part == b"--":
+                        continue
+                    if part.endswith(b"--"):
+                        part = part[:-2].strip(b"\r\n")
+                    header_blob, separator, body = part.partition(b"\r\n\r\n")
+                    if not separator:
+                        continue
+
+                    headers = header_blob.decode("utf-8", errors="ignore")
+                    disposition = next(
+                        (
+                            line
+                            for line in headers.splitlines()
+                            if line.lower().startswith("content-disposition:")
+                        ),
+                        "",
+                    )
+                    name_match = re.search(r'name="([^"]+)"', disposition)
+                    filename_match = re.search(r'filename="([^"]*)"', disposition)
+                    if body.endswith(b"\r\n"):
+                        body = body[:-2]
+
+                    if filename_match:
+                        fields.append(_MultipartUpload(filename_match.group(1), body))
+                    elif name_match:
+                        values[name_match.group(1)] = body.decode("utf-8", errors="ignore")
+                return fields, values
 
             def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
                 blob = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -531,6 +863,12 @@ class JarvisUI:
 
         if path == "/api/dashboard":
             return request._send_json(200, self._dashboard_payload())  # type: ignore[attr-defined]
+        if path == "/api/cockpit":
+            return request._send_json(200, self._cockpit_payload())  # type: ignore[attr-defined]
+        if path == "/api/session/resume":
+            return request._send_json(200, self._resume_payload())  # type: ignore[attr-defined]
+        if path == "/api/documents":
+            return request._send_json(200, self._documents_payload())  # type: ignore[attr-defined]
         if path == "/api/state":
             return request._send_json(200, self._current_state())  # type: ignore[attr-defined]
         if path == "/api/resources":
@@ -559,6 +897,20 @@ class JarvisUI:
 
     def _handle_post(self, request: BaseHTTPRequestHandler) -> None:
         path = urlparse(request.path).path
+
+        if path == "/api/documents/upload":
+            try:
+                fields, values = request._read_multipart()  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": f"invalid upload: {exc}"})  # type: ignore[attr-defined]
+
+            if not fields:
+                return request._send_json(400, {"error": "missing files"})  # type: ignore[attr-defined]
+
+            analyze = str(values.get("analyze", "true")).lower() in {"1", "true", "yes", "on"}
+            should_index = str(values.get("index", "false")).lower() in {"1", "true", "yes", "on"}
+            return request._send_json(200, self._save_uploaded_files(fields, analyze=analyze, should_index=should_index))  # type: ignore[attr-defined]
+
         try:
             payload = request._read_json()  # type: ignore[attr-defined]
         except Exception as exc:

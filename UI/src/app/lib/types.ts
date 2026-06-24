@@ -81,9 +81,79 @@ export interface DashboardResponse {
   calendar: CalendarStatus;
   current_session: ChatSession | null;
   recent_sessions: ChatSession[];
+  cockpit?: CockpitPayload;
+  resume?: ResumePayload;
+  documents?: DocumentsPayload;
 }
 
 export interface SessionPayload {
   session: ChatSession;
 }
 
+export interface CockpitItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  time?: string;
+  status?: string;
+  source?: string;
+}
+
+export interface CockpitPayload {
+  calendar: {
+    items: CockpitItem[];
+    status: CalendarStatus;
+  };
+  weather: {
+    summary: string;
+    temperature?: string | null;
+    condition?: string | null;
+    location?: string | null;
+  };
+  mail: {
+    open_count: number;
+    items: CockpitItem[];
+  };
+  reminders: CockpitItem[];
+  tasks: CockpitItem[];
+  recent_activities: CockpitItem[];
+  next_best_step: {
+    title: string;
+    reason?: string;
+    action?: string;
+  } | null;
+}
+
+export interface ResumePayload {
+  last_activity: CockpitItem | null;
+  open_ends: CockpitItem[];
+  recent_files: CockpitItem[];
+  summary: string;
+  session: ChatSession | null;
+}
+
+export interface DocumentRecord {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  size_label: string;
+  uploaded_at: string;
+  path?: string;
+  analysis?: string | null;
+  indexed?: boolean;
+  status?: string;
+  error?: string | null;
+}
+
+export interface DocumentsPayload {
+  files: DocumentRecord[];
+  upload_dir?: string;
+}
+
+export interface UploadDocumentsResponse {
+  status: string;
+  files: DocumentRecord[];
+  errors: Array<{ name: string; error: string }>;
+  indexed: boolean;
+}

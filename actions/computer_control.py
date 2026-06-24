@@ -9,6 +9,8 @@ import sys
 import time
 from pathlib import Path
 
+from core.model_runner import ModelCall, get_model_runner
+
 try:
     import pyautogui
 
@@ -46,10 +48,6 @@ def _load_config() -> dict:
 
 def _get_os() -> str:
     return _load_config().get("os_system", "windows").lower()
-
-
-def _get_api_key() -> str:
-    return _load_config().get("gemini_api_key", "")
 
 
 _SAFE_SCREENSHOT_ROOTS = (Path.home(),)
@@ -341,13 +339,7 @@ def _focus_window(title: str) -> str:
 
 
 def _screen_find(description: str) -> tuple[int, int] | None:
-    api_key = _get_api_key()
-    if not api_key:
-        print("[ComputerControl] ⚠️ No API key for screen_find")
-        return None
-
     try:
-        from google import genai
         from google.genai import types as gtypes
 
         _require_pyautogui()
@@ -357,7 +349,6 @@ def _screen_find(description: str) -> tuple[int, int] | None:
         img.save(buf, format="PNG")
         image_bytes = buf.getvalue()
 
-        client = genai.Client(api_key=api_key)
         prompt = (
             f"This is a screenshot of a {w}×{h} pixel screen. "
             f"Locate the UI element described as: '{description}'. "
@@ -365,15 +356,18 @@ def _screen_find(description: str) -> tuple[int, int] | None:
             f"If the element is not visible, reply: NOT_FOUND"
         )
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash-lite",
-            contents=[
-                gtypes.Part.from_bytes(data=image_bytes, mime_type="image/png"),
-                prompt,
-            ],
-        )
-
-        text = (response.text or "").strip()
+        text = get_model_runner().generate(
+            ModelCall(
+                prompt=prompt,
+                contents=[
+                    gtypes.Part.from_bytes(data=image_bytes, mime_type="image/png"),
+                    prompt,
+                ],
+                intent="vision",
+                has_image=True,
+                use_cache=False,
+            )
+        ).text.strip()
         if "NOT_FOUND" in text.upper():
             return None
 

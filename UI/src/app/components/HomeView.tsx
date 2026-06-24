@@ -1,17 +1,70 @@
 import {
-  Activity,
   ArrowRight,
-  Calendar,
+  Bell,
+  CalendarDays,
   CheckCircle2,
-  Cpu,
-  HardDrive,
-  MessageSquareText,
-  Mic,
+  CloudSun,
+  FileClock,
+  Inbox,
+  ListTodo,
+  PlayCircle,
+  RotateCcw,
   Sparkles,
 } from "lucide-react";
+import type { ElementType } from "react";
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
-import type { DashboardResponse } from "../lib/types";
+import type { CockpitItem, DashboardResponse } from "../lib/types";
+
+function EmptyLine({ label }: { label: string }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3 text-sm text-slate-500">
+      {label}
+    </div>
+  );
+}
+
+function ItemRow({ item }: { item: CockpitItem }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-white">{item.title}</div>
+        {item.subtitle ? (
+          <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{item.subtitle}</div>
+        ) : null}
+      </div>
+      {item.time || item.status ? (
+        <div className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-300">
+          {item.time ?? item.status}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CockpitPanel({
+  title,
+  icon: Icon,
+  items,
+  emptyLabel,
+}: {
+  title: string;
+  icon: ElementType;
+  items: CockpitItem[];
+  emptyLabel: string;
+}) {
+  return (
+    <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+        <Icon className="h-4 w-4 text-cyan-200" />
+        {title}
+      </div>
+      <div className="space-y-2">
+        {items.length ? items.slice(0, 4).map((item) => <ItemRow key={item.id} item={item} />) : <EmptyLine label={emptyLabel} />}
+      </div>
+    </section>
+  );
+}
 
 export function HomeView({
   dashboard,
@@ -20,223 +73,164 @@ export function HomeView({
   dashboard: DashboardResponse | null;
   onStartNewChat: () => void;
 }) {
-  const resources = dashboard?.resources;
-  const state = dashboard?.state;
-  const recentSessions = dashboard?.recent_sessions ?? [];
+  const cockpit = dashboard?.cockpit;
+  const resume = dashboard?.resume;
+  const currentSession = dashboard?.current_session ?? resume?.session ?? null;
+  const nextStep = cockpit?.next_best_step;
+  const weather = cockpit?.weather;
 
-  const resourceCards = [
-    {
-      label: "CPU",
-      value: `${resources?.cpu_percent?.toFixed?.(1) ?? "0.0"}%`,
-      tone: "from-cyan-400/20 to-cyan-400/5",
-      icon: Cpu,
-    },
-    {
-      label: "RAM",
-      value: `${resources?.memory_percent?.toFixed?.(1) ?? "0.0"}%`,
-      tone: "from-emerald-400/20 to-emerald-400/5",
-      icon: HardDrive,
-    },
-    {
-      label: "Disk",
-      value: `${resources?.disk_percent?.toFixed?.(1) ?? "0.0"}%`,
-      tone: "from-amber-400/20 to-amber-400/5",
-      icon: Activity,
-    },
-    {
-      label: "Threads",
-      value: `${resources?.threads ?? 0}`,
-      tone: "from-violet-400/20 to-violet-400/5",
-      icon: Sparkles,
-    },
-  ];
+  const activityItems =
+    cockpit?.recent_activities?.length
+      ? cockpit.recent_activities
+      : dashboard?.recent_sessions?.slice(0, 4).map((session) => ({
+          id: session.id,
+          title: session.title,
+          subtitle: session.preview,
+          status: session.status,
+        })) ?? [];
 
   return (
     <ScrollArea className="h-full">
-      <div className="space-y-6 p-5 md:p-7">
-        <section className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
-          <div className="overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(135deg,rgba(0,212,255,0.12),rgba(255,255,255,0.04))] p-6 shadow-[0_24px_80px_rgba(0,0,0,0.2)]">
-            <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs uppercase tracking-[0.3em] text-cyan-100">
-                  <Mic className="h-4 w-4" />
-                  Voice first
+      <div className="space-y-5 p-5 md:p-7">
+        <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-2xl border border-white/10 bg-[linear-gradient(135deg,rgba(0,212,255,0.11),rgba(124,230,200,0.05),rgba(255,255,255,0.035))] p-5">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <div className="mb-3 flex items-center gap-2 text-xs uppercase tracking-[0.28em] text-cyan-100/80">
+                  <Sparkles className="h-4 w-4" />
+                  Daily Cockpit
                 </div>
-                <h2 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">
-                  JARVIS ist bereit zum Sprechen.
+                <h2 className="text-2xl font-semibold tracking-tight text-white md:text-3xl">
+                  {nextStep?.title ?? "Heute ist offen."}
                 </h2>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">
-                  Der Fokus liegt auf Sprache. Textchat bleibt optional, die
-                  laufende Unterhaltung wird nicht unterbrochen, wenn du in
-                  andere Bereiche wechselst.
-                </p>
+                {nextStep?.reason ? (
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">{nextStep.reason}</p>
+                ) : null}
               </div>
 
-              <div className="grid min-w-[220px] gap-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                    Status
+              <div className="grid min-w-[220px] gap-2 sm:grid-cols-2 lg:grid-cols-1">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    <CloudSun className="h-4 w-4 text-amber-200" />
+                    Wetter
                   </div>
-                  <div className="mt-1 text-lg font-semibold text-cyan-100">
-                    {state?.state ?? "LISTENING"}
-                  </div>
+                  <div className="mt-2 text-lg font-semibold text-white">{weather?.summary ?? "Keine Wetterdaten"}</div>
+                  <div className="mt-1 text-xs text-slate-400">{weather?.location ?? weather?.condition ?? ""}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                  <div className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                    Voice mode
+                <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-4">
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-[0.22em] text-slate-400">
+                    <Inbox className="h-4 w-4 text-cyan-200" />
+                    Offen
                   </div>
-                  <div className="mt-1 text-lg font-semibold text-white">
-                    {state?.speaking ? "On air" : "Listening"}
+                  <div className="mt-2 text-lg font-semibold text-white">
+                    {cockpit?.mail?.open_count ?? 0} Mails
+                  </div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {(cockpit?.tasks?.length ?? 0) + (cockpit?.reminders?.length ?? 0)} Aufgaben
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-5 flex flex-wrap gap-3">
               <Button
                 onClick={onStartNewChat}
-                className="rounded-2xl bg-cyan-400/90 px-5 text-slate-950 hover:bg-cyan-300"
+                className="rounded-xl bg-cyan-400/90 text-slate-950 hover:bg-cyan-300"
               >
-                Neuen Chat starten
-                <ArrowRight className="h-4 w-4" />
+                <PlayCircle className="h-4 w-4" />
+                Neuer Fokus
               </Button>
-              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-300">
-                Chatten bleibt optional. Sprachmodus ist Standard.
-              </div>
+              {nextStep?.action ? (
+                <div className="rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-2 text-sm text-cyan-50">
+                  {nextStep.action}
+                </div>
+              ) : null}
             </div>
           </div>
 
-          <div className="grid gap-4">
-            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
-                <Calendar className="h-4 w-4 text-cyan-200" />
-                Calendar status
-              </div>
-              <div className="space-y-3 text-sm text-slate-300">
-                <div className="flex items-center justify-between">
-                  <span>Google Calendar</span>
-                  <span className={dashboard?.calendar.authenticated ? "text-emerald-300" : "text-amber-300"}>
-                    {dashboard?.calendar.authenticated ? "Connected" : "Not connected"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Credentials</span>
-                  <span className="text-slate-400">
-                    {dashboard?.calendar.configured ? "Configured" : "Missing"}
-                  </span>
-                </div>
-                <div className="text-xs leading-5 text-slate-400">
-                  Verknüpfen und Pfade setzen geht über die Einstellungen.
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-              <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
-                <MessageSquareText className="h-4 w-4 text-cyan-200" />
-                Aktive Sitzung
-              </div>
-              <div className="space-y-2 text-sm text-slate-300">
-                <div className="text-lg font-semibold text-white">
-                  {dashboard?.current_session?.title ?? "No active chat"}
-                </div>
-                <p className="text-slate-400">
-                  {dashboard?.current_session?.preview ?? "Starte mit einem gesprochenen Satz, damit der Verlauf beginnt."}
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {resourceCards.map((card) => (
-            <div
-              key={card.label}
-              className={`rounded-[1.75rem] border border-white/10 bg-gradient-to-br ${card.tone} p-5`}
-            >
-              <div className="mb-4 flex items-center justify-between">
-                <card.icon className="h-5 w-5 text-white/90" />
-                <span className="text-xs uppercase tracking-[0.25em] text-slate-300">
-                  Live
-                </span>
-              </div>
-              <div className="text-xs uppercase tracking-[0.3em] text-slate-300">
-                {card.label}
-              </div>
-              <div className="mt-2 text-3xl font-semibold text-white">
-                {card.value}
-              </div>
-            </div>
-          ))}
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[1.3fr_1fr]">
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
-              <Activity className="h-4 w-4 text-cyan-200" />
-              Letzte Chats
+              <RotateCcw className="h-4 w-4 text-cyan-200" />
+              Mach weiter, wo wir aufgehoert haben
             </div>
             <div className="space-y-3">
-              {recentSessions.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-400">
-                  Noch keine gespeicherten Chats vorhanden.
+              <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="text-sm font-medium text-white">
+                  {currentSession?.title ?? resume?.last_activity?.title ?? "Keine offene Sitzung"}
                 </div>
-              ) : (
-                recentSessions.slice(0, 6).map((session) => (
-                  <div
-                    key={session.id}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="font-medium text-white">
-                          {session.title}
-                        </div>
-                        <div className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                          {session.message_count ?? 0} messages
-                        </div>
-                      </div>
-                      <div className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-slate-300">
-                        {session.status ?? "archived"}
-                      </div>
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-300">
-                      {session.preview ?? "No preview available."}
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          <div className="rounded-[2rem] border border-white/10 bg-white/5 p-5">
-            <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
-              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-              Systemhinweise
-            </div>
-            <div className="space-y-3 text-sm text-slate-300">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="font-medium text-white">Sprachmodus zuerst</div>
-                <p className="mt-1 text-slate-400">
-                  Der Assistent bleibt aktiv, auch wenn du die Tabs wechselst.
+                <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
+                  {resume?.summary || currentSession?.summary || currentSession?.preview || "Bereit fuer den naechsten Schritt."}
                 </p>
               </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="font-medium text-white">Chat optional</div>
-                <p className="mt-1 text-slate-400">
-                  Textkommandos sind verfügbar, aber nicht der primäre Workflow.
-                </p>
-              </div>
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                <div className="font-medium text-white">Settings</div>
-                <p className="mt-1 text-slate-400">
-                  Google Calendar und UI-Persistenz werden über die Einstellungen
-                  verbunden.
-                </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {(resume?.open_ends ?? []).slice(0, 2).map((item) => (
+                  <ItemRow key={item.id} item={item} />
+                ))}
+                {!(resume?.open_ends ?? []).length ? <EmptyLine label="Keine offenen Enden" /> : null}
               </div>
             </div>
           </div>
         </section>
+
+        <section className="grid gap-4 xl:grid-cols-3">
+          <CockpitPanel
+            title="Kalender"
+            icon={CalendarDays}
+            items={cockpit?.calendar?.items ?? []}
+            emptyLabel="Keine Termine"
+          />
+          <CockpitPanel
+            title="Mails"
+            icon={Inbox}
+            items={cockpit?.mail?.items ?? []}
+            emptyLabel="Keine offenen Mails"
+          />
+          <CockpitPanel
+            title="Erinnerungen"
+            icon={Bell}
+            items={cockpit?.reminders ?? []}
+            emptyLabel="Keine Erinnerungen"
+          />
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[1fr_1fr_1fr]">
+          <CockpitPanel
+            title="Aufgaben"
+            icon={ListTodo}
+            items={cockpit?.tasks ?? []}
+            emptyLabel="Keine Aufgaben"
+          />
+          <CockpitPanel
+            title="Letzte Aktivitaeten"
+            icon={CheckCircle2}
+            items={activityItems}
+            emptyLabel="Noch keine Aktivitaet"
+          />
+          <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+              <FileClock className="h-4 w-4 text-cyan-200" />
+              Zuletzt genutzte Dateien
+            </div>
+            <div className="space-y-2">
+              {(resume?.recent_files ?? []).length ? (
+                resume?.recent_files.slice(0, 4).map((item) => <ItemRow key={item.id} item={item} />)
+              ) : (
+                <EmptyLine label="Keine Dateien" />
+              )}
+            </div>
+          </section>
+        </section>
+
+        {currentSession?.id ? (
+          <Button
+            onClick={onStartNewChat}
+            variant="ghost"
+            className="rounded-xl border border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/10 hover:text-white"
+          >
+            Sitzung wechseln
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        ) : null}
       </div>
     </ScrollArea>
   );

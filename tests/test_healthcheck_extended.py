@@ -4,13 +4,12 @@ Tests for the extended healthcheck functionality.
 
 from pathlib import Path
 
-import pytest
-
 from core.healthcheck import (
     _audio_status,
     _feature_status,
     _integration_status,
     _memory_status,
+    _safety_status,
     build_runtime_report,
     format_runtime_report,
 )
@@ -53,8 +52,6 @@ def test_integration_status():
 
 def test_integration_status_with_config():
     """Test integration status with config."""
-    from config.config_loader import Config
-
     # Create a mock config
     class MockConfig:
         def get(self, key, default=None):
@@ -102,6 +99,16 @@ def test_feature_status():
     assert "hud" in status
 
 
+def test_safety_status_shape_uses_defaults():
+    """Safety status exposes stable approval/default fields for UI/API."""
+    status = _safety_status(None)
+
+    assert status["permission_profile"] == "normal"
+    assert status["confirmation"]["medium_risk"] is False
+    assert status["confirmation"]["high_risk"] is True
+    assert isinstance(status["disabled_actions"], list)
+
+
 def test_build_runtime_report_extended():
     """Test that build_runtime_report includes extended status."""
     base_dir = Path(__file__).resolve().parent.parent
@@ -118,6 +125,8 @@ def test_build_runtime_report_extended():
     assert "audio" in report
     assert "memory" in report
     assert "integrations" in report
+    assert "safety" in report
+    assert "startup_defaults" in report
 
     # Check audio status structure
     assert "sounddevice_available" in report["audio"]

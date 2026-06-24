@@ -1,35 +1,20 @@
-import json
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-
-def get_base_dir():
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+from core.model_runner import get_routed_model
 
 
-BASE_DIR = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 PROJECTS_DIR = Path.home() / "Desktop" / "JarvisProjects"
 MAX_FIX_ATTEMPTS = 5
-MODEL_PLANNER = "gemini-2.5-flash"
-MODEL_WRITER = "gemini-2.5-flash"
-
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+MODEL_PLANNER = "tool_planning"
+MODEL_WRITER = "code_edit"
 
 
 def _get_model(model_name: str):
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    return genai.GenerativeModel(model_name)
+    return get_routed_model(intent=model_name, use_cache=False)
 
 
 def _strip_fences(text: str) -> str:
@@ -381,7 +366,7 @@ def _fix_files(
     entry_point: str,
 ) -> dict[str, str]:
 
-    model = _get_model(MODEL_PLANNER)
+    model = get_routed_model(intent="test_failure_analysis", use_cache=False)
 
     error_file, error_line = _parse_traceback(error_output, list(file_codes.keys()))
     error_type = _classify_error(error_output)

@@ -4,8 +4,9 @@ Provides automated morning and evening briefings combining weather, calendar, em
 """
 
 import threading
-from datetime import datetime, time
-from typing import Callable, Optional
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from typing import Any, Callable, Dict, List, Optional
 
 from config.config_loader import get_config
 from core.logger import get_logger
@@ -13,15 +14,46 @@ from core.logger import get_logger
 logger = get_logger(__name__)
 
 
+PRIORITY_SCORE = {"critical": 4, "high": 3, "medium": 2, "low": 1}
+
+
+def weather_action(*args, **kwargs):
+    return ""
+
+
+calendar_manager = None
+
+
+@dataclass
+class BriefingItem:
+    category: str
+    content: str
+    priority: str = "medium"
+    source: str = "manual"
+    time_cost_minutes: int = 0
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+
 class DailyBriefing:
     """Manages daily briefing system with scheduled briefings"""
 
-    def __init__(self):
+    def __init__(
+        self,
+        providers: Optional[Dict[str, Callable[[], Any]]] = None,
+        clock: Optional[Callable[[], datetime]] = None,
+    ):
         self.config = get_config()
         self._speak_callback: Optional[Callable] = None
         self._scheduler_thread: Optional[threading.Thread] = None
         self._running = False
         self._lock = threading.Lock()
+        self._items: List[BriefingItem] = []
+        self._history: List[Dict[str, Any]] = []
+        self.providers = providers or {}
+        self.clock = clock or datetime.now
 
         # Load configuration
         self.enabled = self.config.get("briefing.enabled", False)
@@ -32,6 +64,11 @@ class DailyBriefing:
         self.include_email = self.config.get("briefing.include_email", True)
         self.include_reminders = self.config.get("briefing.include_reminders", True)
         self.cross_device_push = self.config.get("briefing.cross_device_push", False)
+        self.default_time_budget_minutes = int(
+            self.config.get("briefing.time_budget_minutes", 15) or 15
+        )
+        self.include_tasks = self.config.get("briefing.include_tasks", True)
+        self.include_news = self.config.get("briefing.include_news", False)
 
     def set_speak_callback(self, callback: Callable):
         """Set the speak callback for audio output"""
@@ -46,16 +83,29 @@ class DailyBriefing:
             except Exception as e:
                 logger.error(f"[DailyBriefing] ❌ Speak error: {e}")
 
+    @staticmethod
+    def _memory_value(entry: Any, default: str = "") -> str:
+        if isinstance(entry, dict):
+            return str(entry.get("value") or default)
+        return str(entry or default)
+
     def _get_weather(self, city: str = None) -> str:
         """Get weather information"""
         if not self.include_weather:
             return ""
 
         try:
+            if "weather" in self.providers:
+                result = self.providers["weather"]()
+                return self._format_provider_text("Weather", result)
+
             from memory.memory_manager import load_memory
 
             memory = load_memory()
-            city = city or memory.get("identity", {}).get("city", "Istanbul")
+            city = city or self._memory_value(memory.get("identity", {}).get("city"), "Istanbul")
+
+            if not self.config.get("briefing.live_weather", False):
+                return f"☀️ Weather: No live weather configured for {city}."
 
             # Use web search for weather
             from actions.web_search import web_search as web_search_action
@@ -74,6 +124,10 @@ class DailyBriefing:
             return ""
 
         try:
+            if "calendar" in self.providers:
+                result = self.providers["calendar"]()
+                return self._format_provider_text("Calendar", result)
+
             from actions.calendar_manager import calendar_manager
 
             result = calendar_manager(
@@ -94,6 +148,10 @@ class DailyBriefing:
             return ""
 
         try:
+            if "email" in self.providers:
+                result = self.providers["email"]()
+                return self._format_provider_text("Email", result)
+
             from actions.gmail_manager import get_gmail_manager
 
             gmail = get_gmail_manager()
@@ -116,8 +174,9 @@ class DailyBriefing:
             return ""
 
         try:
-            # Check if reminder module has a list method
-            # For now, return a placeholder
+            if "reminders" in self.providers:
+                result = self.providers["reminders"]()
+                return self._format_provider_text("Reminders", result)
             return "⏰ Reminders: No active reminders"
         except Exception as e:
             logger.error(f"[DailyBriefing] ⚠️ Reminders error: {e}")
@@ -132,6 +191,203 @@ class DailyBriefing:
         except Exception as e:
             logger.error(f"[DailyBriefing] ⚠️ Memory error: {e}")
             return {}
+
+    @staticmethod
+    def _format_provider_text(label: str, result: Any) -> str:
+        if not result:
+            return ""
+        if isinstance(result, str):
+            return result
+        if isinstance(result, list):
+            if not result:
+                return ""
+            lines = []
+            for item in result[:5]:
+                if isinstance(item, dict):
+                    title = item.get("title") or item.get("summary") or item.get("subject")
+                    when = item.get("time") or item.get("start") or item.get("date")
+                    lines.append(f"- {when + ' ' if when else ''}{title or item}")
+                else:
+                    lines.append(f"- {item}")
+            return f"{label}:\n" + "\n".join(lines)
+        return f"{label}: {result}"
+
+    def add_briefing_item(
+        self,
+        category: str,
+        content: str,
+        priority: str = "medium",
+        *,
+        source: str = "manual",
+        time_cost_minutes: int = 0,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Add an item to the current briefing."""
+        if not isinstance(category, str) or not category.strip():
+            raise ValueError("category must be a non-empty string")
+        if not isinstance(content, str) or not content.strip():
+            raise ValueError("content must be a non-empty string")
+        if priority not in PRIORITY_SCORE:
+            priority = "medium"
+        item = BriefingItem(
+            category=category.strip(),
+            content=content.strip(),
+            priority=priority,
+            source=source,
+            time_cost_minutes=max(0, int(time_cost_minutes or 0)),
+            metadata=metadata or {},
+        )
+        self._items.append(item)
+        return item.to_dict()
+
+    def clear_briefing(self) -> None:
+        self._items.clear()
+
+    def get_sorted_items(self) -> List[Dict[str, Any]]:
+        items = sorted(
+            self._items,
+            key=lambda item: (PRIORITY_SCORE.get(item.priority, 2), -item.time_cost_minutes),
+            reverse=True,
+        )
+        return [item.to_dict() for item in items]
+
+    def get_items_by_category(self, category: str) -> List[Dict[str, Any]]:
+        return [item.to_dict() for item in self._items if item.category == category]
+
+    def get_briefing(self) -> Dict[str, Any]:
+        now = self.clock()
+        return {
+            "date": now.date().isoformat(),
+            "generated_at": now.isoformat(),
+            "items": self.get_sorted_items(),
+        }
+
+    def save_briefing(self) -> Dict[str, Any]:
+        briefing = self.get_briefing()
+        self._history.append(briefing)
+        return briefing
+
+    def get_briefing_history(self) -> List[Dict[str, Any]]:
+        return list(self._history)
+
+    def set_delivery_callback(self, callback: Callable[[str], None]) -> None:
+        self.set_speak_callback(callback)
+
+    def deliver_briefing(self) -> str:
+        text = self.render_briefing_text(self.get_briefing())
+        self._speak(text)
+        return text
+
+    def generate_briefing(
+        self,
+        kind: str = "morning",
+        *,
+        time_budget_minutes: Optional[int] = None,
+        include_live_sources: bool = False,
+    ) -> Dict[str, Any]:
+        """Generate a deterministic structured briefing."""
+        self.clear_briefing()
+        memory = self._get_memory_context()
+        budget = time_budget_minutes or self.default_time_budget_minutes
+
+        self._add_memory_focus_items(memory, budget)
+        self._add_habit_items(memory)
+
+        if include_live_sources:
+            source_getters = [
+                ("weather", self._get_weather, "medium"),
+                ("calendar", self._get_calendar, "high"),
+                ("email", self._get_email, "medium"),
+                ("reminders", self._get_reminders, "high"),
+            ]
+            for category, getter, priority in source_getters:
+                content = getter()
+                if content:
+                    self.add_briefing_item(category, content, priority, source="provider")
+        else:
+            self._add_provider_snapshot_items()
+
+        if kind == "evening":
+            self.add_briefing_item(
+                "wrap_up",
+                "Capture decisions, unresolved tasks, and tomorrow's first focus.",
+                "high",
+                source="routine",
+                time_cost_minutes=5,
+            )
+
+        briefing = self.get_briefing()
+        briefing["kind"] = kind
+        briefing["time_budget_minutes"] = budget
+        briefing["focus"] = self._choose_focus(briefing["items"], budget)
+        return briefing
+
+    def _add_memory_focus_items(self, memory: Dict[str, Any], budget: int) -> None:
+        projects = memory.get("projects", {}) if isinstance(memory, dict) else {}
+        todos = memory.get("todos", {}) if isinstance(memory, dict) else {}
+        for key, entry in list(projects.items())[:3]:
+            value = entry.get("value") if isinstance(entry, dict) else entry
+            if value:
+                self.add_briefing_item("focus", str(value), "high", source=f"memory:{key}", time_cost_minutes=min(45, max(10, budget)))
+        for key, entry in list(todos.items())[:5]:
+            value = entry.get("value") if isinstance(entry, dict) else entry
+            priority = "high" if isinstance(entry, dict) and "urgent" in entry.get("tags", []) else "medium"
+            if value:
+                self.add_briefing_item("todo", str(value), priority, source=f"memory:{key}", time_cost_minutes=10)
+
+    def _add_habit_items(self, memory: Dict[str, Any]) -> None:
+        habits = memory.get("habits", {}) if isinstance(memory, dict) else {}
+        preferences = memory.get("preferences", {}) if isinstance(memory, dict) else {}
+        for key, entry in list({**preferences, **habits}.items())[:6]:
+            tags = entry.get("tags", []) if isinstance(entry, dict) else []
+            value = entry.get("value") if isinstance(entry, dict) else entry
+            if value and ("habit" in tags or str(key).startswith("habit_")):
+                self.add_briefing_item("habit", str(value), "medium", source=f"memory:{key}", time_cost_minutes=5)
+
+    def _add_provider_snapshot_items(self) -> None:
+        for category, priority in [
+            ("weather", "medium"),
+            ("calendar", "high"),
+            ("email", "medium"),
+            ("reminders", "high"),
+        ]:
+            provider = self.providers.get(category)
+            if not provider:
+                continue
+            try:
+                content = self._format_provider_text(category.title(), provider())
+            except Exception as exc:
+                logger.debug("[DailyBriefing] provider %s unavailable: %s", category, exc)
+                content = ""
+            if content:
+                self.add_briefing_item(category, content, priority, source="provider")
+
+    def _choose_focus(self, items: List[Dict[str, Any]], budget: int) -> List[Dict[str, Any]]:
+        chosen = []
+        remaining = max(0, int(budget or 0))
+        for item in items:
+            cost = int(item.get("time_cost_minutes") or 0)
+            if cost == 0 or cost <= remaining or not chosen:
+                chosen.append(item)
+                remaining = max(0, remaining - cost)
+            if len(chosen) >= 3:
+                break
+        return chosen
+
+    def render_briefing_text(self, briefing: Dict[str, Any]) -> str:
+        kind = briefing.get("kind", "briefing").title()
+        lines = [f"{kind} briefing for {briefing.get('date', '')}"]
+        focus = briefing.get("focus") or []
+        if focus:
+            lines.append("Top focus:")
+            for item in focus:
+                lines.append(f"- {item['content']}")
+        other_items = [i for i in briefing.get("items", []) if i not in focus]
+        if other_items:
+            lines.append("Also:")
+            for item in other_items[:8]:
+                lines.append(f"- {item['category']}: {item['content']}")
+        return "\n".join(lines)
 
     def _send_cross_device(self, text: str):
         """Send briefing to cross-device"""
@@ -150,13 +406,20 @@ class DailyBriefing:
         """Generate morning briefing"""
         try:
             memory = self._get_memory_context()
-            name = memory.get("identity", {}).get("name", "sir")
+            name = self._memory_value(memory.get("identity", {}).get("name"), "sir")
 
-            now = datetime.now()
+            now = self.clock()
             day_name = now.strftime("%A")
             date_str = now.strftime("%B %d")
 
             briefing = f"Good morning, {name}! Here's your briefing for {day_name}, {date_str}:\n\n"
+
+            structured = self.generate_briefing("morning", include_live_sources=not self.providers)
+            if structured.get("focus"):
+                briefing += "Focus:\n"
+                for item in structured["focus"]:
+                    briefing += f"- {item['content']}\n"
+                briefing += "\n"
 
             # Add weather
             weather = self._get_weather()
@@ -191,13 +454,20 @@ class DailyBriefing:
         """Generate evening summary"""
         try:
             memory = self._get_memory_context()
-            name = memory.get("identity", {}).get("name", "sir")
+            name = self._memory_value(memory.get("identity", {}).get("name"), "sir")
 
-            now = datetime.now()
+            now = self.clock()
             day_name = now.strftime("%A")
             date_str = now.strftime("%B %d")
 
             briefing = f"Good evening, {name}! Here's your summary for {day_name}, {date_str}:\n\n"
+
+            structured = self.generate_briefing("evening", include_live_sources=not self.providers)
+            if structured.get("focus"):
+                briefing += "Wrap-up priorities:\n"
+                for item in structured["focus"]:
+                    briefing += f"- {item['content']}\n"
+                briefing += "\n"
 
             # Add calendar (what's left today)
             calendar = self._get_calendar()
@@ -278,7 +548,7 @@ class DailyBriefing:
 
     def get_status(self) -> str:
         """Get briefing status"""
-        status = f"Daily Briefing Status:\n"
+        status = "Daily Briefing Status:\n"
         status += f"  Enabled: {self.enabled}\n"
         status += f"  Morning Time: {self.morning_time}\n"
         status += f"  Evening Time: {self.evening_time}\n"

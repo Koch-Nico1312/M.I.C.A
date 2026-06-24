@@ -51,8 +51,11 @@ class HealthcheckTests(unittest.TestCase):
             )
 
             self.assertTrue(report["api_key_present"])
-            self.assertEqual(report["plugins"], ["demo_plugin"])
-            self.assertEqual(report["tool_count"], 1)
+        self.assertEqual(report["plugins"], ["demo_plugin"])
+        self.assertEqual(report["tool_count"], 1)
+        self.assertIn("safety", report)
+        self.assertIn("startup_defaults", report)
+        self.assertIn("confirmation", report["safety"])
 
     def test_formatter_includes_warnings_and_enabled_features(self):
         report = {
@@ -65,6 +68,10 @@ class HealthcheckTests(unittest.TestCase):
             "warnings": ["Prompt missing."],
             "required_modules": {},
             "optional_modules": {},
+            "safety": {
+                "permission_profile": "normal",
+                "confirmation": {"medium_risk": False, "high_risk": True},
+            },
         }
 
         formatted = format_runtime_report(report, verbose=False)
@@ -72,6 +79,7 @@ class HealthcheckTests(unittest.TestCase):
         self.assertIn("Runtime ready: no", formatted)
         self.assertIn("Enabled features: proactive", formatted)
         self.assertIn("Prompt missing.", formatted)
+        self.assertIn("Safety: profile=normal", formatted)
 
 
 if __name__ == "__main__":

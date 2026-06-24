@@ -1,38 +1,15 @@
 # web_search.py
-import json
-import sys
-from pathlib import Path
 
-
-def _get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR = _get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
-
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+from core.model_runner import get_model_runner
 
 
 def _gemini_search(query: str) -> str:
-    from google import genai
-
-    client = genai.Client(api_key=_get_api_key())
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=query,
-        config={"tools": [{"google_search": {}}]},
+    text = get_model_runner().generate_text(
+        query,
+        intent="summary",
+        tools={"google_search": {}},
+        use_cache=False,
     )
-
-    text = ""
-    for part in response.candidates[0].content.parts:
-        if hasattr(part, "text") and part.text:
-            text += part.text
 
     text = text.strip()
     if not text:

@@ -6,6 +6,7 @@ Tracks important actions with metadata and provides undo/rollback capabilities.
 
 import json
 import threading
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -35,6 +36,69 @@ class ActionStatus(Enum):
     SUCCESS = "success"
     FAILED = "failed"
     UNDONE = "undone"
+    UNDO_PLANNED = "undo_planned"
+
+
+@dataclass
+class UndoPlan:
+    """Structured description of how an action can be reversed."""
+
+    strategy: str
+    steps: list[Dict[str, Any]] = field(default_factory=list)
+    automatic: bool = False
+    requires_confirmation: bool = True
+    notes: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "strategy": self.strategy,
+            "steps": list(self.steps),
+            "automatic": self.automatic,
+            "requires_confirmation": self.requires_confirmation,
+            "notes": self.notes,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any] | None) -> Optional["UndoPlan"]:
+        if not data:
+            return None
+        return cls(
+            strategy=str(data.get("strategy", "manual")),
+            steps=list(data.get("steps", [])),
+            automatic=bool(data.get("automatic", False)),
+            requires_confirmation=bool(data.get("requires_confirmation", True)),
+            notes=str(data.get("notes", "")),
+        )
+
+
+@dataclass
+class ActionRevision:
+    """Revision metadata for auditability and retries."""
+
+    number: int = 1
+    parent_id: Optional[str] = None
+    reason: str = "initial"
+    created_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "number": self.number,
+            "parent_id": self.parent_id,
+            "reason": self.reason,
+            "created_at": self.created_at.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any] | None) -> "ActionRevision":
+        if not data:
+            return cls()
+        created_at = data.get("created_at")
+        return cls(
+            number=int(data.get("number", 1)),
+            parent_id=data.get("parent_id"),
+            reason=str(data.get("reason", "initial")),
+            created_at=datetime.fromisoformat(created_at) if created_at else datetime.now(),
+        )
 
 
 class ActionRecord:
@@ -48,6 +112,7 @@ class ActionRecord:
         parameters: Dict[str, Any],
         result: str = "",
         status: ActionStatus = ActionStatus.PENDING,
+        revision: ActionRevision | None = None,
     ):
         self.id = f"{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}"
         self.action_type = action_type
@@ -58,6 +123,8 @@ class ActionRecord:
         self.status = status
         self.timestamp = datetime.now()
         self.undo_data: Optional[Dict[str, Any]] = None
+        self.undo_plan: Optional[UndoPlan] = None
+        self.revision = revision or ActionRevision()
         self.can_undo = False
 
     def to_dict(self) -> Dict[str, Any]:
@@ -72,6 +139,8 @@ class ActionRecord:
             "status": self.status.value,
             "timestamp": self.timestamp.isoformat(),
             "undo_data": self.undo_data,
+            "undo_plan": self.undo_plan.to_dict() if self.undo_plan else None,
+            "revision": self.revision.to_dict(),
             "can_undo": self.can_undo,
         }
 
@@ -89,6 +158,8 @@ class ActionRecord:
         record.id = data["id"]
         record.timestamp = datetime.fromisoformat(data["timestamp"])
         record.undo_data = data.get("undo_data")
+        record.undo_plan = UndoPlan.from_dict(data.get("undo_plan"))
+        record.revision = ActionRevision.from_dict(data.get("revision"))
         record.can_undo = data.get("can_undo", False)
         return record
 
@@ -153,6 +224,9 @@ class ActionHistory:
         result: str = "",
         status: ActionStatus = ActionStatus.SUCCESS,
         undo_data: Optional[Dict[str, Any]] = None,
+        undo_plan: Optional[UndoPlan | Dict[str, Any]] = None,
+        parent_id: Optional[str] = None,
+        revision_reason: str = "initial",
     ) -> ActionRecord:
         """
         Record an action in history.
@@ -178,10 +252,22 @@ class ActionHistory:
             parameters=parameters,
             result=result,
             status=status,
+            revision=ActionRevision(
+                number=self._next_revision_number(parent_id),
+                parent_id=parent_id,
+                reason=revision_reason,
+            ),
         )
+
+        inferred_plan = UndoPlan.from_dict(undo_plan) if isinstance(undo_plan, dict) else undo_plan
+        if inferred_plan is None:
+            inferred_plan = self.build_undo_plan(tool_name, action, parameters, undo_data)
 
         if undo_data:
             record.undo_data = undo_data
+            record.can_undo = True
+        if inferred_plan:
+            record.undo_plan = inferred_plan
             record.can_undo = True
 
         with self._lock:
@@ -195,10 +281,81 @@ class ActionHistory:
         logger.info(f"Action recorded: {tool_name}/{action} (ID: {record.id})")
         return record
 
+    def _next_revision_number(self, parent_id: Optional[str]) -> int:
+        if not parent_id:
+            return 1
+        existing = [
+            record.revision.number
+            for record in self._history
+            if record.id == parent_id or record.revision.parent_id == parent_id
+        ]
+        return (max(existing) + 1) if existing else 2
+
+    def build_undo_plan(
+        self,
+        tool_name: str,
+        action: str,
+        parameters: Dict[str, Any],
+        undo_data: Optional[Dict[str, Any]] = None,
+    ) -> Optional[UndoPlan]:
+        """Infer a conservative undo plan for common reversible actions."""
+        action_lower = action.lower()
+        tool_lower = tool_name.lower()
+        if "file" in tool_lower and action_lower in {"move", "rename"}:
+            source = parameters.get("source") or undo_data and undo_data.get("original_path")
+            destination = parameters.get("destination") or parameters.get("target")
+            if source and destination:
+                return UndoPlan(
+                    strategy="move_back",
+                    steps=[{"action": "move", "source": destination, "destination": source}],
+                    automatic=False,
+                    notes="Move the file or folder back to its original location.",
+                )
+        if "file" in tool_lower and action_lower == "copy":
+            destination = parameters.get("destination") or parameters.get("target")
+            if destination:
+                return UndoPlan(
+                    strategy="remove_copy",
+                    steps=[{"action": "delete", "path": destination}],
+                    automatic=False,
+                    notes="Remove the copied resource after confirmation.",
+                )
+        if "file" in tool_lower and action_lower in {"create_file", "create_folder"}:
+            path = parameters.get("path")
+            if path:
+                return UndoPlan(
+                    strategy="remove_created_resource",
+                    steps=[{"action": "delete", "path": path}],
+                    automatic=False,
+                    notes="Delete the created resource after confirmation.",
+                )
+        if action_lower in {"prepare", "draft"} or parameters.get("draft_only"):
+            draft_id = parameters.get("draft_id") or undo_data and undo_data.get("draft_id")
+            return UndoPlan(
+                strategy="discard_draft",
+                steps=[{"action": "discard_draft", "draft_id": draft_id}],
+                automatic=bool(draft_id),
+                notes="Discard the prepared message before it is sent.",
+            )
+        if action_lower in {"start", "run"} and ("workflow" in tool_lower or parameters.get("workflow")):
+            return UndoPlan(
+                strategy="cancel_workflow",
+                steps=[{"action": "cancel", "workflow": parameters.get("workflow")}],
+                automatic=False,
+                notes="Cancel only if the workflow exposes a safe cancel step.",
+            )
+        if undo_data:
+            return UndoPlan(
+                strategy=str(undo_data.get("strategy", "manual_restore")),
+                steps=list(undo_data.get("steps", [])),
+                automatic=bool(undo_data.get("automatic", False)),
+                notes=str(undo_data.get("notes", "Manual restore data is available.")),
+            )
+        return None
+
     def _classify_action_type(self, tool_name: str, action: str) -> ActionType:
         """Classify action type based on tool and action."""
         tool_lower = tool_name.lower()
-        action_lower = action.lower()
 
         if "file" in tool_lower or "file_controller" in tool_lower:
             return ActionType.FILE_OPERATION
@@ -270,6 +427,20 @@ class ActionHistory:
 
             # Mark as undone
             record.status = ActionStatus.UNDONE
+            undo_record = ActionRecord(
+                action_type=record.action_type,
+                tool_name=record.tool_name,
+                action=f"undo:{record.action}",
+                parameters={"record_id": record.id, "undo_plan": record.undo_plan.to_dict() if record.undo_plan else None},
+                result=f"Undo recorded for action {record.id}",
+                status=ActionStatus.SUCCESS,
+                revision=ActionRevision(
+                    number=record.revision.number + 1,
+                    parent_id=record.id,
+                    reason="undo",
+                ),
+            )
+            self._history.append(undo_record)
             self._save_history()
 
             logger.info(f"Action undone: {record.tool_name}/{record.action} (ID: {record.id})")
@@ -318,6 +489,11 @@ class ActionHistory:
                 parameters=retry_params,
                 result="",
                 status=ActionStatus.PENDING,
+                revision=ActionRevision(
+                    number=record.revision.number + 1,
+                    parent_id=record.id,
+                    reason="retry",
+                ),
             )
             new_record.result = f"Retry of original action {record.id}"
 

@@ -15,11 +15,11 @@ Example:
 """
 
 from config.config_loader import get_config
+from config.startup_config import get_startup_setting
 from core.action_history import get_action_history
 from core.approval_flow import get_approval_flow
 from core.logger import get_logger
 from core.permission_profiles import disable_action
-from core.paths import project_path
 
 logger = get_logger(__name__)
 
@@ -35,16 +35,19 @@ def initialize_safety_system():
 
     # Initialize safety and approval system
     approval_flow = get_approval_flow()
-    permission_profile = config.get("security.permission_profile", "normal")
+    permission_profile = config.get(
+        "security.permission_profile", get_startup_setting("security.permission_level")
+    )
     approval_flow.set_permission_level(permission_profile)
 
     # Configure confirmation requirements
-    confirm_medium = config.get("security.confirmation_medium_risk", True)
-    confirm_high = config.get("security.confirmation_high_risk", True)
+    confirm_medium = get_startup_setting("security.confirmation_medium_risk")
+    confirm_high = get_startup_setting("security.confirmation_high_risk")
     approval_flow.set_require_confirmation_for_medium(confirm_medium)
+    approval_flow.set_require_confirmation_for_high(confirm_high)
 
     # Load disabled actions from config
-    disabled_actions = config.get("security.disabled_actions", [])
+    disabled_actions = get_startup_setting("security.disabled_actions")
     for action in disabled_actions:
         disable_action(action)
 
@@ -56,8 +59,8 @@ def initialize_safety_system():
 
     # Initialize action history
     action_history = get_action_history()
-    if config.get("security.action_history_enabled", True):
-        max_size = config.get("security.action_history_max_size", 1000)
+    if get_startup_setting("security.action_history_enabled"):
+        max_size = get_startup_setting("security.action_history_max_size")
         action_history._max_history_size = max_size
         logger.info(f"Action history enabled with max_size={max_size}")
     else:

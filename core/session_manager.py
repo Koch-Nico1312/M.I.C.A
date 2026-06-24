@@ -10,6 +10,7 @@ import threading
 import uuid
 from collections import deque
 from copy import deepcopy
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Deque, Dict, List, Optional
@@ -47,6 +48,7 @@ class SessionContextManager:
         self._messages: Deque[Dict[str, Any]] = deque(maxlen=max_messages)
         self._tool_results: Deque[Dict[str, Any]] = deque(maxlen=max_tool_results)
         self._sessions: Deque[Dict[str, Any]] = deque(maxlen=max_sessions)
+        self._activity: Deque[Dict[str, Any]] = deque(maxlen=200)
         self._current_session: Optional[Dict[str, Any]] = None
         self._session_token: Optional[str] = None
         self._session_start: Optional[datetime] = None
@@ -82,6 +84,10 @@ class SessionContextManager:
                     current_session.get("tool_results", []),
                     maxlen=self.max_tool_results,
                 )
+                self._activity = deque(
+                    current_session.get("activity", []),
+                    maxlen=200,
+                )
                 self._session_start = self._parse_dt(current_session.get("started_at"))
                 logger.info(
                     "[Session] Loaded active session %s with %s messages",
@@ -97,7 +103,7 @@ class SessionContextManager:
             self._history_path.parent.mkdir(parents=True, exist_ok=True)
             payload = {
                 "current_session": self._current_session,
-                "sessions": list(self._sessions),
+            "sessions": list(self._sessions),
                 "updated_at": datetime.now().isoformat(),
             }
             tmp_path = self._history_path.with_suffix(".tmp")
@@ -141,11 +147,15 @@ class SessionContextManager:
             "ended_at": None,
             "messages": [],
             "tool_results": [],
+            "activity": [],
+            "open_ends": [],
+            "recent_files": [],
             "summary": "",
             "status": "active",
         }
         self._messages.clear()
         self._tool_results.clear()
+        self._activity.clear()
         self._session_start = datetime.now()
         logger.info("[Session] New session started: %s", session_id)
         self._save_history()
@@ -191,6 +201,7 @@ class SessionContextManager:
         self._current_session = None
         self._messages.clear()
         self._tool_results.clear()
+        self._activity.clear()
         self._session_start = None
         self._save_history()
         logger.info("[Session] Archived session %s", session.get("id"))
@@ -280,6 +291,59 @@ class SessionContextManager:
             extra=summary,
         )
 
+    def record_activity(
+        self,
+        description: str,
+        *,
+        files: Optional[List[str]] = None,
+        open_ends: Optional[List[str]] = None,
+        kind: str = "activity",
+        timestamp: Optional[datetime] = None,
+    ) -> Dict[str, Any]:
+        """Record resumable work context for 'continue where we left off'."""
+        with self._lock:
+            session = self._ensure_current_session()
+            when = timestamp or datetime.now()
+            activity = {
+                "id": uuid.uuid4().hex,
+                "kind": kind,
+                "description": str(description or "").strip(),
+                "files": list(dict.fromkeys(files or []))[:10],
+                "open_ends": [str(item).strip() for item in (open_ends or []) if str(item).strip()][:10],
+                "timestamp": when.isoformat(),
+            }
+            session.setdefault("activity", []).append(activity)
+            session["activity"] = session["activity"][-200:]
+            self._activity.append(activity)
+
+            recent_files = session.setdefault("recent_files", [])
+            for file_path in reversed(activity["files"]):
+                if file_path in recent_files:
+                    recent_files.remove(file_path)
+                recent_files.insert(0, file_path)
+            session["recent_files"] = recent_files[:20]
+
+            session_open_ends = session.setdefault("open_ends", [])
+            for item in activity["open_ends"]:
+                if item not in session_open_ends:
+                    session_open_ends.append(item)
+            session["open_ends"] = session_open_ends[-20:]
+            session["updated_at"] = activity["timestamp"]
+            self._save_history()
+            return deepcopy(activity)
+
+    def complete_open_end(self, text: str) -> bool:
+        """Mark a remembered open end as resolved."""
+        with self._lock:
+            if not self._current_session:
+                return False
+            open_ends = self._current_session.get("open_ends", [])
+            if text in open_ends:
+                open_ends.remove(text)
+                self._save_history()
+                return True
+            return False
+
     def save_session_token(self, token: str) -> None:
         """Save Gemini session resumption token."""
         self._session_token = token
@@ -330,6 +394,15 @@ class SessionContextManager:
                     )
                 lines.append("")
 
+            resume = self.build_resume_packet()
+            if resume.get("open_ends") or resume.get("recent_files"):
+                lines.append("Resume cues:")
+                for item in resume.get("open_ends", [])[:5]:
+                    lines.append(f"  - Open: {item}")
+                for file_path in resume.get("recent_files", [])[:5]:
+                    lines.append(f"  - File: {file_path}")
+                lines.append("")
+
             lines.append(
                 "Continue the conversation naturally. Do NOT say 'welcome back' or mention reconnection."
             )
@@ -338,6 +411,87 @@ class SessionContextManager:
             if len(result) > 2500:
                 result = result[:2497] + "..."
             return result + "\n"
+
+    def build_resume_packet(self) -> Dict[str, Any]:
+        """Return compact session-resume context for explicit resume commands."""
+        with self._lock:
+            session = self._current_session or (self._sessions[0] if self._sessions else None)
+            if not session:
+                return {
+                    "has_context": False,
+                    "summary": "No previous session context is available.",
+                    "last_activity": None,
+                    "open_ends": [],
+                    "recent_files": [],
+                }
+
+            activity = session.get("activity") or []
+            messages = self._message_list_from_session(session)
+            last_activity = activity[-1] if activity else None
+            summary = session.get("summary") or self._build_session_summary(session)
+            if not summary and messages:
+                summary = str(messages[-1].get("content", ""))[:180]
+
+            return {
+                "has_context": True,
+                "session_id": session.get("id"),
+                "summary": summary or "Jarvis session",
+                "last_activity": deepcopy(last_activity),
+                "open_ends": list(session.get("open_ends", []))[:10],
+                "recent_files": list(session.get("recent_files", []))[:10],
+                "updated_at": session.get("updated_at"),
+            }
+
+    def resume_where_left_off(self) -> str:
+        """Human-readable resume briefing."""
+        packet = self.build_resume_packet()
+        if not packet["has_context"]:
+            return packet["summary"]
+
+        lines = [f"Last session: {packet['summary']}"]
+        if packet.get("last_activity"):
+            lines.append(f"Last activity: {packet['last_activity'].get('description')}")
+        if packet.get("open_ends"):
+            lines.append("Open ends:")
+            lines.extend(f"- {item}" for item in packet["open_ends"][:5])
+        if packet.get("recent_files"):
+            lines.append("Recent files:")
+            lines.extend(f"- {item}" for item in packet["recent_files"][:5])
+        return "\n".join(lines)
+
+    def summarize_last_hour(self, now: Optional[datetime] = None) -> str:
+        now = now or datetime.now()
+        cutoff_ts = now.timestamp() - 3600
+        with self._lock:
+            messages = []
+            for msg in list(self._messages):
+                timestamp = self._parse_dt(msg.get("timestamp"))
+                if timestamp and timestamp.timestamp() >= cutoff_ts:
+                    messages.append(msg)
+            if not messages:
+                return "No session activity recorded in the last hour."
+            snippets = [str(msg.get("content", ""))[:120] for msg in messages[-8:]]
+            return "Last hour:\n" + "\n".join(f"- {snippet}" for snippet in snippets if snippet)
+
+    def what_changed_since_yesterday(self, now: Optional[datetime] = None) -> Dict[str, Any]:
+        now = now or datetime.now()
+        cutoff_ts = now.timestamp() - (24 * 3600)
+        with self._lock:
+            activities = []
+            for item in list(self._activity):
+                timestamp = self._parse_dt(item.get("timestamp"))
+                if timestamp and timestamp.timestamp() >= cutoff_ts:
+                    activities.append(deepcopy(item))
+            files = []
+            open_ends = []
+            for item in activities:
+                for file_path in item.get("files", []):
+                    if file_path not in files:
+                        files.append(file_path)
+                for open_end in item.get("open_ends", []):
+                    if open_end not in open_ends:
+                        open_ends.append(open_end)
+            return {"activity_count": len(activities), "files": files, "open_ends": open_ends}
 
     def get_current_session(self) -> Optional[Dict[str, Any]]:
         """Return the active session snapshot."""
@@ -393,10 +547,70 @@ class SessionContextManager:
             self._current_session = None
             self._messages.clear()
             self._tool_results.clear()
+            self._activity.clear()
             self._session_token = None
             self._reconnect_count = 0
             self._session_start = None
             self._save_history()
+
+
+@dataclass
+class SessionMessage:
+    role: str
+    content: str
+    timestamp: datetime = field(default_factory=datetime.now)
+
+
+@dataclass
+class Session:
+    session_id: str
+    created_at: datetime = field(default_factory=datetime.now)
+    ended_at: Optional[datetime] = None
+    messages: List[SessionMessage] = field(default_factory=list)
+
+
+class SessionManager:
+    """Small compatibility manager for older callers/tests."""
+
+    def __init__(self, max_messages: int = 200):
+        self.max_messages = max_messages
+        self.sessions: Dict[str, Session] = {}
+
+    def create_session(self) -> Session:
+        session = Session(session_id=uuid.uuid4().hex)
+        self.sessions[session.session_id] = session
+        return session
+
+    def get_session(self, session_id: str) -> Optional[Session]:
+        return self.sessions.get(session_id)
+
+    def end_session(self, session_id: str) -> bool:
+        session = self.sessions.get(session_id)
+        if not session:
+            return False
+        session.ended_at = datetime.now()
+        return True
+
+    def add_message(self, session_id: str, role: str, content: str) -> bool:
+        session = self.sessions.get(session_id)
+        if not session:
+            return False
+        session.messages.append(SessionMessage(role=role, content=content))
+        if len(session.messages) > self.max_messages:
+            session.messages = session.messages[-self.max_messages :]
+        return True
+
+    def save_sessions(self) -> None:
+        return None
+
+    def load_sessions(self) -> None:
+        return None
+
+    def cleanup_old_sessions(self, max_age_days: int = 7) -> None:
+        cutoff = datetime.now().timestamp() - (max_age_days * 24 * 3600)
+        for session_id, session in list(self.sessions.items()):
+            if session.created_at.timestamp() < cutoff:
+                del self.sessions[session_id]
 
 
 # Global instance

@@ -6,12 +6,13 @@ Extended with risk classification (low/medium/high) and detailed summaries.
 """
 
 import threading
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, Optional
 
 from core.logger import get_logger
-from core.permission_profiles import PermissionLevel, check_action
+from core.permission_profiles import PermissionLevel, check_action, get_tool_metadata
 
 logger = get_logger(__name__)
 
@@ -33,6 +34,48 @@ class ApprovalStatus(Enum):
     TIMEOUT = "timeout"
 
 
+@dataclass
+class ApprovalContext:
+    """Structured context shown with an approval request."""
+
+    risk_level: str
+    affected_resources: list[str] = field(default_factory=list)
+    expected_effect: str = ""
+    undo_available: bool = False
+    undo_description: str = "No automatic undo is available."
+    rationale: str = ""
+    safeguards: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "risk_level": self.risk_level,
+            "affected_resources": list(self.affected_resources),
+            "expected_effect": self.expected_effect,
+            "undo_available": self.undo_available,
+            "undo_description": self.undo_description,
+            "rationale": self.rationale,
+            "safeguards": list(self.safeguards),
+        }
+
+
+@dataclass
+class ApprovalDecision:
+    """Structured decision data for API/UI approval handling."""
+
+    approved: bool
+    decided_by: str = "user"
+    reason: str = ""
+    decided_at: datetime = field(default_factory=datetime.now)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "approved": self.approved,
+            "decided_by": self.decided_by,
+            "reason": self.reason,
+            "decided_at": self.decided_at.isoformat(),
+        }
+
+
 class ApprovalRequest:
     """Represents a pending approval request with risk classification."""
 
@@ -44,6 +87,7 @@ class ApprovalRequest:
         permission_level: str,
         reason: str = "",
         risk_level: RiskLevel = RiskLevel.MEDIUM,
+        context: ApprovalContext | Dict[str, Any] | None = None,
     ):
         self.tool_name = tool_name
         self.action = action
@@ -55,7 +99,14 @@ class ApprovalRequest:
         self.status = ApprovalStatus.PENDING
         self._event = threading.Event()
         self._result: Optional[bool] = None
-        self.can_undo = False
+        self.decision: Optional[ApprovalDecision] = None
+        if isinstance(context, ApprovalContext):
+            self.context = context
+        elif isinstance(context, dict):
+            self.context = ApprovalContext(risk_level=risk_level.value, **context)
+        else:
+            self.context = build_approval_context(tool_name, action, parameters, risk_level, reason)
+        self.can_undo = self.context.undo_available
         self.summary = self._generate_summary()
 
     def _generate_summary(self) -> str:
@@ -77,21 +128,28 @@ class ApprovalRequest:
                 parts.append(f"Parameters: {safe_params}")
 
         parts.append(f"Risk Level: {self.risk_level.value.upper()}")
-        parts.append(f"Reason: {self.reason}")
+        if self.context.affected_resources:
+            parts.append(f"Affected: {', '.join(self.context.affected_resources)}")
+        if self.context.expected_effect:
+            parts.append(f"Effect: {self.context.expected_effect}")
+        parts.append(f"Undo: {self.context.undo_description}")
+        parts.append(f"Why: {self.context.rationale or self.reason}")
 
         return " | ".join(parts)
 
-    def approve(self):
+    def approve(self, reason: str = "", decided_by: str = "user"):
         """Approve the request."""
         self._result = True
         self.status = ApprovalStatus.APPROVED
+        self.decision = ApprovalDecision(True, decided_by=decided_by, reason=reason)
         self._event.set()
         logger.info(f"Approval approved: {self.tool_name}/{self.action}")
 
-    def deny(self):
+    def deny(self, reason: str = "", decided_by: str = "user"):
         """Deny the request."""
         self._result = False
         self.status = ApprovalStatus.DENIED
+        self.decision = ApprovalDecision(False, decided_by=decided_by, reason=reason)
         self._event.set()
         logger.info(f"Approval denied: {self.tool_name}/{self.action}")
 
@@ -102,6 +160,120 @@ class ApprovalRequest:
         self.status = ApprovalStatus.TIMEOUT
         logger.warning(f"Approval timeout: {self.tool_name}/{self.action}")
         return None
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serializable API shape without exposing secrets."""
+        return {
+            "tool_name": self.tool_name,
+            "action": self.action,
+            "permission_level": self.permission_level,
+            "reason": self.reason,
+            "risk_level": self.risk_level.value,
+            "status": self.status.value,
+            "timestamp": self.timestamp.isoformat(),
+            "summary": self.summary,
+            "context": self.context.to_dict(),
+            "decision": self.decision.to_dict() if self.decision else None,
+        }
+
+
+def _safe_resource(value: Any) -> str:
+    text = str(value)
+    if len(text) > 120:
+        return text[:117] + "..."
+    return text
+
+
+def _affected_resources(parameters: Dict[str, Any]) -> list[str]:
+    resource_keys = (
+        "path",
+        "source",
+        "destination",
+        "target",
+        "file",
+        "folder",
+        "recipient",
+        "to",
+        "channel",
+        "workflow",
+        "workflow_name",
+        "event_id",
+        "url",
+    )
+    resources: list[str] = []
+    for key in resource_keys:
+        value = parameters.get(key)
+        if value:
+            resources.append(f"{key}={_safe_resource(value)}")
+    return resources
+
+
+def _expected_effect(tool_name: str, action: str, parameters: Dict[str, Any]) -> str:
+    action_lower = action.lower()
+    tool_lower = tool_name.lower()
+    if "file" in tool_lower:
+        if action_lower in {"move", "rename"}:
+            return "Move or rename a filesystem resource."
+        if action_lower in {"copy"}:
+            return "Create another copy of a filesystem resource."
+        if action_lower in {"delete", "delete_file"}:
+            return "Remove a filesystem resource."
+        if action_lower in {"write", "create_file", "create_folder"}:
+            return "Create or modify local filesystem content."
+    if "send_message" in tool_lower or action_lower in {"send", "reply"}:
+        return "Prepare or send communication to an external recipient."
+    if "workflow" in tool_lower or "workflow" in parameters:
+        return "Start or modify an automated workflow."
+    if "calendar" in tool_lower:
+        return "Create or change calendar data."
+    if "settings" in tool_lower or "computer" in tool_lower:
+        return "Change local system or device state."
+    return "Perform the requested action with the provided parameters."
+
+
+def _undo_description(tool_name: str, action: str, parameters: Dict[str, Any]) -> tuple[bool, str]:
+    action_lower = action.lower()
+    tool_lower = tool_name.lower()
+    metadata = get_tool_metadata(tool_name)
+    if action_lower in {"move", "rename"}:
+        return True, "Can usually be undone by moving the resource back to its original path."
+    if action_lower == "copy":
+        return True, "Can usually be undone by deleting the copied target."
+    if action_lower in {"write", "create_file", "create_folder"}:
+        return True, "Can be undone when a prior snapshot or created path is recorded."
+    if action_lower in {"prepare", "draft"} or parameters.get("draft_only"):
+        return True, "Prepared drafts can be discarded before they are sent."
+    if action_lower in {"start", "run"} and ("workflow" in tool_lower or parameters.get("workflow")):
+        return True, "Workflow starts can be cancelled only if the workflow exposes a cancel step."
+    if action_lower in {"send", "reply", "delete", "delete_file"}:
+        return False, "This action may not be recoverable after execution."
+    if metadata and metadata.reversible:
+        return True, "Tool metadata marks this action as reversible when enough state is captured."
+    return False, "No automatic undo is available."
+
+
+def build_approval_context(
+    tool_name: str,
+    action: str,
+    parameters: Dict[str, Any],
+    risk_level: RiskLevel,
+    reason: str = "",
+) -> ApprovalContext:
+    """Build structured approval context for risky action prompts."""
+    undo_available, undo_description = _undo_description(tool_name, action, parameters)
+    safeguards = ["Secrets are redacted in summaries.", "Safe-mode blocks destructive actions."]
+    if risk_level == RiskLevel.HIGH:
+        safeguards.append("Explicit approval is required before execution.")
+    return ApprovalContext(
+        risk_level=risk_level.value,
+        affected_resources=_affected_resources(parameters),
+        expected_effect=_expected_effect(tool_name, action, parameters),
+        undo_available=undo_available,
+        undo_description=undo_description,
+        rationale=parameters.get("why") or parameters.get("reason") or reason,
+        safeguards=safeguards,
+    )
+
 
 
 class ApprovalFlow:
@@ -164,6 +336,7 @@ class ApprovalFlow:
         self._lock = threading.Lock()
         self._request_counter = 0
         self._require_confirmation_for_medium = False  # Disabled to allow medium-risk actions without UI callback
+        self._require_confirmation_for_high = True
         logger.info("Approval flow initialized")
 
     def classify_risk(self, tool_name: str, action: str) -> RiskLevel:
@@ -233,6 +406,12 @@ class ApprovalFlow:
             self._require_confirmation_for_medium = require
             logger.info(f"Medium-risk confirmation requirement set to: {require}")
 
+    def set_require_confirmation_for_high(self, require: bool):
+        """Set whether high-risk actions require confirmation."""
+        with self._lock:
+            self._require_confirmation_for_high = require
+            logger.info(f"High-risk confirmation requirement set to: {require}")
+
     def get_permission_level(self) -> str:
         """Get the current permission level."""
         return self._current_permission_level
@@ -279,7 +458,7 @@ class ApprovalFlow:
                 return True, message
 
             # High-risk actions still get a confirmation prompt when possible.
-            if risk_level == RiskLevel.HIGH:
+            if risk_level == RiskLevel.HIGH and self._require_confirmation_for_high:
                 return self._request_confirmation(
                     tool_name,
                     action,

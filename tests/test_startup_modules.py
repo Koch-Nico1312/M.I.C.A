@@ -2,9 +2,8 @@
 Tests for startup modules.
 """
 
-import pytest
-
-from startup.app_initializer import CLIUIBridge, create_ui_bridge, initialize_application
+from config.startup_config import get_startup_defaults
+from startup.app_initializer import CLIUIBridge, initialize_application
 from startup.performance_initializer import initialize_performance_system
 from startup.safety_initializer import initialize_safety_system
 
@@ -35,7 +34,10 @@ class TestCLIUIBridge:
     def test_on_text_command_property(self):
         """Test on_text_command property setter."""
         bridge = CLIUIBridge()
-        callback = lambda x: x
+
+        def callback(x):
+            return x
+
         bridge.on_text_command = callback
         assert bridge.on_text_command is callback
     
@@ -100,6 +102,15 @@ class TestPerformanceInitializer:
         perf_tracker, perf_monitor = initialize_performance_system(mock_loader)
         # Should not crash
         assert True
+
+    def test_startup_defaults_keep_heavy_background_features_off(self):
+        """Missing config should prefer fast, low-side-effect startup defaults."""
+        defaults = get_startup_defaults()
+
+        assert defaults["performance.resource_monitoring"] is False
+        assert defaults["performance.background_tasks_enabled"] is False
+        assert defaults["performance.flags.lazy_load_actions"] is True
+        assert defaults["security.confirmation_high_risk"] is True
 
 
 class TestAppInitializer:

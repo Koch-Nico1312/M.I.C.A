@@ -9,6 +9,23 @@ models:
   voice_name: "Charon"
   context_window: 1000000  # Maximum context window in tokens (1M for gemini-2.5)
 
+# Optional centralized model routing. If omitted, Jarvis falls back to the
+# legacy models.text / models.vision values above.
+model_router:
+  cost_mode: "balanced"              # economy | balanced
+  long_context_chars: 40000
+  aliases:
+    fast: "fast"
+    reasoning: "reasoning"
+    vision: "vision"
+    long_context: "long_context"
+    local: "local"
+  fallbacks:
+    fast: ["reasoning", "local"]
+    reasoning: ["fast", "local"]
+    vision: ["reasoning", "fast", "local"]
+    long_context: ["reasoning", "fast", "local"]
+
 # Audio Settings
 audio:
   channels: 1

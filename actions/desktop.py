@@ -1,13 +1,13 @@
 # desktop.py
-import json
 import os
 import platform
 import shutil
 import subprocess
-import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
+
+from core.model_runner import get_routed_model
 
 try:
     import pyautogui
@@ -17,18 +17,6 @@ except ImportError:
     _PYAUTOGUI = False
 
 _OS = platform.system()  # "Windows" | "Darwin" | "Linux"
-
-
-def _get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-def _get_api_key() -> str:
-    path = _get_base_dir() / "config" / "api_keys.json"
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
 
 
 def _get_desktop() -> Path:
@@ -130,11 +118,7 @@ def _execute_generated_code(code: str, player=None) -> str:
 
 
 def _ask_gemini_for_desktop_action(task: str) -> str:
-
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = get_routed_model(intent="high_risk_action", risk="high", use_cache=False)
 
     desktop = str(_get_desktop())
 

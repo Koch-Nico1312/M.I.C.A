@@ -6,13 +6,12 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
-import pytest
-
 from core.action_history import (
     ActionHistory,
     ActionRecord,
     ActionStatus,
     ActionType,
+    UndoPlan,
     get_action_history,
 )
 
@@ -126,6 +125,77 @@ def test_undo_action():
         # Check status
         updated_record = history.get_record(record.id)
         assert updated_record.status == ActionStatus.UNDONE
+
+
+def test_record_action_infers_file_move_undo_plan_and_revision():
+    """Move-like actions store a reversible plan and initial revision data."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        history_file = Path(tmpdir) / "test_history.json"
+        history = ActionHistory(history_file=history_file)
+
+        record = history.record_action(
+            tool_name="file_controller",
+            action="move",
+            parameters={"source": "/tmp/source.txt", "destination": "/tmp/destination.txt"},
+            result="Moved",
+            status=ActionStatus.SUCCESS,
+        )
+
+        assert record.can_undo is True
+        assert record.undo_plan.strategy == "move_back"
+        assert record.undo_plan.steps[0]["source"] == "/tmp/destination.txt"
+        assert record.revision.number == 1
+
+        restored = ActionHistory(history_file=history_file).get_record(record.id)
+        assert restored.undo_plan.strategy == "move_back"
+        assert restored.revision.number == 1
+
+
+def test_retry_action_creates_revision_link():
+    """Retries are tracked as a new revision linked to the failed action."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        history_file = Path(tmpdir) / "test_history.json"
+        history = ActionHistory(history_file=history_file)
+
+        record = history.record_action(
+            tool_name="send_message",
+            action="prepare",
+            parameters={"recipient": "demo", "draft_only": True},
+            status=ActionStatus.FAILED,
+        )
+
+        success, message, retry = history.retry_action(record.id, {"recipient": "demo2"})
+
+        assert success is True
+        assert "retry" in message.lower()
+        assert retry.revision.parent_id == record.id
+        assert retry.revision.reason == "retry"
+        assert retry.revision.number == 2
+
+
+def test_custom_undo_plan_serialization():
+    """Explicit undo plans survive JSON round trips."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        history_file = Path(tmpdir) / "test_history.json"
+        history = ActionHistory(history_file=history_file)
+        plan = UndoPlan(
+            strategy="discard_draft",
+            steps=[{"action": "discard_draft", "draft_id": "draft-1"}],
+            automatic=True,
+        )
+
+        record = history.record_action(
+            tool_name="send_message",
+            action="prepare",
+            parameters={"recipient": "demo", "draft_only": True},
+            status=ActionStatus.SUCCESS,
+            undo_plan=plan,
+        )
+
+        restored = ActionHistory(history_file=history_file).get_record(record.id)
+        assert restored.can_undo is True
+        assert restored.undo_plan.strategy == "discard_draft"
+        assert restored.undo_plan.automatic is True
 
 
 def test_undo_non_undoable_action():

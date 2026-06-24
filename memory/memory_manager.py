@@ -1,6 +1,6 @@
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from threading import Lock
 from typing import Any
@@ -25,6 +25,9 @@ DEFAULT_MEMORY_CATEGORIES = (
     "wishes",
     "knowledge",
     "notes",
+    "decisions",
+    "todos",
+    "daily_summaries",
 )
 
 
@@ -41,6 +44,9 @@ def _empty_memory() -> dict:
         "wishes": {},
         "knowledge": {},
         "notes": {},
+        "decisions": {},
+        "todos": {},
+        "daily_summaries": {},
     }
 
 
@@ -72,6 +78,42 @@ def _all_entries(memory: dict) -> list[tuple]:
             if isinstance(entry, dict) and "value" in entry:
                 entries.append((cat, key, entry))
     return entries
+
+
+def _parse_date(value: Any) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value))
+    except ValueError:
+        try:
+            return datetime.strptime(str(value), "%Y-%m-%d")
+        except ValueError:
+            return None
+
+
+def cleanup_expired_memories(
+    memory_path: Path | None = None, now: datetime | None = None
+) -> int:
+    """Remove memory entries whose expires_at date has passed."""
+    now = now or datetime.now()
+    memory = load_memory(memory_path=memory_path)
+    removed = 0
+
+    for category, items in list(memory.items()):
+        if not isinstance(items, dict):
+            continue
+        for key, entry in list(items.items()):
+            if not isinstance(entry, dict):
+                continue
+            expires_at = _parse_date(entry.get("expires_at"))
+            if expires_at and expires_at < now:
+                del items[key]
+                removed += 1
+
+    if removed:
+        save_memory(memory, memory_path=memory_path)
+    return removed
 
 
 def _trim_to_limit(memory: dict, memory_path: Path | None = None) -> dict:
@@ -145,6 +187,9 @@ def _recursive_update(target: dict, updates: dict) -> bool:
                 if entry.get(meta_key) != meta_value:
                     entry[meta_key] = meta_value
                     entry_changed = True
+
+            if "tags" not in entry:
+                entry["tags"] = []
 
             if entry_changed or existing != entry:
                 target[key] = entry
@@ -258,6 +303,114 @@ def remember(
     return f"Remembered: {category}/{key} = {value}"
 
 
+def remember_structured(
+    kind: str,
+    key: str,
+    value: str,
+    *,
+    tags: list[str] | None = None,
+    expires_in_days: int | None = None,
+    metadata: dict[str, Any] | None = None,
+    memory_path: Path | None = None,
+) -> dict:
+    """Persist a typed memory record with tags and optional expiry."""
+    category_map = {
+        "decision": "decisions",
+        "preference": "preferences",
+        "todo": "todos",
+        "daily_summary": "daily_summaries",
+    }
+    category = category_map.get(kind, kind if kind in DEFAULT_MEMORY_CATEGORIES else "notes")
+    record: dict[str, Any] = {
+        "value": value,
+        "kind": kind,
+        "tags": sorted(set(tags or [])),
+    }
+    if expires_in_days is not None:
+        record["expires_at"] = (datetime.now() + timedelta(days=expires_in_days)).date().isoformat()
+    if metadata:
+        record.update({k: v for k, v in metadata.items() if v is not None})
+
+    memory = update_memory({category: {key: record}}, memory_path=memory_path)
+    _persist_to_obsidian(kind, key, record)
+    return memory.get(category, {}).get(key, record)
+
+
+def remember_decision(
+    key: str,
+    value: str,
+    *,
+    tags: list[str] | None = None,
+    expires_in_days: int | None = None,
+    memory_path: Path | None = None,
+) -> dict:
+    return remember_structured(
+        "decision",
+        key,
+        value,
+        tags=tags or ["decision"],
+        expires_in_days=expires_in_days,
+        memory_path=memory_path,
+    )
+
+
+def remember_preference(
+    key: str,
+    value: str,
+    *,
+    tags: list[str] | None = None,
+    memory_path: Path | None = None,
+) -> dict:
+    return remember_structured(
+        "preference", key, value, tags=tags or ["preference"], memory_path=memory_path
+    )
+
+
+def remember_todo(
+    key: str,
+    value: str,
+    *,
+    tags: list[str] | None = None,
+    expires_in_days: int | None = 30,
+    memory_path: Path | None = None,
+) -> dict:
+    return remember_structured(
+        "todo",
+        key,
+        value,
+        tags=tags or ["todo"],
+        expires_in_days=expires_in_days,
+        memory_path=memory_path,
+    )
+
+
+def remember_daily_summary(
+    date_key: str,
+    value: str,
+    *,
+    tags: list[str] | None = None,
+    memory_path: Path | None = None,
+) -> dict:
+    return remember_structured(
+        "daily_summary",
+        date_key,
+        value,
+        tags=tags or ["daily-summary"],
+        memory_path=memory_path,
+    )
+
+
+def _persist_to_obsidian(kind: str, key: str, record: dict[str, Any]) -> None:
+    try:
+        from memory.obsidian_vault import get_obsidian_bridge
+
+        bridge = get_obsidian_bridge()
+        if hasattr(bridge, "persist_memory_record"):
+            bridge.persist_memory_record(kind, key, record)
+    except Exception:
+        return
+
+
 def forget(key: str, category: str = "notes", memory_path: Path | None = None) -> str:
     memory = load_memory(memory_path=memory_path)
     cat = memory.get(category, {})
@@ -270,3 +423,49 @@ def forget(key: str, category: str = "notes", memory_path: Path | None = None) -
 
 
 forget_memory = forget
+
+
+class MemoryManager:
+    """Object-oriented facade around the module-level memory helpers."""
+
+    def __init__(self, memory_path: Path | None = None):
+        self.memory_path = memory_path
+        self._cache: dict[str, dict] = {}
+
+    def load_memory(self, memory_path: Path | None = None) -> dict:
+        path = _resolve_memory_path(memory_path or self.memory_path)
+        if not path.exists():
+            raise FileNotFoundError(str(path))
+        data = json.loads(path.read_text(encoding="utf-8"))
+        self._cache[str(path)] = data
+        return data
+
+    def save_memory(self, memory_path: Path | None, data: dict) -> None:
+        path = _resolve_memory_path(memory_path or self.memory_path)
+        if not path.parent.exists():
+            raise FileNotFoundError(str(path.parent))
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
+        self._cache[str(path)] = data
+
+    def update_memory(self, memory_path: Path | None, updates: dict) -> dict:
+        path = _resolve_memory_path(memory_path or self.memory_path)
+        existing = self.load_memory(path)
+        existing.update(updates)
+        self.save_memory(path, existing)
+        return existing
+
+    def check_size_limit(self, data: dict, max_chars: int = MEMORY_MAX_CHARS) -> bool:
+        return len(json.dumps(data, ensure_ascii=False)) > max_chars
+
+    def compress_memory(self, data: dict, max_items: int = 100) -> dict:
+        if isinstance(data, dict):
+            compressed = {}
+            for key, value in data.items():
+                if isinstance(value, list):
+                    compressed[key] = value[:max_items]
+                elif isinstance(value, dict):
+                    compressed[key] = dict(list(value.items())[:max_items])
+                else:
+                    compressed[key] = _truncate_value(str(value))
+            return compressed
+        return {"value": _truncate_value(str(data))}

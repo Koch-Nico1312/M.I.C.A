@@ -1,4 +1,3 @@
-import json
 import os
 import re
 import subprocess
@@ -7,31 +6,14 @@ import tempfile
 import threading
 import time
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 from agent.error_handler import ErrorDecision, analyze_error, generate_fix
 from agent.planner import create_plan, replan
 from config.config_loader import get_config
-
-
-def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
-
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
-
+from core.model_runner import get_routed_model
 
 def _run_generated_code(description: str, speak: Callable | None = None) -> str:
-    import google.generativeai as genai
-
     if speak:
         speak("Writing custom code for this task, sir.")
 
@@ -52,9 +34,10 @@ def _run_generated_code(description: str, speak: Callable | None = None) -> str:
         except Exception:
             pass
 
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
+    model = get_routed_model(
+        intent="code_edit",
+        risk="high",
+        use_cache=False,
         system_instruction=(
             "You are an expert Python developer. "
             "Write clean, complete, working Python code. "
@@ -141,12 +124,8 @@ def _inject_context(params: dict, tool: str, step_results: dict, goal: str = "")
 
 
 def _detect_language(text: str) -> str:
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel("gemini-2.5-flash-lite")
     try:
-        response = model.generate_content(
+        response = get_routed_model(intent="summary").generate_content(
             f"What language is this text written in? "
             f"Reply with ONLY the language name in English (e.g. Turkish, English, French).\n\n"
             f"Text: {text[:200]}"
@@ -160,11 +139,6 @@ def _translate_to_goal_language(content: str, goal: str) -> str:
     if not goal:
         return content
     try:
-        import google.generativeai as genai
-
-        genai.configure(api_key=_get_api_key())
-        model = genai.GenerativeModel("gemini-2.5-flash")
-
         target_lang = _detect_language(goal)
         print(f"[Executor] 🌐 Translating to: {target_lang}")
 
@@ -178,7 +152,7 @@ def _translate_to_goal_language(content: str, goal: str) -> str:
             f"- Output ONLY the translated text, nothing else\n\n"
             f"Text to translate:\n{content[:4000]}"
         )
-        response = model.generate_content(prompt)
+        response = get_routed_model(intent="summary", use_cache=False).generate_content(prompt)
         translated = response.text.strip()
         print(f"[Executor] ✅ Translation done ({target_lang})")
         return translated
@@ -507,10 +481,7 @@ class AgentExecutor:
     def _summarize(self, goal: str, completed_steps: list, speak: Callable | None) -> str:
         fallback = f"All done, sir. Completed {len(completed_steps)} steps for: {goal[:60]}."
         try:
-            import google.generativeai as genai
-
-            genai.configure(api_key=_get_api_key())
-            model = genai.GenerativeModel(model_name="gemini-2.5-flash-lite")
+            model = get_routed_model(intent="summary")
             steps_str = "\n".join(f"- {s.get('description', '')}" for s in completed_steps)
             prompt = (
                 f'User goal: "{goal}"\n'

@@ -1,18 +1,8 @@
 import json
 import re
-import sys
 from enum import Enum
-from pathlib import Path
 
-
-def get_base_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
-
-
-BASE_DIR = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
+from core.model_runner import get_routed_model
 
 
 class ErrorDecision(Enum):
@@ -48,12 +38,6 @@ Return ONLY valid JSON:
 }
 """
 
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
-
-
 def analyze_error(step: dict, error: str, attempt: int = 1, max_attempts: int = 2) -> dict:
     """
     Analyzes a failed step and returns a recovery decision.
@@ -73,8 +57,6 @@ def analyze_error(step: dict, error: str, attempt: int = 1, max_attempts: int = 
             "user_message": str
         }
     """
-    import google.generativeai as genai
-
     if attempt >= max_attempts:
         print(
             f"[ErrorHandler] ⚠️ Max attempts reached for step {step.get('step')} — forcing replan"
@@ -87,9 +69,10 @@ def analyze_error(step: dict, error: str, attempt: int = 1, max_attempts: int = 
             "user_message": "Trying a different approach, sir.",
         }
 
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash-lite", system_instruction=ERROR_ANALYST_PROMPT
+    model = get_routed_model(
+        intent="test_failure_analysis",
+        system_instruction=ERROR_ANALYST_PROMPT,
+        use_cache=False,
     )
 
     prompt = f"""Failed step:
@@ -143,10 +126,7 @@ def generate_fix(step: dict, error: str, fix_suggestion: str) -> dict:
 
     Returns a modified step dict.
     """
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    model = genai.GenerativeModel(model_name="gemini-2.0-flash")
+    model = get_routed_model(intent="code_edit", use_cache=False)
 
     prompt = f"""A task step failed. Generate a replacement step.
 

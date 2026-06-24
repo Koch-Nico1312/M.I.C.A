@@ -3,10 +3,7 @@ Obsidian Vault Integration for JARVIS Memory
 Stores conversations as notes and uses AI to link them together
 """
 
-import json
-import os
 import re
-import threading
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -17,12 +14,7 @@ from core.metrics_collector import get_metrics_collector
 from core.performance_flags import get_performance_flags
 
 try:
-    from watchdog.events import (
-        FileCreatedEvent,
-        FileDeletedEvent,
-        FileModifiedEvent,
-        FileSystemEventHandler,
-    )
+    from watchdog.events import FileSystemEventHandler
     from watchdog.observers import Observer
 
     WATCHDOG_AVAILABLE = True
@@ -200,7 +192,7 @@ class ObsidianVault:
         # Add metadata (YAML frontmatter)
         content += "---\n"
         content += f"created: {timestamp.isoformat()}\n"
-        content += f"type: conversation\n"
+        content += "type: conversation\n"
 
         if "user_input" in conversation:
             content += f"user_input: {conversation['user_input'][:100]}...\n"
@@ -262,9 +254,6 @@ class ObsidianVault:
         # Check if note exists
         if file_path.exists():
             # Update existing note
-            with open(file_path, "r", encoding="utf-8") as f:
-                existing_content = f.read()
-
             # Append new information
             with open(file_path, "a", encoding="utf-8") as f:
                 f.write(f"\n\n## Update {datetime.now().strftime('%Y-%m-%d')}\n")
@@ -335,6 +324,38 @@ class ObsidianVault:
 
         print(f"[Obsidian] 📁 Created project note: {safe_name}")
         return safe_name
+
+    def create_memory_note(self, kind: str, key: str, record: Dict[str, Any]) -> str:
+        """Create a durable note for a structured memory record."""
+        if not self.enabled:
+            return ""
+
+        safe_kind = re.sub(r"[^\w-]", "", str(kind or "memory")).strip() or "memory"
+        safe_key = re.sub(r"[^\w\s-]", "", str(key or "record")).strip() or "record"
+        memories_dir = self.vault_path / "Memory" / safe_kind.title().replace("_", "")
+        memories_dir.mkdir(parents=True, exist_ok=True)
+
+        tags = record.get("tags") if isinstance(record.get("tags"), list) else []
+        timestamp = datetime.now()
+        file_path = memories_dir / f"{timestamp.strftime('%Y%m%d')}-{safe_key}.md"
+        content = [
+            f"# {safe_key}",
+            "",
+            "---",
+            f"created: {timestamp.isoformat()}",
+            f"type: {safe_kind}",
+            "tags:",
+        ]
+        for tag in ["jarvis-memory", safe_kind, *tags]:
+            safe_tag = str(tag).strip().replace(" ", "-")
+            if safe_tag:
+                content.append(f"  - {safe_tag}")
+        if record.get("expires_at"):
+            content.append(f"expires_at: {record['expires_at']}")
+        content.extend(["---", "", str(record.get("value", "")).strip(), ""])
+
+        file_path.write_text("\n".join(content), encoding="utf-8")
+        return str(file_path.relative_to(self.vault_path))
 
     def search_notes(self, query: str) -> List[Dict[str, str]]:
         """Search for notes in the vault"""
@@ -516,6 +537,75 @@ class ObsidianMemoryBridge:
         self.vault = ObsidianVault()
         self.current_conversation: Dict[str, Any] = {}
         self.conversation_active = False
+
+    @property
+    def vault_path(self) -> Path:
+        return self.vault.vault_path
+
+    @vault_path.setter
+    def vault_path(self, value: Path):
+        self.vault.vault_path = Path(value)
+        self.vault.conversations_dir = self.vault.vault_path / "Conversations"
+        self.vault.people_dir = self.vault.vault_path / "People"
+        self.vault.projects_dir = self.vault.vault_path / "Projects"
+        self.vault.topics_dir = self.vault.vault_path / "Topics"
+        self.vault.enabled = self.vault.vault_path.exists()
+
+    def connect(self) -> bool:
+        """Validate the configured vault path."""
+        if not self.vault.vault_path.exists():
+            raise FileNotFoundError(str(self.vault.vault_path))
+        self.vault.enabled = True
+        for dir_path in [
+            self.vault.conversations_dir,
+            self.vault.people_dir,
+            self.vault.projects_dir,
+            self.vault.topics_dir,
+        ]:
+            dir_path.mkdir(parents=True, exist_ok=True)
+        return True
+
+    def create_note(self, relative_path: str, content: str) -> str:
+        if not self.vault.enabled:
+            self.connect()
+        path = self.vault.vault_path / relative_path
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+        return str(path)
+
+    def read_note(self, relative_path: str) -> str:
+        path = self.vault.vault_path / relative_path
+        if not path.exists():
+            raise FileNotFoundError(str(path))
+        return path.read_text(encoding="utf-8")
+
+    def update_note(self, relative_path: str, content: str) -> str:
+        return self.create_note(relative_path, content)
+
+    def delete_note(self, relative_path: str) -> bool:
+        path = self.vault.vault_path / relative_path
+        if not path.exists():
+            return False
+        path.unlink()
+        return True
+
+    def search_notes(self, query: str) -> List[Dict[str, str]]:
+        return self.vault.search_notes(query)
+
+    def list_notes(self) -> List[Dict[str, str]]:
+        return self.vault.get_all_notes()
+
+    def sync_vault(self) -> Dict[str, Any]:
+        return {"note_count": len(self.list_notes()), "vault_path": str(self.vault.vault_path)}
+
+    def sync_to_memory(self, memory_manager: Any) -> Dict[str, Any]:
+        return {"synced_notes": len(self.list_notes())}
+
+    def persist_memory_record(self, kind: str, key: str, record: Dict[str, Any]) -> str:
+        try:
+            return self.vault.create_memory_note(kind, key, record)
+        except Exception:
+            return ""
 
     def start_conversation(self, user_input: str):
         """Start tracking a new conversation"""

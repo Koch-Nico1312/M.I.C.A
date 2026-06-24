@@ -1,185 +1,235 @@
 """
-Tests for core.proactive_suggestions module
+Tests for core.proactive_suggestions module.
 """
 
-import pytest
-from unittest.mock import Mock, patch, MagicMock
+import json
 from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import Mock
+
+import pytest
+
+from core.proactive_suggestions import ProactiveSuggestions
 
 
-class TestProactiveSuggestions:
-    """Test cases for ProactiveSuggestions class."""
+class Clock:
+    def __init__(self, start: datetime):
+        self.current = start
 
-    @pytest.fixture
-    def proactive_suggestions(self):
-        """Create a fresh ProactiveSuggestions instance for testing."""
-        from core.proactive_suggestions import ProactiveSuggestions
-        return ProactiveSuggestions()
+    def now(self) -> datetime:
+        return self.current
 
-    def test_proactive_suggestions_initialization(self, proactive_suggestions):
-        """Test ProactiveSuggestions initialization."""
-        assert proactive_suggestions is not None
-        assert hasattr(proactive_suggestions, 'start')
-        assert hasattr(proactive_suggestions, 'stop')
-        assert hasattr(proactive_suggestions, 'track_action')
+    def advance(self, **kwargs):
+        self.current += timedelta(**kwargs)
 
-    def test_track_action(self, proactive_suggestions):
-        """Test tracking user actions."""
+
+@pytest.fixture
+def clock():
+    return Clock(datetime(2026, 6, 24, 9, 0, 0))
+
+
+@pytest.fixture
+def state_path(tmp_path: Path):
+    return tmp_path / "proactive_state.json"
+
+
+@pytest.fixture
+def proactive_suggestions(clock, state_path):
+    suggestions = ProactiveSuggestions(state_path=state_path, now_provider=clock.now)
+    suggestions.enabled = True
+    suggestions.mode = "active"
+    suggestions.max_suggestions = 5
+    suggestions.cooldown_minutes = 30
+    suggestions.dismiss_minutes = 60
+    suggestions.mute_minutes = 60
+    return suggestions
+
+
+def test_track_action_keeps_backward_compatible_history(proactive_suggestions):
+    proactive_suggestions.track_action("open_chrome", success=True)
+
+    assert "open_chrome" in proactive_suggestions.action_history
+    assert proactive_suggestions.action_history["open_chrome"]["count"] == 1
+    assert proactive_suggestions.action_count["open_chrome"] == 1
+
+
+def test_repetitive_actions_are_deduped_and_put_on_cooldown(proactive_suggestions):
+    for _ in range(3):
+        proactive_suggestions.track_action("check_weather", success=True)
+
+    first = proactive_suggestions.generate_suggestions()
+    second = proactive_suggestions.generate_suggestions()
+
+    assert len(first) == 1
+    assert first[0].key == "repetitive:check_weather"
+    assert len(second) == 0
+    assert len(proactive_suggestions.get_suggestions()) == 1
+    assert not proactive_suggestions._check_cooldown("repetitive:check_weather")
+
+
+def test_cooldown_expires_and_allows_suggestion_again(
+    proactive_suggestions,
+    clock,
+):
+    for _ in range(3):
         proactive_suggestions.track_action("open_chrome", success=True)
-        
-        assert "open_chrome" in proactive_suggestions.action_history
-        assert proactive_suggestions.action_history["open_chrome"]["count"] > 0
+    assert proactive_suggestions.generate_suggestions()
 
-    def test_generate_suggestions(self, proactive_suggestions):
-        """Test generating proactive suggestions."""
-        # Track some actions
+    proactive_suggestions.clear_suggestions()
+    clock.advance(minutes=31)
+    for _ in range(3):
         proactive_suggestions.track_action("open_chrome", success=True)
+
+    generated = proactive_suggestions.generate_suggestions()
+
+    assert len(generated) == 1
+    assert generated[0].reason
+
+
+def test_dismiss_suppresses_suggestion_until_expiry(
+    proactive_suggestions,
+    clock,
+):
+    proactive_suggestions.track_file(Path("main.py"))
+    assert proactive_suggestions.generate_suggestions()
+    proactive_suggestions.dismiss_suggestion(0, minutes=20)
+
+    clock.advance(minutes=10)
+    blocked = proactive_suggestions.generate_suggestions()
+    clock.advance(minutes=21)
+    allowed = proactive_suggestions.generate_suggestions()
+
+    assert blocked == []
+    assert len(allowed) == 1
+    assert allowed[0].key == "file:.py:main.py"
+
+
+def test_mute_suppresses_category_until_expiry(proactive_suggestions, clock):
+    context = {
+        "system": {"memory_percent": 95},
+        "now": clock.now(),
+    }
+    proactive_suggestions.mute("system", minutes=15)
+
+    muted = proactive_suggestions.generate_suggestions(context)
+    clock.advance(minutes=16)
+    context["now"] = clock.now()
+    unmuted = proactive_suggestions.generate_suggestions(context)
+
+    assert muted == []
+    assert len(unmuted) == 1
+    assert unmuted[0].category == "system"
+
+
+def test_suppressions_are_persisted_and_loaded(state_path, clock):
+    suggestions = ProactiveSuggestions(state_path=state_path, now_provider=clock.now)
+    suggestions.dismiss("tasks:overdue", minutes=30, reason="test dismiss")
+    suggestions.mute("system", minutes=45, reason="test mute")
+    suggestions._set_cooldown("calendar:prep:Standup", now=clock.now())
+    suggestions._save_state()
+
+    loaded = ProactiveSuggestions(state_path=state_path, now_provider=clock.now)
+
+    assert "tasks:overdue" in loaded.dismissed
+    assert loaded.dismissed["tasks:overdue"].reason == "test dismiss"
+    assert "system" in loaded.mutes
+    assert "calendar:prep:Standup" in loaded.cooldowns
+
+
+def test_contextual_reasons_for_calendar_tasks_and_system(
+    proactive_suggestions,
+    clock,
+):
+    context = {
+        "now": clock.now(),
+        "calendar": {
+            "next_event": {
+                "title": "Standup",
+                "start": (clock.now() + timedelta(minutes=12)).isoformat(),
+            }
+        },
+        "tasks": {"overdue": [{"title": "pay bill"}]},
+        "system": {"cpu_percent": 94},
+    }
+
+    generated = proactive_suggestions.generate_suggestions(context)
+    reasons = {item.key: item.reason for item in generated}
+
+    assert "calendar:prep:Standup" in reasons
+    assert "within 30 minutes" in reasons["calendar:prep:Standup"]
+    assert "tasks:overdue" in reasons
+    assert any("1 overdue" in item.text for item in generated)
+    assert "system:cpu" in reasons
+    assert "cpu_percent=94%" in reasons["system:cpu"]
+
+
+def test_file_suggestion_is_situational(proactive_suggestions):
+    proactive_suggestions.track_file(Path("component.tsx"))
+
+    generated = proactive_suggestions.generate_suggestions()
+
+    assert generated[0].category == "coding"
+    assert "React component" in generated[0].text
+    assert generated[0].reason == "The most recent file context is component.tsx."
+
+
+def test_get_suggestions_returns_legacy_dict_shape(proactive_suggestions):
+    proactive_suggestions.track_file(Path("notes.md"))
+    proactive_suggestions.generate_suggestions()
+
+    item = proactive_suggestions.get_suggestions()[0]
+
+    assert item["text"]
+    assert item["priority"] == "medium"
+    assert item["category"] == "productivity"
+    assert item["timestamp"]
+    assert item["reason"]
+
+
+def test_detect_patterns_legacy_wrapper(proactive_suggestions):
+    for _ in range(3):
         proactive_suggestions.track_action("open_chrome", success=True)
-        proactive_suggestions.track_action("open_chrome", success=True)
-        
-        suggestions = proactive_suggestions.generate_suggestions()
-        
-        assert suggestions is not None
-        assert isinstance(suggestions, list)
 
-    def test_start_monitoring(self, proactive_suggestions):
-        """Test starting proactive monitoring."""
-        proactive_suggestions.start()
-        
-        assert proactive_suggestions.is_running
+    patterns = proactive_suggestions.detect_patterns()
 
-    def test_stop_monitoring(self, proactive_suggestions):
-        """Test stopping proactive monitoring."""
-        proactive_suggestions.is_running = True
-        
-        proactive_suggestions.stop()
-        
-        assert not proactive_suggestions.is_running
-
-    def test_pattern_detection(self, proactive_suggestions):
-        """Test pattern detection in user actions."""
-        # Track repetitive actions
-        for _ in range(5):
-            proactive_suggestions.track_action("check_weather", success=True)
-        
-        patterns = proactive_suggestions.detect_patterns()
-        
-        assert patterns is not None
-        assert len(patterns) > 0
-
-    def test_speak_callback(self, proactive_suggestions):
-        """Test speak callback for suggestions."""
-        mock_speak = Mock()
-        proactive_suggestions.set_speak_callback(mock_speak)
-        
-        proactive_suggestions.speak_suggestion("You should check the weather")
-        
-        mock_speak.assert_called_once_with("You should check the weather")
-
-    def test_cooldown_period(self, proactive_suggestions):
-        """Test cooldown period for suggestions."""
-        proactive_suggestions.cooldown_minutes = 5
-        
-        # Generate a suggestion
-        proactive_suggestions.last_suggestion_time = datetime.now()
-        
-        # Try to generate another suggestion immediately
-        should_suggest = proactive_suggestions.should_suggest()
-        
-        assert not should_suggest  # Should be in cooldown
-
-    def test_max_suggestions_limit(self, proactive_suggestions):
-        """Test maximum suggestions limit."""
-        proactive_suggestions.max_suggestions = 3
-        
-        # Generate more than max suggestions
-        suggestions = proactive_suggestions.generate_suggestions()
-        
-        assert len(suggestions) <= proactive_suggestions.max_suggestions
+    assert len(patterns) == 1
+    assert patterns[0].key == "repetitive:open_chrome"
 
 
-class TestProactiveSuggestionsErrorHandling:
-    """Test error handling in ProactiveSuggestions."""
+def test_should_suggest_legacy_global_cooldown(proactive_suggestions, clock):
+    proactive_suggestions.last_suggestion_time = clock.now()
 
-    @pytest.fixture
-    def proactive_suggestions(self):
-        """Create a fresh ProactiveSuggestions instance for testing."""
-        from core.proactive_suggestions import ProactiveSuggestions
-        return ProactiveSuggestions()
+    assert not proactive_suggestions.should_suggest()
 
-    def test_invalid_action_tracking(self, proactive_suggestions):
-        """Test tracking invalid actions."""
-        invalid_actions = [None, "", [], {}]
-        
-        for invalid_action in invalid_actions:
-            try:
-                proactive_suggestions.track_action(invalid_action)
-            except (ValueError, TypeError, AttributeError):
-                pass  # Expected
+    clock.advance(minutes=31)
 
-    def test_speak_callback_error(self, proactive_suggestions):
-        """Test error handling in speak callback."""
-        mock_speak = Mock(side_effect=Exception("Speak error"))
-        proactive_suggestions.set_speak_callback(mock_speak)
-        
-        # Should handle error gracefully
-        proactive_suggestions.speak_suggestion("Test suggestion")
-        
-        # Should not crash
-        assert True
+    assert proactive_suggestions.should_suggest()
 
 
-class TestProactiveSuggestionsIntegration:
-    """Integration tests for ProactiveSuggestions."""
+def test_speak_suggestion_handles_callback_errors(proactive_suggestions):
+    mock_speak = Mock(side_effect=Exception("Speak error"))
+    proactive_suggestions.set_speak_callback(mock_speak)
 
-    def test_full_suggestion_cycle(self):
-        """Test a full proactive suggestion cycle."""
-        from core.proactive_suggestions import ProactiveSuggestions
-        
-        suggestions = ProactiveSuggestions()
-        
-        # Track actions
-        suggestions.track_action("open_chrome", success=True)
-        suggestions.track_action("open_chrome", success=True)
-        suggestions.track_action("open_chrome", success=True)
-        
-        # Generate suggestions
-        generated = suggestions.generate_suggestions()
-        
-        assert generated is not None
-        
-        # Should detect pattern
-        patterns = suggestions.detect_patterns()
-        assert patterns is not None
+    proactive_suggestions.speak_suggestion("Test suggestion")
 
-    def test_suggestion_persistence(self):
-        """Test that suggestion history persists."""
-        from core.proactive_suggestions import ProactiveSuggestions
-        
-        suggestions1 = ProactiveSuggestions()
-        suggestions1.track_action("test_action", success=True)
-        
-        # In a real implementation, this would persist to disk
-        history = suggestions1.action_history
-        
-        assert "test_action" in history
-
-    def test_integration_with_action_history(self):
-        """Test integration with action history system."""
-        from core.proactive_suggestions import ProactiveSuggestions
-        from core.action_history import get_action_history
-        
-        suggestions = ProactiveSuggestions()
-        action_history = get_action_history()
-        
-        # Track action in both systems
-        suggestions.track_action("test_action", success=True)
-        action_history.record_action("test_tool", "test_action", {})
-        
-        # Both should have records
-        assert "test_action" in suggestions.action_history
-        assert len(action_history.get_history()) > 0
+    mock_speak.assert_called_once_with("Test suggestion")
 
 
-if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+def test_start_stop_legacy_running_property(proactive_suggestions):
+    proactive_suggestions.interval = 3600
+
+    assert proactive_suggestions.start() is True
+    assert proactive_suggestions.is_running
+
+    proactive_suggestions.stop()
+
+    assert not proactive_suggestions.is_running
+
+
+def test_state_file_is_json(proactive_suggestions):
+    proactive_suggestions.mute("all", minutes=10)
+
+    data = json.loads(proactive_suggestions.state_path.read_text(encoding="utf-8"))
+
+    assert "mutes" in data
+    assert data["mutes"]["all"]["expires_at"]

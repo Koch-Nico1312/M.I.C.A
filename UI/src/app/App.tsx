@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, startTransition } from "react";
-import { Sparkles, Activity, Mic, MessageSquareText, DatabaseZap, PanelLeftOpen } from "lucide-react";
+import { Sparkles, Activity } from "lucide-react";
 import { SidebarProvider, SidebarTrigger, SidebarInset } from "./components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import { DocumentsView } from "./components/DocumentsView";
@@ -19,7 +19,7 @@ const viewTitles: Record<string, string> = {
 };
 
 export default function App() {
-  const [activeView, setActiveView] = useState("voice-chat");
+  const [activeView, setActiveView] = useState("home");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -72,7 +72,9 @@ export default function App() {
     const requested = dashboard.settings?.ui?.default_view ?? dashboard.state?.default_view ?? "voice-chat";
     const normalized =
       requested === "voice" || requested === "speech" || requested === "listen"
-        ? "voice-chat"
+        ? "home"
+        : requested === "voice-chat"
+          ? "home"
         : requested;
 
     if (typeof normalized === "string" && normalized) {

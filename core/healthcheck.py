@@ -7,6 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from config.startup_config import get_startup_defaults
+from core.permission_profiles import get_disabled_actions
+
 REQUIRED_MODULES = {
     "google.genai": "Gemini live client",
     "sounddevice": "Audio input/output",
@@ -184,6 +187,48 @@ def _integration_status(config: Any, base_dir: Path) -> dict[str, Any]:
     return status
 
 
+def _safety_status(config: Any) -> dict[str, Any]:
+    """Return approval/safety settings in a UI/API-friendly shape."""
+    defaults = get_startup_defaults()
+    permission_profile = (
+        config.get("security.permission_profile", defaults["security.permission_profile"])
+        if config
+        else defaults["security.permission_profile"]
+    )
+    confirmation = {
+        "medium_risk": (
+            bool(config.get("security.confirmation_medium_risk", defaults["security.confirmation_medium_risk"]))
+            if config
+            else defaults["security.confirmation_medium_risk"]
+        ),
+        "high_risk": (
+            bool(config.get("security.confirmation_high_risk", defaults["security.confirmation_high_risk"]))
+            if config
+            else defaults["security.confirmation_high_risk"]
+        ),
+    }
+    configured_disabled = (
+        list(config.get("security.disabled_actions", defaults["security.disabled_actions"]))
+        if config
+        else list(defaults["security.disabled_actions"])
+    )
+    disabled_actions = sorted(set(configured_disabled) | get_disabled_actions())
+    return {
+        "permission_profile": permission_profile,
+        "confirmation": confirmation,
+        "disabled_actions": disabled_actions,
+        "action_history_enabled": (
+            bool(config.get("security.action_history_enabled", defaults["security.action_history_enabled"]))
+            if config
+            else defaults["security.action_history_enabled"]
+        ),
+        "defaults": {
+            "medium_confirmation_default": defaults["security.confirmation_medium_risk"],
+            "high_confirmation_default": defaults["security.confirmation_high_risk"],
+        },
+    }
+
+
 def build_runtime_report(
     base_dir: Path,
     config: Any | None = None,
@@ -246,6 +291,7 @@ def build_runtime_report(
     audio_status = _audio_status()
     memory_status = _memory_status(base_dir)
     integration_status = _integration_status(config, base_dir)
+    safety_status = _safety_status(config)
 
     return {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
@@ -263,6 +309,8 @@ def build_runtime_report(
         "audio": audio_status,
         "memory": memory_status,
         "integrations": integration_status,
+        "safety": safety_status,
+        "startup_defaults": get_startup_defaults(),
     }
 
 
@@ -284,6 +332,15 @@ def format_runtime_report(report: dict[str, Any], verbose: bool = False) -> str:
 
     if report["warnings"]:
         lines.append("Warnings: " + " | ".join(report["warnings"]))
+    if report.get("safety"):
+        safety = report["safety"]
+        confirmation = safety.get("confirmation", {})
+        lines.append(
+            "Safety: "
+            f"profile={safety.get('permission_profile')}, "
+            f"medium_confirm={'on' if confirmation.get('medium_risk') else 'off'}, "
+            f"high_confirm={'on' if confirmation.get('high_risk') else 'off'}"
+        )
 
     # Extended status in verbose mode
     if verbose:
@@ -424,7 +481,7 @@ def format_diagnostic_report(report: dict[str, Any]) -> str:
 
             # Add integration-specific details
             if name == "gmail" and status.get("credentials_exist"):
-                lines.append(f"     ✓ Credentials configured")
+                lines.append("     ✓ Credentials configured")
             if name == "obsidian" and status.get("vault_path"):
                 lines.append(f"     Vault: {status.get('vault_path')}")
             if name == "vscode" and status.get("port"):

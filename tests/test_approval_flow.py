@@ -2,10 +2,6 @@
 Tests for the approval flow system.
 """
 
-import time
-
-import pytest
-
 from core.approval_flow import ApprovalFlow, ApprovalRequest, ApprovalStatus, get_approval_flow
 from core.permission_profiles import PermissionLevel
 
@@ -100,6 +96,28 @@ def test_approval_request_creation():
     assert request.can_undo is False
 
 
+def test_approval_request_includes_structured_context():
+    """Risk prompts expose resources, effect, undo, and rationale."""
+    request = ApprovalRequest(
+        tool_name="file_controller",
+        action="move",
+        parameters={
+            "source": "C:/tmp/source.txt",
+            "destination": "C:/tmp/destination.txt",
+            "why": "Organize downloaded files",
+        },
+        permission_level="normal",
+        reason="File move needs review",
+    )
+
+    payload = request.to_dict()
+    assert payload["context"]["risk_level"] == "medium"
+    assert "source=C:/tmp/source.txt" in payload["context"]["affected_resources"]
+    assert payload["context"]["undo_available"] is True
+    assert "Organize downloaded files" == payload["context"]["rationale"]
+    assert "Effect:" in payload["summary"]
+
+
 def test_approval_request_approve():
     """Test approving a request."""
     request = ApprovalRequest(
@@ -109,9 +127,11 @@ def test_approval_request_approve():
         permission_level="normal",
     )
 
-    request.approve()
+    request.approve(reason="Looks correct")
     assert request.status == ApprovalStatus.APPROVED
     assert request._result is True
+    assert request.decision.approved is True
+    assert request.to_dict()["decision"]["reason"] == "Looks correct"
 
 
 def test_approval_request_deny():
@@ -123,9 +143,11 @@ def test_approval_request_deny():
         permission_level="normal",
     )
 
-    request.deny()
+    request.deny(reason="Wrong target")
     assert request.status == ApprovalStatus.DENIED
     assert request._result is False
+    assert request.decision.approved is False
+    assert request.to_dict()["decision"]["reason"] == "Wrong target"
 
 
 def test_approval_request_timeout():

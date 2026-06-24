@@ -5,7 +5,6 @@ Loads configuration from .env and config.yaml
 
 import json
 import os
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
@@ -115,6 +114,26 @@ class Config:
             env_dict.setdefault("models", {})["vision"] = os.getenv("VISION_MODEL")
         if os.getenv("CONTEXT_WINDOW"):
             env_dict.setdefault("models", {})["context_window"] = int(os.getenv("CONTEXT_WINDOW"))
+
+        # Model router profile overrides (optional, backward-compatible)
+        router_env = {
+            "MODEL_ROUTER_COST_MODE": ("cost_mode", str),
+            "MODEL_ROUTER_LONG_CONTEXT_CHARS": ("long_context_chars", int),
+            "MODEL_ROUTER_FAST_MODEL": ("models.fast.model_id", str),
+            "MODEL_ROUTER_REASONING_MODEL": ("models.reasoning.model_id", str),
+            "MODEL_ROUTER_VISION_MODEL": ("models.vision.model_id", str),
+            "MODEL_ROUTER_LONG_CONTEXT_MODEL": ("models.long_context.model_id", str),
+            "MODEL_ROUTER_LOCAL_MODEL": ("models.local.model_id", str),
+        }
+        for env_name, (path, caster) in router_env.items():
+            raw = os.getenv(env_name)
+            if raw is None:
+                continue
+            target = env_dict.setdefault("model_router", {})
+            parts = path.split(".")
+            for part in parts[:-1]:
+                target = target.setdefault(part, {})
+            target[parts[-1]] = caster(raw)
 
         # Ollama
         if os.getenv("OLLAMA_ENABLED"):

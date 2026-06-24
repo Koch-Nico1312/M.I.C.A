@@ -1,34 +1,19 @@
-import json
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
 
-
-def get_base_dir():
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent
-    return Path(__file__).resolve().parent.parent
+from core.model_runner import ModelCall, get_model_runner, get_routed_model
 
 
-BASE_DIR = get_base_dir()
-API_CONFIG_PATH = BASE_DIR / "config" / "api_keys.json"
 DESKTOP = Path.home() / "Desktop"
 MAX_BUILD_ATTEMPTS = 3
-GEMINI_MODEL = "gemini-2.5-flash"
-
-
-def _get_api_key() -> str:
-    with open(API_CONFIG_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)["gemini_api_key"]
+GEMINI_MODEL = "reasoning"
 
 
 def _get_gemini(model: str = GEMINI_MODEL):
-    import google.generativeai as genai
-
-    genai.configure(api_key=_get_api_key())
-    return genai.GenerativeModel(model)
+    return get_routed_model(intent="code_edit")
 
 
 def _clean_code(text: str) -> str:
@@ -121,12 +106,6 @@ def _take_screenshot() -> Path | None:
     except Exception as e:
         print(f"[Code] ⚠️ Screenshot failed: {e}")
         return None
-
-
-def _image_to_base64(path: Path) -> str:
-    import base64
-
-    return base64.b64encode(path.read_bytes()).decode("utf-8")
 
 
 def _detect_intent(description: str, file_path: str, code: str) -> str:
@@ -403,7 +382,7 @@ def _explain_action(file_path, code, player) -> str:
     if player:
         player.write_log("[Code] Analyzing code...")
 
-    model = _get_gemini()
+    model = get_routed_model(intent="summary")
     prompt = f"""Explain what this code does in simple, clear language.
 Focus on: what it does, how it works, and any important details.
 Be concise — 3 to 6 sentences maximum.
@@ -505,13 +484,9 @@ def _screen_debug_action(description, file_path, player, speak=None) -> str:
             print(f"[Code] ⚠️ Could not read file: {err}")
 
     try:
-        from google import genai
         from google.genai import types
 
-        client = genai.Client(api_key=_get_api_key())
-
         image_bytes = screenshot_path.read_bytes()
-        image_base64 = _image_to_base64(screenshot_path)
 
         user_question = (
             description or "What error or problem do you see on the screen? How can it be fixed?"
@@ -538,13 +513,17 @@ Be specific and actionable. If you see an error message, quote it exactly."""
             analysis_prompt,
         ]
 
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=contents,
-        )
-
-        analysis = response.text.strip()
-        print(f"[Code] ✅ Screen analysis complete")
+        analysis = get_model_runner().generate(
+            ModelCall(
+                contents=contents,
+                prompt=analysis_prompt,
+                intent="vision",
+                has_image=True,
+                context_chars=len(analysis_prompt) + len(file_content),
+                use_cache=False,
+            )
+        ).text.strip()
+        print("[Code] ✅ Screen analysis complete")
 
         try:
             screenshot_path.unlink()
