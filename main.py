@@ -102,6 +102,7 @@ def _get_action_module(action_name: str):
             "computer_settings": "actions.computer_settings",
             "desktop_control": "actions.desktop",
             "dev_agent": "actions.dev_agent",
+            "daily_mode": "actions.daily_mode",
             "file_controller": "actions.file_controller",
             "file_processor": "actions.file_processor",
             "flight_finder": "actions.flight_finder",
@@ -111,6 +112,7 @@ def _get_action_module(action_name: str):
             "reminder": "actions.reminder",
             "roblox_controller": "actions.roblox_controller",
             "screen_process": "actions.screen_processor",
+            "self_dev_agent": "actions.self_dev_agent",
             "send_message": "actions.send_message",
             "spotify_controller": "actions.spotify_controller",
             "weather_report": "actions.weather_report",
@@ -124,6 +126,20 @@ def _get_action_module(action_name: str):
             _action_modules_cache[action_name] = module
             return module
     return None
+
+
+def __getattr__(name: str):
+    """Lazy compatibility exports for action functions used by JarvisLive."""
+    aliases = {
+        "weather_action": ("weather_report", "weather_action"),
+        "web_search_action": ("web_search", "web_search"),
+        "screen_process": ("screen_process", "screen_process"),
+    }
+    action_name, attr_name = aliases.get(name, (name, name))
+    module = _get_action_module(action_name)
+    if module and hasattr(module, attr_name):
+        return getattr(module, attr_name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 from config.config_loader import get_config
 from core.action_history import get_action_history
 from core.approval_flow import get_approval_flow

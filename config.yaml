@@ -20,11 +20,32 @@ model_router:
     vision: "vision"
     long_context: "long_context"
     local: "local"
+    local_code: "local_code"
+    local_review: "local_review"
+  models:
+    local_code:
+      provider: "ollama"
+      model_id: "llama3.1"
+      capabilities: ["text", "code", "reasoning", "summary"]
+      context_window: 16384
+      cost_tier: "free"
+      latency_tier: "medium"
+      enabled: true
+    local_review:
+      provider: "ollama"
+      model_id: "llama3.1"
+      capabilities: ["text", "code", "summary"]
+      context_window: 16384
+      cost_tier: "free"
+      latency_tier: "medium"
+      enabled: true
   fallbacks:
     fast: ["reasoning", "local"]
     reasoning: ["fast", "local"]
     vision: ["reasoning", "fast", "local"]
     long_context: ["reasoning", "fast", "local"]
+    local_code: ["reasoning", "fast"]
+    local_review: ["reasoning", "fast"]
 
 # Audio Settings
 audio:

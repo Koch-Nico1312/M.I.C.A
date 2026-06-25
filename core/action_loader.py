@@ -43,6 +43,8 @@ class ActionLoader:
             "file_controller": "actions.file_controller",
             "code_helper": "actions.code_helper",
             "dev_agent": "actions.dev_agent",
+            "self_dev_agent": "actions.self_dev_agent",
+            "daily_mode": "actions.daily_mode",
             "web_search": "actions.web_search",
             "computer_control": "actions.computer_control",
             "game_updater": "actions.game_updater",

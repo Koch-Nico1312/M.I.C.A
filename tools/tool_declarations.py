@@ -304,6 +304,58 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "self_dev_agent",
+        "description": (
+            "Runs controlled self-development cycles for the Jarvis repository. "
+            "Use for repo status, branch creation, test runs, diff review, and applying provided unified diffs. "
+            "Never merges automatically."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "status | branch | plan | test | review | patch | cycle",
+                },
+                "goal": {"type": "STRING", "description": "Development goal or improvement request"},
+                "branch": {"type": "STRING", "description": "Optional codex/* branch name"},
+                "test_command": {
+                    "type": "STRING",
+                    "description": "Test command to run, default: pytest -q",
+                },
+                "timeout": {"type": "INTEGER", "description": "Command timeout in seconds"},
+                "patch": {
+                    "type": "STRING",
+                    "description": "Unified diff to validate and apply for patch action",
+                },
+                "context": {"type": "STRING", "description": "Extra review/planning context"},
+                "use_model": {
+                    "type": "BOOLEAN",
+                    "description": "Allow routed model to draft plan/review text",
+                },
+                "create_branch": {
+                    "type": "BOOLEAN",
+                    "description": "Create a codex/self-dev branch during cycle action",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "daily_mode",
+        "description": (
+            "Lists or applies daily-driver mode presets such as safe, work, focus, offline, and admin."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "list | apply"},
+                "mode": {"type": "STRING", "description": "safe | work | focus | offline | admin"},
+            },
+            "required": ["action"],
+        },
+    },
+    {
         "name": "agent_task",
         "description": (
             "Executes complex multi-step tasks requiring multiple different tools. "

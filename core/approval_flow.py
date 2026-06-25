@@ -301,6 +301,8 @@ class ApprovalFlow:
         "file_controller": RiskLevel.MEDIUM,  # except delete action
         "code_helper": RiskLevel.MEDIUM,
         "dev_agent": RiskLevel.MEDIUM,
+        "daily_mode": RiskLevel.MEDIUM,
+        "self_dev_agent": RiskLevel.HIGH,
         "spotify_controller": RiskLevel.MEDIUM,
         "desktop_control": RiskLevel.MEDIUM,
         "file_processor": RiskLevel.MEDIUM,

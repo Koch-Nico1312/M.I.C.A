@@ -110,6 +110,16 @@ code_helper
 dev_agent
   description: string (required)
   language: string (optional)
+
+self_dev_agent
+  action: "status" | "branch" | "plan" | "test" | "review" | "patch" | "cycle" (required)
+  goal: string (optional)
+  test_command: string (optional)
+  timeout: int (optional)
+
+daily_mode
+  action: "list" | "apply" (required)
+  mode: "safe" | "work" | "focus" | "offline" | "admin" (for apply)
 EXAMPLES:
 
 Goal: "research mechanical engineering and save it to a notepad file"

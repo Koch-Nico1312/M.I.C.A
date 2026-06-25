@@ -8,6 +8,7 @@ import type {
   ApprovalsPayload,
   DevicesPayload,
   PermissionsPayload,
+  ReliabilityPayload,
   ResumePayload,
   SessionPayload,
   SetupPayload,
@@ -221,6 +222,12 @@ function getMockData<T>(path: string): T {
       tools: [],
       disabled_actions: [],
     },
+    reliability: {
+      status: "degraded",
+      counts: { ok: 0, degraded: 1, blocked: 0 },
+      checks: [],
+      recommendations: ["Backend not available."],
+    },
     quick_actions: {
       items: [],
     },
@@ -256,6 +263,9 @@ function getMockData<T>(path: string): T {
   if (path === "/api/permissions") {
     return mockDashboard.permissions as T;
   }
+  if (path === "/api/reliability") {
+    return mockDashboard.reliability as T;
+  }
   if (path === "/api/devices") {
     return mockDashboard.devices as T;
   }
@@ -275,6 +285,7 @@ export const jarvisApi = {
   getActionHistory: () => requestJson<ActionHistoryPayload>("/api/actions/history"),
   getApprovals: () => requestJson<ApprovalsPayload>("/api/approvals"),
   getPermissions: () => requestJson<PermissionsPayload>("/api/permissions"),
+  getReliability: () => requestJson<ReliabilityPayload>("/api/reliability"),
   getDevices: () => requestJson<DevicesPayload>("/api/devices"),
   getSettings: () => requestJson("/api/settings"),
   getCalendarStatus: () => requestJson("/api/calendar/status"),

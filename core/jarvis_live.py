@@ -896,6 +896,7 @@ class JarvisLive:
             computer_settings,
             desktop_control,
             dev_agent,
+            daily_mode,
             file_controller,
             file_processor,
             flight_finder,
@@ -905,6 +906,7 @@ class JarvisLive:
             reminder,
             roblox_controller,
             screen_process,
+            self_dev_agent,
             send_message,
             weather_action,
             web_search_action,
@@ -1050,6 +1052,18 @@ class JarvisLive:
             elif name == "dev_agent":
                 r = await loop.run_in_executor(
                     None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "self_dev_agent":
+                r = await loop.run_in_executor(
+                    None, lambda: self_dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "daily_mode":
+                r = await loop.run_in_executor(
+                    None, lambda: daily_mode(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 

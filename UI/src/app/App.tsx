@@ -20,6 +20,57 @@ const viewTitles: Record<string, string> = {
   resources: "Ressourcen",
 };
 
+const DASHBOARD_REFRESH_MS = 12000;
+
+function stableDashboardSignature(dashboard: DashboardResponse) {
+  const state = dashboard.state;
+  const resources = dashboard.resources;
+
+  return JSON.stringify({
+    state: state
+      ? {
+          value: state.state,
+          muted: state.muted,
+          speaking: state.speaking,
+          current_file: state.current_file,
+          voice_focus: state.voice_focus,
+          default_view: state.default_view,
+          logs: (state.logs ?? []).slice(-12).map((log) => ({
+            timestamp: Math.round(Number(log.timestamp ?? 0)),
+            text: log.text,
+          })),
+        }
+      : null,
+    resources: resources
+      ? {
+          cpu_percent: Math.round(Number(resources.cpu_percent ?? 0)),
+          memory_percent: Math.round(Number(resources.memory_percent ?? 0)),
+          disk_percent: Math.round(Number(resources.disk_percent ?? 0)),
+          active_tasks: resources.performance?.active_tasks ?? 0,
+          current_activity: resources.performance?.current_activity ?? "idle",
+          waiting_for_input: Boolean(resources.performance?.waiting_for_input),
+          model_active: Boolean(resources.performance?.model_active),
+          tool_active: Boolean(resources.performance?.tool_active),
+        }
+      : null,
+    settings: dashboard.settings,
+    calendar: dashboard.calendar,
+    current_session: dashboard.current_session,
+    recent_sessions: dashboard.recent_sessions,
+    cockpit: dashboard.cockpit,
+    resume: dashboard.resume,
+    documents: dashboard.documents,
+    setup: dashboard.setup,
+    models: dashboard.models,
+    memory: dashboard.memory,
+    devices: dashboard.devices,
+    action_history: dashboard.action_history,
+    approvals: dashboard.approvals,
+    permissions: dashboard.permissions,
+    quick_actions: dashboard.quick_actions,
+  });
+}
+
 export default function App() {
   const [activeView, setActiveView] = useState("home");
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -27,10 +78,18 @@ export default function App() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const appliedDefaultView = useRef(false);
+  const lastDashboardSignature = useRef<string | null>(null);
 
-  const refreshDashboard = async () => {
+  const refreshDashboard = async (force = false) => {
     try {
       const next = await jarvisApi.getDashboard();
+      const signature = stableDashboardSignature(next);
+      if (!force && signature === lastDashboardSignature.current) {
+        setLoadError(null);
+        return;
+      }
+
+      lastDashboardSignature.current = signature;
       startTransition(() => {
         setDashboard(next);
         setLoadError(null);
@@ -58,7 +117,7 @@ export default function App() {
     };
 
     tick();
-    const timer = window.setInterval(tick, 3000);
+    const timer = window.setInterval(tick, DASHBOARD_REFRESH_MS);
 
     return () => {
       alive = false;
@@ -88,17 +147,17 @@ export default function App() {
 
   const handleSendCommand = async (text: string) => {
     await jarvisApi.sendCommand(text);
-    await refreshDashboard();
+    await refreshDashboard(true);
   };
 
   const handleToggleMute = async (muted: boolean) => {
     await jarvisApi.setMute(muted);
-    await refreshDashboard();
+    await refreshDashboard(true);
   };
 
   const handleStartNewChat = async () => {
     const result = await jarvisApi.startNewSession();
-    await refreshDashboard();
+    await refreshDashboard(true);
     const sessionId = (result as { session_id?: string; current_session?: ChatSession | null })?.current_session?.id
       ?? (result as { session_id?: string })?.session_id
       ?? null;
@@ -109,7 +168,7 @@ export default function App() {
   };
 
   const handleSettingsSaved = async () => {
-    await refreshDashboard();
+    await refreshDashboard(true);
   };
 
   const currentSession =

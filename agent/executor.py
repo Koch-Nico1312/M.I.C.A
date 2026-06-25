@@ -241,6 +241,16 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None = None) -> st
 
         return dev_agent(parameters=parameters, player=None, speak=speak) or "Done."
 
+    elif tool == "self_dev_agent":
+        from actions.self_dev_agent import self_dev_agent
+
+        return self_dev_agent(parameters=parameters, player=None, speak=speak) or "Done."
+
+    elif tool == "daily_mode":
+        from actions.daily_mode import daily_mode
+
+        return daily_mode(parameters=parameters, player=None, speak=speak) or "Done."
+
     elif tool == "screen_process":
         from actions.screen_processor import screen_process
 

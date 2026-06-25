@@ -37,12 +37,14 @@ try:
     if os.environ.get("JARVIS_NO_QT"):
         raise ImportError("Qt disabled by JARVIS_NO_QT environment variable")
     from PyQt6.QtCore import QUrl
+    from PyQt6.QtGui import QColor
     from PyQt6.QtWebEngineWidgets import QWebEngineView
     from PyQt6.QtWidgets import QApplication, QMainWindow
 
     QT_WEBENGINE_AVAILABLE = True
 except Exception:
     QUrl = None  # type: ignore[assignment]
+    QColor = None  # type: ignore[assignment]
     QApplication = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment]
     QWebEngineView = None  # type: ignore[assignment]
@@ -101,6 +103,8 @@ class _JARVISWindow(QMainWindow):
             raise RuntimeError("Qt WebEngine is not available")
 
         self._web = QWebEngineView(self)
+        if QColor is not None:
+            self._web.page().setBackgroundColor(QColor("#041018"))
         self.setCentralWidget(self._web)
         self._web.setUrl(QUrl(url))
 
@@ -132,6 +136,7 @@ class JarvisUI:
         self._server: Optional[ThreadingHTTPServer] = None
         self._server_thread: Optional[threading.Thread] = None
         self._server_url: Optional[str] = None
+        self._vite_process: Optional[subprocess.Popen] = None
         self._app = None
         self._window = None
         self._config = get_config()
@@ -707,6 +712,21 @@ class JarvisUI:
             logger.debug("Could not load permissions: %s", exc)
             return {"tools": [], "disabled_actions": [], "error": str(exc)}
 
+    def _reliability_payload(self) -> Dict[str, Any]:
+        try:
+            from core.reliability import build_reliability_report
+
+            return build_reliability_report()
+        except Exception as exc:
+            logger.debug("Could not load reliability report: %s", exc)
+            return {
+                "status": "blocked",
+                "counts": {"ok": 0, "degraded": 0, "blocked": 1},
+                "checks": [],
+                "recommendations": [str(exc)],
+                "error": str(exc),
+            }
+
     def _quick_actions_payload(self) -> Dict[str, Any]:
         return {
             "items": [
@@ -957,6 +977,7 @@ class JarvisUI:
             "action_history": self._action_history_payload(),
             "approvals": self._approvals_payload(),
             "permissions": self._permissions_payload(),
+            "reliability": self._reliability_payload(),
             "quick_actions": self._quick_actions_payload(),
         }
 
@@ -1144,6 +1165,8 @@ class JarvisUI:
             return request._send_json(200, self._approvals_payload())  # type: ignore[attr-defined]
         if path == "/api/permissions":
             return request._send_json(200, self._permissions_payload())  # type: ignore[attr-defined]
+        if path == "/api/reliability":
+            return request._send_json(200, self._reliability_payload())  # type: ignore[attr-defined]
         if path == "/api/devices":
             return request._send_json(200, self._devices_payload())  # type: ignore[attr-defined]
         if path == "/api/state":
@@ -1433,16 +1456,21 @@ class JarvisUI:
         raise RuntimeError("Failed to start Vite dev server. Please run 'cd UI && npm run dev' manually.")
 
     def _run_qt_window(self) -> None:
-        """Run Qt window with Vite dev server."""
+        """Run the Qt window against the stable built UI by default."""
         if QApplication is None or QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
 
-        # Use Vite dev server
-        vite_dev_url = "http://localhost:5173"
-        self._start_vite_dev_server()
-        
-        self._log(f"SYS: Using Vite dev server at {vite_dev_url}")
-        self._window = _JARVISWindow(self, vite_dev_url)
+        if os.environ.get("JARVIS_UI_DEV"):
+            url = "http://localhost:5173"
+            self._start_vite_dev_server()
+            self._log(f"SYS: Using Vite dev server at {url}")
+        else:
+            if not self._server_url:
+                raise RuntimeError("UI HTTP server did not start")
+            url = self._server_url
+            self._log(f"SYS: Using built UI at {url}")
+
+        self._window = _JARVISWindow(self, url)
 
         # Use existing QApplication instance if available (created in main thread)
         app = QApplication.instance()
@@ -1451,19 +1479,20 @@ class JarvisUI:
             app.setApplicationName("JARVIS")
         self._app = app
 
-        # Show and activate window to prevent flickering
-        self._window.show()
-        self._window.activateWindow()
-        self._window.raise_()
-        
-        # Force immediate update to prevent initial flickering
+        def show_window(_ok: bool = True) -> None:
+            if self._window is None:
+                return
+            self._window.show()
+            self._window.activateWindow()
+            self._window.raise_()
+
+        self._window._web.loadFinished.connect(show_window)
         app.processEvents()
 
         try:
             app.exec()
         finally:
             self.shutdown()
-            # Stop Vite dev server if we started it
-            if hasattr(self, '_vite_process') and self._vite_process:
+            if self._vite_process:
                 self._vite_process.terminate()
                 self._vite_process.wait(timeout=5)

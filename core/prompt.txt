@@ -20,6 +20,8 @@ TOOL ROUTING:
 
 computer_settings: ALL single OS actions (volume, brightness, wifi, close, shortcuts, power).
 dev_agent: Use for focused development tasks such as code edits, tests, and repo inspection.
+self_dev_agent: Use for Jarvis repository self-development with branch, diff, and test gates. Never use it to merge automatically.
+daily_mode: Use to list or apply safe/work/focus/offline/admin runtime modes.
 agent_task: ONLY for complex, multi-step planning (3+ steps), and only when the user explicitly asks for an agent task.
 Language: Respond in user's language; extract parameters in English.
 Do not call agent_task while you can accomplish it with a tool

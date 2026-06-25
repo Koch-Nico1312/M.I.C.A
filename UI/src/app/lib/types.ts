@@ -96,6 +96,7 @@ export interface DashboardResponse {
   action_history?: ActionHistoryPayload;
   approvals?: ApprovalsPayload;
   permissions?: PermissionsPayload;
+  reliability?: ReliabilityPayload;
   quick_actions?: QuickActionsPayload;
 }
 
@@ -301,4 +302,20 @@ export interface QuickActionPayload {
 
 export interface QuickActionsPayload {
   items: QuickActionPayload[];
+}
+
+export interface ReliabilityCheckPayload {
+  name: string;
+  status: "ok" | "degraded" | "blocked" | string;
+  message: string;
+  detail: Record<string, unknown>;
+}
+
+export interface ReliabilityPayload {
+  status: "ok" | "degraded" | "blocked" | string;
+  generated_at?: string;
+  counts: Record<string, number>;
+  checks: ReliabilityCheckPayload[];
+  recommendations: string[];
+  error?: string;
 }

@@ -114,6 +114,32 @@ def _safe_trash(target: Path) -> str:
     return f"Moved to Trash: {target.name}"
 
 
+def _record_file_action(action: str, parameters: dict, result: str, undo_data: dict | None = None) -> None:
+    try:
+        from core.action_history import ActionStatus, get_action_history
+
+        failed = result.lower().startswith(("could not", "error", "access denied"))
+        get_action_history().record_action(
+            "file_controller",
+            action,
+            parameters,
+            result=result,
+            status=ActionStatus.FAILED if failed else ActionStatus.SUCCESS,
+            undo_data=undo_data,
+        )
+    except Exception:
+        pass
+
+
+def _snapshot_before(target: Path, reason: str) -> dict | None:
+    try:
+        from core.file_snapshots import snapshot_path
+
+        return snapshot_path(target, reason=reason)
+    except Exception:
+        return None
+
+
 def list_files(path: str = "desktop", show_hidden: bool = False) -> str:
     try:
         target = _resolve_path(path)
@@ -151,9 +177,22 @@ def create_file(path: str, name: str = "", content: str = "") -> str:
         target = (base / name) if name else base
         if not _is_safe_path(target):
             return f"Access denied: {target}"
+        undo_data = _snapshot_before(target, "before_create_file") if target.exists() else None
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
-        return f"File created: {target.name}"
+        result = f"File created: {target.name}"
+        _record_file_action(
+            "create_file",
+            {"path": str(target), "name": name},
+            result,
+            undo_data
+            or {
+                "strategy": "remove_created_resource",
+                "steps": [{"action": "delete", "path": str(target)}],
+                "automatic": False,
+            },
+        )
+        return result
     except Exception as e:
         return f"Could not create file: {e}"
 
@@ -165,7 +204,18 @@ def create_folder(path: str, name: str = "") -> str:
         if not _is_safe_path(target):
             return f"Access denied: {target}"
         target.mkdir(parents=True, exist_ok=True)
-        return f"Folder created: {target.name}"
+        result = f"Folder created: {target.name}"
+        _record_file_action(
+            "create_folder",
+            {"path": str(target), "name": name},
+            result,
+            {
+                "strategy": "remove_created_resource",
+                "steps": [{"action": "delete", "path": str(target)}],
+                "automatic": False,
+            },
+        )
+        return result
     except Exception as e:
         return f"Could not create folder: {e}"
 
@@ -192,7 +242,10 @@ def delete_file(path: str, name: str = "") -> str:
         if target.resolve() in {p.resolve() for p in protected}:
             return f"Protected directory, cannot delete: {target.name}"
 
-        return _safe_trash(target)
+        undo_data = _snapshot_before(target, "before_delete")
+        result = _safe_trash(target)
+        _record_file_action("delete", {"path": str(target), "name": name}, result, undo_data)
+        return result
 
     except PermissionError:
         return f"Permission denied: {path}"
@@ -220,7 +273,19 @@ def move_file(path: str, name: str = "", destination: str = "") -> str:
 
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(src), str(dst))
-        return f"Moved: {src.name} → {dst.parent.name}/"
+        result = f"Moved: {src.name} -> {dst.parent.name}/"
+        _record_file_action(
+            "move",
+            {"source": str(src), "destination": str(dst), "path": path, "name": name},
+            result,
+            {
+                "strategy": "move_back",
+                "original_path": str(src),
+                "steps": [{"action": "move", "source": str(dst), "destination": str(src)}],
+                "automatic": False,
+            },
+        )
+        return result
 
     except Exception as e:
         return f"Could not move: {e}"
@@ -251,7 +316,18 @@ def copy_file(path: str, name: str = "", destination: str = "") -> str:
         else:
             shutil.copy2(str(src), str(dst))
 
-        return f"Copied: {src.name} → {dst.parent.name}/"
+        result = f"Copied: {src.name} -> {dst.parent.name}/"
+        _record_file_action(
+            "copy",
+            {"source": str(src), "destination": str(dst), "path": path, "name": name},
+            result,
+            {
+                "strategy": "remove_copy",
+                "steps": [{"action": "delete", "path": str(dst)}],
+                "automatic": False,
+            },
+        )
+        return result
 
     except Exception as e:
         return f"Could not copy: {e}"
@@ -273,7 +349,19 @@ def rename_file(path: str, name: str = "", new_name: str = "") -> str:
             return f"A file named '{new_name}' already exists here."
 
         target.rename(new_path)
-        return f"Renamed: {target.name} → {new_name}"
+        result = f"Renamed: {target.name} -> {new_name}"
+        _record_file_action(
+            "rename",
+            {"source": str(target), "destination": str(new_path), "new_name": new_name},
+            result,
+            {
+                "strategy": "move_back",
+                "original_path": str(target),
+                "steps": [{"action": "move", "source": str(new_path), "destination": str(target)}],
+                "automatic": False,
+            },
+        )
+        return result
 
     except Exception as e:
         return f"Could not rename: {e}"
@@ -305,12 +393,25 @@ def write_file(path: str, name: str = "", content: str = "", append: bool = Fals
         target = (base / name) if name else base
         if not _is_safe_path(target):
             return f"Access denied: {target}"
+        undo_data = _snapshot_before(target, "before_write") if target.exists() else None
         target.parent.mkdir(parents=True, exist_ok=True)
         mode = "a" if append else "w"
         with open(target, mode, encoding="utf-8") as f:
             f.write(content)
         action = "Appended to" if append else "Written to"
-        return f"{action}: {target.name}"
+        result = f"{action}: {target.name}"
+        _record_file_action(
+            "write",
+            {"path": str(target), "name": name, "append": append},
+            result,
+            undo_data
+            or {
+                "strategy": "remove_created_resource",
+                "steps": [{"action": "delete", "path": str(target)}],
+                "automatic": False,
+            },
+        )
+        return result
     except Exception as e:
         return f"Could not write file: {e}"
 

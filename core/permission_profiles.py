@@ -145,6 +145,22 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"file", "destructive"},
     ),
+    "self_dev_agent": ToolMetadata(
+        name="self_dev_agent",
+        description="Controlled repository self-development with branch, diff, and test gates",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"development", "git", "testing", "self-dev"},
+    ),
+    "daily_mode": ToolMetadata(
+        name="daily_mode",
+        description="Applies daily-driver configuration presets",
+        risk_level="medium",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"configuration", "mode", "safety"},
+    ),
 }
 
 
