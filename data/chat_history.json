@@ -1,41 +1,55 @@
 {
   "current_session": {
-    "id": "20260622-195139-fdd6d1d6",
-    "title": "Ha llo Javi.",
-    "started_at": "2026-06-22T19:51:39.501096",
-    "updated_at": "2026-06-22T19:52:19.958560",
+    "id": "20260625-093155-d6366cf1",
+    "title": "Voice session",
+    "started_at": "2026-06-25T09:31:55.941202",
+    "updated_at": "2026-06-25T09:31:55.941202",
     "ended_at": null,
-    "messages": [
-      {
-        "id": "ade7450f61514823851571f5fb1846e6",
-        "role": "user",
-        "content": "Ha llo Javi.",
-        "timestamp": "2026-06-22T19:52:04.161729"
-      },
-      {
-        "id": "532ebdae7ad54a7aa1c9020893e8d669",
-        "role": "assistant",
-        "content": "Hallo! Du hattest eine Erinnerung gespeichert, die besagt, dass du die vorherige Sitzung fortsetzen möchtest. Soll ich dir dabei helfen?",
-        "timestamp": "2026-06-22T19:52:04.163239"
-      },
-      {
-        "id": "e23956c8551648a49da329215e0f6908",
-        "role": "user",
-        "content": "Was war die vor herige Sitzung noch mal?",
-        "timestamp": "2026-06-22T19:52:19.957055"
-      },
-      {
-        "id": "ed528b479fd74127a25fd289df4515bf",
-        "role": "assistant",
-        "content": "Ich kann den genauen Inhalt der letzten Sitzung nicht direkt abrufen. Möchtest du eine neue Konversation starten oder etwas Bestimmtes tun?",
-        "timestamp": "2026-06-22T19:52:19.958560"
-      }
-    ],
+    "messages": [],
     "tool_results": [],
+    "activity": [],
+    "open_ends": [],
+    "recent_files": [],
     "summary": "",
     "status": "active"
   },
   "sessions": [
+    {
+      "id": "20260622-195139-fdd6d1d6",
+      "title": "Ha llo Javi.",
+      "started_at": "2026-06-22T19:51:39.501096",
+      "updated_at": "2026-06-25T09:31:55.900379",
+      "ended_at": "2026-06-25T09:31:55.900379",
+      "messages": [
+        {
+          "id": "ade7450f61514823851571f5fb1846e6",
+          "role": "user",
+          "content": "Ha llo Javi.",
+          "timestamp": "2026-06-22T19:52:04.161729"
+        },
+        {
+          "id": "532ebdae7ad54a7aa1c9020893e8d669",
+          "role": "assistant",
+          "content": "Hallo! Du hattest eine Erinnerung gespeichert, die besagt, dass du die vorherige Sitzung fortsetzen möchtest. Soll ich dir dabei helfen?",
+          "timestamp": "2026-06-22T19:52:04.163239"
+        },
+        {
+          "id": "e23956c8551648a49da329215e0f6908",
+          "role": "user",
+          "content": "Was war die vor herige Sitzung noch mal?",
+          "timestamp": "2026-06-22T19:52:19.957055"
+        },
+        {
+          "id": "ed528b479fd74127a25fd289df4515bf",
+          "role": "assistant",
+          "content": "Ich kann den genauen Inhalt der letzten Sitzung nicht direkt abrufen. Möchtest du eine neue Konversation starten oder etwas Bestimmtes tun?",
+          "timestamp": "2026-06-22T19:52:19.958560"
+        }
+      ],
+      "tool_results": [],
+      "summary": "Ha llo Javi.",
+      "status": "completed"
+    },
     {
       "id": "20260605-212720-848890d8",
       "title": "Ha llo ?",
@@ -349,5 +363,5 @@
       "status": "completed"
     }
   ],
-  "updated_at": "2026-06-22T19:52:19.958560"
+  "updated_at": "2026-06-25T09:31:55.942202"
 }
