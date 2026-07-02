@@ -274,7 +274,7 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
                 <SelectItem value="voice-chat">Sprechen</SelectItem>
                 <SelectItem value="home">Startseite</SelectItem>
                 <SelectItem value="chats">Chats</SelectItem>
-                <SelectItem value="resources">Ressourcen</SelectItem>
+                <SelectItem value="command-center">Command</SelectItem>
               </SelectContent>
             </Select>
           </div>

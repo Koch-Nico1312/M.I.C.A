@@ -26,6 +26,7 @@ class ModelCall:
     action: str = ""
     has_image: bool = False
     risk: str = ""
+    sensitivity: str = ""
     context_chars: int = 0
     tools: Any = None
     generation_config: dict[str, Any] = field(default_factory=dict)
@@ -85,6 +86,7 @@ class RoutedModel:
                 action=self.action,
                 has_image=has_image,
                 risk=self.risk,
+                sensitivity="",
                 context_chars=len(prompt),
                 generation_config=kwargs,
                 use_cache=self.use_cache,
@@ -167,6 +169,7 @@ class ModelRunner:
         action: str = "",
         has_image: bool = False,
         risk: str = "",
+        sensitivity: str = "",
         context_chars: int | None = None,
         tools: Any = None,
         use_cache: bool | None = None,
@@ -180,6 +183,7 @@ class ModelRunner:
                 action=action,
                 has_image=has_image,
                 risk=risk,
+                sensitivity=sensitivity,
                 context_chars=context_chars if context_chars is not None else len(prompt),
                 tools=tools,
                 use_cache=use_cache,
@@ -193,6 +197,7 @@ class ModelRunner:
             action=call.action,
             has_image=call.has_image,
             risk=call.risk,
+            sensitivity=call.sensitivity,
             context_chars=call.context_chars or len(call.prompt),
         )
         cache_allowed = decision.use_cache if call.use_cache is None else call.use_cache

@@ -30,22 +30,28 @@ from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor
 from core.performance_tracker import get_performance_tracker
 from core.session_manager import get_session_manager
+from core.voice_conversation import get_voice_conversation_mode
 
 try:
     if os.environ.get("JARVIS_NO_QT"):
         raise ImportError("Qt disabled by JARVIS_NO_QT environment variable")
-    from PyQt6.QtCore import QUrl
+    from PyQt6.QtCore import QEvent, Qt, QUrl
     from PyQt6.QtGui import QColor
     from PyQt6.QtWebEngineWidgets import QWebEngineView
-    from PyQt6.QtWidgets import QApplication, QMainWindow
+    from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow, QVBoxLayout, QWidget
 
     QT_WEBENGINE_AVAILABLE = True
     QT_WEBENGINE_IMPORT_ERROR: Exception | None = None
 except Exception as exc:
     QUrl = None  # type: ignore[assignment]
+    QEvent = None  # type: ignore[assignment]
+    Qt = None  # type: ignore[assignment]
     QColor = None  # type: ignore[assignment]
     QApplication = None  # type: ignore[assignment]
+    QLabel = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment]
+    QVBoxLayout = None  # type: ignore[assignment]
+    QWidget = None  # type: ignore[assignment]
     QWebEngineView = None  # type: ignore[assignment]
     QT_WEBENGINE_AVAILABLE = False
     QT_WEBENGINE_IMPORT_ERROR = exc
@@ -121,6 +127,110 @@ def _find_node_executable() -> Optional[str]:
     return None
 
 
+class _JarvisMiniHeadWindow(QMainWindow):
+    def __init__(self, parent_window: "_JARVISWindow"):
+        super().__init__()
+        self._parent_window = parent_window
+        self._drag_offset = None
+        self._drag_started = False
+        self.setWindowTitle("J.A.R.V.I.S Mini")
+        self.setFixedSize(118, 118)
+
+        if Qt is not None:
+            self.setWindowFlags(
+                Qt.WindowType.Tool
+                | Qt.WindowType.FramelessWindowHint
+                | Qt.WindowType.WindowStaysOnTopHint
+            )
+            self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+
+        if QWidget is None or QVBoxLayout is None or QLabel is None:
+            return
+
+        root = QWidget(self)
+        root.setObjectName("miniRoot")
+        root.setStyleSheet(
+            """
+            QWidget#miniRoot {
+                background: rgba(4, 12, 14, 226);
+                border: 2px solid rgba(93, 210, 255, 180);
+                border-radius: 55px;
+            }
+            QLabel#miniFace {
+                color: #dff8ff;
+                font-size: 34px;
+                font-weight: 700;
+                letter-spacing: 6px;
+                padding-left: 5px;
+            }
+            QLabel#miniCaption {
+                color: rgba(207, 250, 254, 170);
+                font-size: 9px;
+                letter-spacing: 2px;
+            }
+            """
+        )
+        layout = QVBoxLayout(root)
+        layout.setContentsMargins(12, 16, 12, 12)
+        layout.setSpacing(2)
+        face = QLabel("● ●", root)
+        face.setObjectName("miniFace")
+        face.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
+        caption = QLabel("JARVIS", root)
+        caption.setObjectName("miniCaption")
+        caption.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
+        layout.addStretch(1)
+        layout.addWidget(face)
+        layout.addWidget(caption)
+        layout.addStretch(1)
+        self.setCentralWidget(root)
+
+    def _event_global_pos(self, event):
+        if hasattr(event, "globalPosition"):
+            return event.globalPosition().toPoint()
+        if hasattr(event, "globalPos"):
+            return event.globalPos()
+        return None
+
+    def mousePressEvent(self, event):  # noqa: N802
+        if Qt is not None and event.button() == Qt.MouseButton.LeftButton:
+            global_pos = self._event_global_pos(event)
+            if global_pos is not None:
+                self._drag_offset = global_pos - self.frameGeometry().topLeft()
+                self._drag_started = False
+                self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                event.accept()
+                return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):  # noqa: N802
+        if self._drag_offset is not None:
+            global_pos = self._event_global_pos(event)
+            if global_pos is not None:
+                self.move(global_pos - self._drag_offset)
+                self._drag_started = True
+                event.accept()
+                return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):  # noqa: N802
+        if Qt is not None:
+            self.setCursor(Qt.CursorShape.OpenHandCursor)
+        was_dragged = self._drag_started
+        self._drag_offset = None
+        self._drag_started = False
+
+        if Qt is not None and event.button() == Qt.MouseButton.LeftButton and not was_dragged:
+            self.hide()
+            self._parent_window.showNormal()
+            self._parent_window.raise_()
+            self._parent_window.activateWindow()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+
 class _JARVISWindow(QMainWindow):
     def __init__(self, ui: "JarvisUI", url: str):
         super().__init__()
@@ -130,12 +240,12 @@ class _JARVISWindow(QMainWindow):
         self.setMinimumSize(1180, 760)
         
         # Set window flags to prevent flickering and disappearing
-        from PyQt6.QtCore import Qt
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowMinMaxButtonsHint |
             Qt.WindowType.WindowCloseButtonHint
         )
+        self._mini_head = _JarvisMiniHeadWindow(self)
 
         if QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
@@ -146,8 +256,20 @@ class _JARVISWindow(QMainWindow):
         self.setCentralWidget(self._web)
         self._web.setUrl(QUrl(url))
 
+    def changeEvent(self, event):  # noqa: N802
+        try:
+            if QEvent is not None and event.type() == QEvent.Type.WindowStateChange:
+                if self.isMinimized():
+                    self._mini_head.show()
+                else:
+                    self._mini_head.hide()
+        finally:
+            super().changeEvent(event)
+
     def closeEvent(self, event):  # noqa: N802
         try:
+            with contextlib.suppress(Exception):
+                self._mini_head.close()
             self._ui.shutdown()
         finally:
             super().closeEvent(event)
@@ -169,7 +291,9 @@ class JarvisUI:
         self._current_file: Optional[str] = None
         self._state = "LISTENING"
         self._logs = deque(maxlen=500)
+        self._artifacts = deque(maxlen=24)
         self._on_text_command = None
+        self._on_voice_interrupt = None
         self._shutdown_event = threading.Event()
         self._server: Optional[ThreadingHTTPServer] = None
         self._server_thread: Optional[threading.Thread] = None
@@ -179,6 +303,7 @@ class JarvisUI:
         self._window = None
         self._config = get_config()
         self._session_manager = get_session_manager()
+        self._voice_mode = get_voice_conversation_mode()
 
         # Debouncing and dirty flag for UI state updates
         self._state_dirty = False
@@ -222,6 +347,14 @@ class JarvisUI:
     def on_text_command(self, cb):
         self._on_text_command = cb
 
+    @property
+    def on_voice_interrupt(self):
+        return self._on_voice_interrupt
+
+    @on_voice_interrupt.setter
+    def on_voice_interrupt(self, cb):
+        self._on_voice_interrupt = cb
+
     def set_state(self, state: str):
         perf_flags = get_performance_flags()
         metrics = get_metrics_collector()
@@ -241,6 +374,41 @@ class JarvisUI:
 
     def write_log(self, text: str):
         self._log(text)
+
+    def show_artifact(
+        self,
+        *,
+        kind: str,
+        title: str,
+        content: str | None = None,
+        language: str | None = None,
+        columns: list[str] | None = None,
+        rows: list[dict[str, Any]] | None = None,
+        progress: float | int | None = None,
+        url: str | None = None,
+    ) -> str:
+        """Publish a structured item into the Jarvis-only artifact panel."""
+        artifact_id = f"artifact-{uuid4().hex[:10]}"
+        item = {
+            "id": artifact_id,
+            "kind": str(kind or "note"),
+            "title": str(title or "Artifact"),
+            "content": content,
+            "language": language,
+            "columns": columns or [],
+            "rows": rows or [],
+            "progress": progress,
+            "url": url,
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+        }
+        with self._lock:
+            self._artifacts.appendleft(item)
+        self._log(f"SYS: Artifact published: {item['title']}.")
+        return artifact_id
+
+    def clear_artifacts(self) -> None:
+        with self._lock:
+            self._artifacts.clear()
 
     def wait_for_api_key(self):
         api_key = str(self._config.get_api_key("gemini") or "").strip()
@@ -347,6 +515,7 @@ class JarvisUI:
             state = self._state
             muted = self._muted
             current_file = self._current_file
+            artifacts = list(self._artifacts)
         voice_first = bool(self._config.get("ui.voice_first", True))
 
         session = self._session_manager.get_current_session()
@@ -357,9 +526,11 @@ class JarvisUI:
             "muted": muted,
             "speaking": state == "SPEAKING",
             "current_file": current_file,
+            "voice": self._voice_mode.snapshot(),
             "voice_focus": voice_first,
             "default_view": self._config.get("ui.default_view", "voice"),
             "logs": list(self._logs)[-80:],
+            "artifacts": artifacts,
             "session": session,
             "recent_sessions": recent_sessions,
         }
@@ -503,6 +674,21 @@ class JarvisUI:
             "linked_models": linked,
         }
 
+    def _model_route_payload(self, payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        from core.model_policy import get_model_policy
+
+        payload = payload or {}
+        text = str(payload.get("text") or payload.get("prompt") or "")
+        route = get_model_policy().explain_route(
+            text,
+            action=str(payload.get("action") or ""),
+            risk=str(payload.get("risk") or ""),
+            sensitivity=str(payload.get("sensitivity") or ""),
+            has_image=bool(payload.get("has_image", False)),
+            context_chars=int(payload.get("context_chars") or len(text)),
+        )
+        return {"route": route}
+
     def _model_profile_payload(self, model: Any) -> Dict[str, Any]:
         provider = str(getattr(model, "provider", ""))
         linked = bool(getattr(model, "enabled", False))
@@ -564,6 +750,156 @@ class JarvisUI:
         except Exception as exc:
             logger.error("Could not load memory payload: %s", exc)
             return {"categories": [], "entries": [], "raw": {}, "error": str(exc)}
+
+    def _memory_curation_payload(self) -> Dict[str, Any]:
+        try:
+            from memory.memory_curation import build_curation_report
+
+            return build_curation_report()
+        except Exception as exc:
+            logger.error("Could not build memory curation payload: %s", exc)
+            return {"entries": [], "suggestions": [], "counts": {}, "error": str(exc)}
+
+    def _memory_curation_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from memory.memory_curation import apply_curation_action
+
+        return apply_curation_action(str(payload.get("action") or ""), payload)
+
+    def _knowledge_graph_payload(self, payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
+        from core.knowledge_graph import build_knowledge_graph
+        from memory.memory_manager import load_memory
+
+        payload = payload or {}
+        source_filter = payload.get("sources") if isinstance(payload.get("sources"), list) else None
+        tag_filter = payload.get("tags") if isinstance(payload.get("tags"), list) else None
+        return build_knowledge_graph(
+            memory=load_memory(),
+            documents=self._documents_payload().get("files", []),
+            source_filter=[str(item) for item in source_filter] if source_filter else None,
+            tag_filter=[str(item) for item in tag_filter] if tag_filter else None,
+            limit=int(payload.get("limit") or 120),
+        )
+
+    def _note_composer_payload(self) -> Dict[str, Any]:
+        from memory.smart_note_composer import get_smart_note_composer
+
+        return {"drafts": get_smart_note_composer().list_drafts()}
+
+    def _note_composer_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from memory.smart_note_composer import get_smart_note_composer
+
+        composer = get_smart_note_composer()
+        action = str(payload.get("action") or "draft")
+        if action == "draft":
+            draft = composer.create_draft(
+                str(payload.get("title") or "Untitled Note"),
+                str(payload.get("summary") or payload.get("markdown") or ""),
+                sources=[str(item) for item in payload.get("sources", [])] if isinstance(payload.get("sources"), list) else [],
+                tags=[str(item) for item in payload.get("tags", [])] if isinstance(payload.get("tags"), list) else [],
+                links=[str(item) for item in payload.get("links", [])] if isinstance(payload.get("links"), list) else [],
+                target_folder=str(payload.get("target_folder") or "Knowledge/Inbox"),
+            )
+            return {"status": "drafted", "draft": draft, **self._note_composer_payload()}
+        if action == "update":
+            draft = composer.update_draft(str(payload.get("draft_id") or ""), payload)
+            return {"status": "updated", "draft": draft, **self._note_composer_payload()}
+        if action == "approve":
+            result = composer.approve_draft(str(payload.get("draft_id") or ""))
+            return {**result, **self._note_composer_payload()}
+        raise ValueError(f"unknown note composer action: {action}")
+
+    def _automation_payload(self) -> Dict[str, Any]:
+        from core.automation_scheduler import get_automation_scheduler
+
+        return get_automation_scheduler().list()
+
+    def _automation_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.automation_scheduler import get_automation_scheduler
+
+        scheduler = get_automation_scheduler()
+        action = str(payload.get("action") or "create")
+        if action == "create":
+            item = scheduler.create(
+                str(payload.get("name") or payload.get("automation_action") or "Automation"),
+                str(payload.get("automation_action") or payload.get("task") or ""),
+                str(payload.get("schedule") or "manual"),
+                payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
+            )
+            return {"status": "created", "automation": item, "automations": scheduler.list()}
+        if action == "enable":
+            item = scheduler.set_enabled(str(payload.get("automation_id") or ""), True)
+            return {"status": "enabled", "automation": item, "automations": scheduler.list()}
+        if action == "disable":
+            item = scheduler.set_enabled(str(payload.get("automation_id") or ""), False)
+            return {"status": "disabled", "automation": item, "automations": scheduler.list()}
+        raise ValueError(f"unknown automation action: {action}")
+
+    def _privacy_payload(self) -> Dict[str, Any]:
+        from core.privacy_modes import get_privacy_mode_manager
+
+        return get_privacy_mode_manager().snapshot()
+
+    def _privacy_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.privacy_modes import get_privacy_mode_manager
+
+        return get_privacy_mode_manager().set_mode(
+            str(payload.get("mode") or "balanced"),
+            minutes=int(payload["minutes"]) if payload.get("minutes") else None,
+        )
+
+    def _project_workspaces_payload(self) -> Dict[str, Any]:
+        from core.project_workspace import get_project_workspace_manager
+
+        return get_project_workspace_manager().snapshot()
+
+    def _project_workspace_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.project_workspace import get_project_workspace_manager
+
+        manager = get_project_workspace_manager()
+        action = str(payload.get("action") or "create")
+        if action == "create":
+            workspace = manager.create(
+                str(payload.get("name") or "Project"),
+                paths=[str(item) for item in payload.get("paths", [])] if isinstance(payload.get("paths"), list) else [],
+                tags=[str(item) for item in payload.get("tags", [])] if isinstance(payload.get("tags"), list) else [],
+            )
+            return {"status": "created", "workspace": workspace, "project_workspaces": manager.snapshot()}
+        if action == "activate":
+            return {"status": "activated", "project_workspaces": manager.set_active(str(payload.get("workspace_id") or ""))}
+        if action == "add_note":
+            workspace = manager.add_note(str(payload.get("workspace_id") or ""), str(payload.get("note") or ""))
+            return {"status": "noted", "workspace": workspace, "project_workspaces": manager.snapshot()}
+        raise ValueError(f"unknown project action: {action}")
+
+    def _feedback_payload(self) -> Dict[str, Any]:
+        from core.learning_feedback import get_learning_feedback_store
+
+        return get_learning_feedback_store().list()
+
+    def _feedback_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.learning_feedback import get_learning_feedback_store
+
+        store = get_learning_feedback_store()
+        record = store.add(
+            str(payload.get("rating") or "neutral"),
+            str(payload.get("target") or ""),
+            comment=str(payload.get("comment") or ""),
+            correction=str(payload.get("correction") or ""),
+            category=str(payload.get("category") or "general"),
+            context=payload.get("context") if isinstance(payload.get("context"), dict) else {},
+        )
+        return {"status": "stored_for_review", "feedback": record, "learning_feedback": store.list()}
+
+    def _plugin_payload(self) -> Dict[str, Any]:
+        from core.plugin_system import get_plugin_manager
+
+        manager = get_plugin_manager()
+        return manager.status()
+
+    def _os_payload(self) -> Dict[str, Any]:
+        from core.personal_os import get_personal_os_integration
+
+        return get_personal_os_integration().audit()
 
     def _save_setup_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         from memory.config_manager import save_setup_config
@@ -687,6 +1023,16 @@ class JarvisUI:
         return {
             "files": existing,
             "upload_dir": str(UPLOAD_DIR),
+            "ingestion": {
+                "queued": len([item for item in existing if item.get("status") == "uploaded"]),
+                "chunked": len([item for item in existing if item.get("chunks", 0)]),
+                "duplicates": len([item for item in existing if item.get("duplicate")]),
+                "errors": [
+                    {"id": item.get("id"), "name": item.get("name"), "error": item.get("error")}
+                    for item in existing
+                    if item.get("error")
+                ],
+            },
         }
 
     def _devices_payload(self) -> Dict[str, Any]:
@@ -862,6 +1208,28 @@ class JarvisUI:
                 with destination.open("wb") as handle:
                     shutil.copyfileobj(field.file, handle)
                 size = destination.stat().st_size
+                existing_checksums = {
+                    str(item.get("checksum"))
+                    for item in records
+                    if item.get("checksum")
+                }
+                ingestion_record: Dict[str, Any] = {}
+                chunks: list[Dict[str, Any]] = []
+                try:
+                    from core.document_ingestion import build_ingestion_record, write_chunk_artifact
+
+                    ingestion_record, chunks = build_ingestion_record(
+                        destination,
+                        existing_checksums=existing_checksums,
+                    )
+                    if chunks:
+                        ingestion_record["chunk_path"] = write_chunk_artifact(
+                            project_path("data", "document_chunks"),
+                            ingestion_record,
+                            chunks,
+                        )
+                except Exception as exc:
+                    ingestion_record = {"errors": [str(exc)], "chunks": 0}
                 record = {
                     "id": uuid4().hex,
                     "name": destination.name,
@@ -874,7 +1242,15 @@ class JarvisUI:
                     "indexed": False,
                     "status": "uploaded",
                     "error": None,
+                    "checksum": ingestion_record.get("checksum"),
+                    "chunks": ingestion_record.get("chunks", 0),
+                    "chunk_path": ingestion_record.get("chunk_path"),
+                    "duplicate": bool(ingestion_record.get("metadata", {}).get("duplicate")),
                 }
+                if ingestion_record.get("status") == "duplicate":
+                    record["status"] = "duplicate"
+                if ingestion_record.get("errors"):
+                    record["error"] = "; ".join(str(item) for item in ingestion_record.get("errors", []))
                 saved.append(record)
                 records.insert(0, record)
                 self._log(f"UPLOAD: {destination.name}")
@@ -1038,6 +1414,83 @@ class JarvisUI:
             "next_best_step": next_best_step,
         }
 
+    def _daily_briefing_payload(self) -> Dict[str, Any]:
+        try:
+            from core.daily_briefing import get_daily_briefing
+
+            briefing = get_daily_briefing().generate_briefing(
+                "morning",
+                include_live_sources=False,
+            )
+            return {
+                "status": "ready",
+                "generated_at": briefing.get("generated_at"),
+                "date": briefing.get("date"),
+                "kind": briefing.get("kind", "morning"),
+                "time_budget_minutes": briefing.get("time_budget_minutes"),
+                "focus": briefing.get("focus", []),
+                "items": briefing.get("items", []),
+                "summary": get_daily_briefing().render_briefing_text(briefing),
+            }
+        except Exception as exc:
+            logger.debug("Could not build daily briefing payload: %s", exc)
+            return {
+                "status": "degraded",
+                "generated_at": datetime.now().isoformat(),
+                "date": datetime.now().date().isoformat(),
+                "kind": "morning",
+                "time_budget_minutes": 0,
+                "focus": [],
+                "items": [],
+                "summary": "Daily briefing is not available.",
+                "error": str(exc),
+            }
+
+    def _task_pipelines_payload(self) -> Dict[str, Any]:
+        try:
+            from agent.task_pipeline import get_task_pipeline_manager
+
+            pipelines = get_task_pipeline_manager().list_pipelines()
+            return {
+                "pipelines": pipelines,
+                "active": [
+                    pipeline
+                    for pipeline in pipelines
+                    if pipeline.get("status") not in {"completed", "cancelled"}
+                ],
+            }
+        except Exception as exc:
+            logger.debug("Could not load task pipelines: %s", exc)
+            return {"pipelines": [], "active": [], "error": str(exc)}
+
+    def _task_pipeline_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from agent.task_pipeline import get_task_pipeline_manager
+
+        manager = get_task_pipeline_manager()
+        action = str(payload.get("action") or "create")
+        if action == "create":
+            raw_steps = payload.get("steps") or []
+            steps = raw_steps if isinstance(raw_steps, list) else []
+            pipeline = manager.create_pipeline(str(payload.get("goal") or ""), steps=[str(step) for step in steps])
+            return {"status": "created", "pipeline": manager.get_pipeline(pipeline.id), "task_pipelines": self._task_pipelines_payload()}
+        pipeline_id = str(payload.get("pipeline_id") or "")
+        if action == "advance":
+            pipeline = manager.advance(pipeline_id, note=str(payload.get("note") or ""))
+        elif action == "pause":
+            pipeline = manager.pause(pipeline_id)
+        elif action == "resume":
+            pipeline = manager.resume(pipeline_id)
+        elif action == "verify":
+            pipeline = manager.verify_step(
+                pipeline_id,
+                str(payload.get("step_id") or ""),
+                str(payload.get("status") or "passed"),
+                str(payload.get("note") or ""),
+            )
+        else:
+            raise ValueError(f"unknown pipeline action: {action}")
+        return {"status": action, "pipeline": pipeline, "task_pipelines": self._task_pipelines_payload()}
+
     def _command_center_payload(self) -> Dict[str, Any]:
         state = self._current_state()
         resources = self._resource_snapshot()
@@ -1050,6 +1503,13 @@ class JarvisUI:
         permissions = self._permissions_payload()
         reliability = self._reliability_payload()
         quick_actions = self._quick_actions_payload()
+        briefing = self._daily_briefing_payload()
+        task_pipelines = self._task_pipelines_payload()
+        privacy = self._privacy_payload()
+        automations = self._automation_payload()
+        projects = self._project_workspaces_payload()
+        plugins = self._plugin_payload()
+        os_integrations = self._os_payload()
 
         files = documents.get("files", []) if isinstance(documents.get("files"), list) else []
         indexed_files = [item for item in files if item.get("indexed")]
@@ -1142,12 +1602,38 @@ class JarvisUI:
                 "status": "ok" if enabled_tools else "degraded",
                 "detail": f"{len(pending_approvals)} Freigaben offen",
             },
+            {
+                "id": "privacy",
+                "label": "Privacy",
+                "value": str(privacy.get("mode", "balanced")),
+                "status": "ok" if privacy.get("mode") in {"balanced", "cloud_allowed"} else "degraded",
+                "detail": "Externe Verarbeitung nach Modus",
+            },
+            {
+                "id": "automations",
+                "label": "Automationen",
+                "value": f"{len(automations.get('items', []))} aktiv",
+                "status": "ok",
+                "detail": ", ".join(automations.get("allowed_actions", [])[:3]),
+            },
         ]
 
         return {
             "generated_at": datetime.now().isoformat(),
             "status_cards": status_cards,
-            "active_tasks": cockpit.get("tasks", []),
+            "active_tasks": [
+                *cockpit.get("tasks", []),
+                *[
+                    {
+                        "id": pipeline.get("id"),
+                        "title": pipeline.get("goal", "")[:90],
+                        "subtitle": f"{len([step for step in pipeline.get('steps', []) if step.get('status') == 'completed'])}/{len(pipeline.get('steps', []))} Schritte",
+                        "status": pipeline.get("status"),
+                        "source": "task_pipeline",
+                    }
+                    for pipeline in task_pipelines.get("active", [])[:4]
+                ],
+            ],
             "open_questions": open_questions,
             "recent_actions": action_history.get("records", [])[:8],
             "recent_files": resume.get("recent_files", []),
@@ -1157,13 +1643,22 @@ class JarvisUI:
                 "reminders": cockpit.get("reminders", []),
                 "tasks": cockpit.get("tasks", []),
                 "next_best_step": cockpit.get("next_best_step"),
+                "briefing": briefing,
             },
             "quick_actions": quick_actions.get("items", []),
+            "task_pipelines": task_pipelines,
+            "privacy": privacy,
+            "automations": automations,
+            "project_workspaces": projects,
+            "plugins": plugins,
+            "os_integrations": os_integrations,
         }
 
     def _dashboard_payload(self) -> Dict[str, Any]:
+        state = self._current_state()
         return {
-            "state": self._current_state(),
+            "state": state,
+            "artifacts": state.get("artifacts", []),
             "resources": self._resource_snapshot(),
             "settings": self._settings_payload(),
             "calendar": self._calendar_payload(),
@@ -1182,6 +1677,12 @@ class JarvisUI:
             "reliability": self._reliability_payload(),
             "quick_actions": self._quick_actions_payload(),
             "command_center": self._command_center_payload(),
+            "privacy": self._privacy_payload(),
+            "automations": self._automation_payload(),
+            "project_workspaces": self._project_workspaces_payload(),
+            "learning_feedback": self._feedback_payload(),
+            "plugins": self._plugin_payload(),
+            "os_integrations": self._os_payload(),
         }
 
     def _knowledge_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1232,7 +1733,16 @@ class JarvisUI:
             return encode(manager.write_suggested_notes(query, limit=limit, sources=sources))
         if action == "graph":
             plan = manager.suggest_notes(query, limit=limit, sources=sources)
-            return {"query": query, "graph_edges": encode(plan.graph_edges)}
+            return {
+                "query": query,
+                "graph_edges": encode(plan.graph_edges),
+                "graph": self._knowledge_graph_payload(
+                    {
+                        "sources": sources or ["obsidian", "documents", "memory", "wikipedia"],
+                        "limit": limit * 20,
+                    }
+                ),
+            }
         if action == "stats":
             return {
                 "sources": [getattr(adapter, "name", "unknown") for adapter in manager.adapters],
@@ -1419,6 +1929,8 @@ class JarvisUI:
             return request._send_json(200, self._cockpit_payload())  # type: ignore[attr-defined]
         if path == "/api/command-center":
             return request._send_json(200, self._command_center_payload())  # type: ignore[attr-defined]
+        if path == "/api/task-pipelines":
+            return request._send_json(200, self._task_pipelines_payload())  # type: ignore[attr-defined]
         if path == "/api/session/resume":
             return request._send_json(200, self._resume_payload())  # type: ignore[attr-defined]
         if path == "/api/documents":
@@ -1427,8 +1939,17 @@ class JarvisUI:
             return request._send_json(200, self._setup_payload())  # type: ignore[attr-defined]
         if path == "/api/models":
             return request._send_json(200, self._models_payload())  # type: ignore[attr-defined]
+        if path == "/api/model-route":
+            return request._send_json(
+                200,
+                self._model_route_payload({"text": (query.get("text") or [""])[0]}),
+            )  # type: ignore[attr-defined]
+        if path == "/api/knowledge/graph":
+            return request._send_json(200, self._knowledge_graph_payload())  # type: ignore[attr-defined]
         if path == "/api/memory":
             return request._send_json(200, self._memory_payload())  # type: ignore[attr-defined]
+        if path == "/api/memory/curation":
+            return request._send_json(200, self._memory_curation_payload())  # type: ignore[attr-defined]
         if path == "/api/memory/export":
             return request._send_json(200, self._memory_payload())  # type: ignore[attr-defined]
         if path == "/api/actions/history":
@@ -1441,6 +1962,20 @@ class JarvisUI:
             return request._send_json(200, self._reliability_payload())  # type: ignore[attr-defined]
         if path == "/api/devices":
             return request._send_json(200, self._devices_payload())  # type: ignore[attr-defined]
+        if path == "/api/notes/compose":
+            return request._send_json(200, self._note_composer_payload())  # type: ignore[attr-defined]
+        if path == "/api/automations":
+            return request._send_json(200, self._automation_payload())  # type: ignore[attr-defined]
+        if path == "/api/privacy":
+            return request._send_json(200, self._privacy_payload())  # type: ignore[attr-defined]
+        if path == "/api/project-workspaces":
+            return request._send_json(200, self._project_workspaces_payload())  # type: ignore[attr-defined]
+        if path == "/api/learning-feedback":
+            return request._send_json(200, self._feedback_payload())  # type: ignore[attr-defined]
+        if path == "/api/plugins":
+            return request._send_json(200, self._plugin_payload())  # type: ignore[attr-defined]
+        if path == "/api/os-integrations":
+            return request._send_json(200, self._os_payload())  # type: ignore[attr-defined]
         if path == "/api/platform":
             return request._send_json(200, get_platform_hub().snapshot())  # type: ignore[attr-defined]
         if path == "/api/companion/workspace":
@@ -1562,6 +2097,31 @@ class JarvisUI:
             self.muted = muted
             return request._send_json(200, {"muted": self.muted})  # type: ignore[attr-defined]
 
+        if path == "/api/voice/mode":
+            voice = self._voice_mode.configure(
+                input_mode=payload.get("input_mode"),
+                push_to_talk_active=payload.get("push_to_talk_active"),
+                wakeword_enabled=payload.get("wakeword_enabled"),
+                wakeword=payload.get("wakeword"),
+            )
+            if voice.get("input_mode") == "push_to_talk":
+                self.muted = not bool(voice.get("push_to_talk_active"))
+            else:
+                self.muted = False
+            self._log(f"SYS: Voice mode set to {voice.get('input_mode')}.")
+            return request._send_json(200, {"voice": voice, "muted": self.muted})  # type: ignore[attr-defined]
+
+        if path == "/api/voice/interrupt":
+            voice = self._voice_mode.request_interrupt()
+            if callable(self._on_voice_interrupt):
+                threading.Thread(
+                    target=self._on_voice_interrupt,
+                    daemon=True,
+                    name="JarvisVoiceInterrupt",
+                ).start()
+            self._log("SYS: Voice output interrupted.")
+            return request._send_json(200, {"voice": voice})  # type: ignore[attr-defined]
+
         if path == "/api/session/new":
             session_id = self._session_manager.start_session(force=True)
             return request._send_json(
@@ -1612,6 +2172,43 @@ class JarvisUI:
         if path == "/api/setup":
             return request._send_json(200, self._save_setup_payload(payload))  # type: ignore[attr-defined]
 
+        if path == "/api/model-route":
+            return request._send_json(200, self._model_route_payload(payload))  # type: ignore[attr-defined]
+
+        if path == "/api/task-pipelines":
+            try:
+                result = self._task_pipeline_action(payload)
+                return request._send_json(200, result)  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "task_pipelines": self._task_pipelines_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/notes/compose":
+            try:
+                return request._send_json(200, self._note_composer_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), **self._note_composer_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/automations":
+            try:
+                return request._send_json(200, self._automation_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "automations": self._automation_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/privacy":
+            try:
+                return request._send_json(200, self._privacy_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "privacy": self._privacy_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/project-workspaces":
+            try:
+                return request._send_json(200, self._project_workspace_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "project_workspaces": self._project_workspaces_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/learning-feedback":
+            return request._send_json(200, self._feedback_action(payload))  # type: ignore[attr-defined]
+
         if path == "/api/memory/upsert":
             result = self._save_memory_entry(payload)
             status = 400 if "error" in result else 200
@@ -1621,6 +2218,13 @@ class JarvisUI:
             result = self._forget_memory_entry(payload)
             status = 400 if "error" in result else 200
             return request._send_json(status, result)  # type: ignore[attr-defined]
+
+        if path == "/api/memory/curation":
+            try:
+                result = self._memory_curation_action(payload)
+                return request._send_json(200, result)  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "curation": self._memory_curation_payload()})  # type: ignore[attr-defined]
 
         if path == "/api/approvals/approve":
             from core.approval_flow import get_approval_flow

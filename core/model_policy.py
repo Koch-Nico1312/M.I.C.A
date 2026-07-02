@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any
 
 from core.model_registry import ModelProfile, ModelRegistry, get_model_registry
@@ -20,6 +21,13 @@ INTENTS = {
 }
 
 
+class Sensitivity(str, Enum):
+    PUBLIC = "public"
+    INTERNAL = "internal"
+    PRIVATE = "private"
+    SECRET = "secret"
+
+
 @dataclass(frozen=True)
 class ModelDecision:
     intent: str
@@ -27,6 +35,8 @@ class ModelDecision:
     model: ModelProfile
     reason: str
     fallback_profiles: tuple[str, ...]
+    sensitivity: str = Sensitivity.INTERNAL.value
+    cloud_allowed: bool = True
     use_cache: bool = True
 
 
@@ -84,6 +94,46 @@ class ModelPolicy:
             return "tool_planning"
         return "chat"
 
+    def detect_sensitivity(self, text: str = "", *, explicit: str = "") -> Sensitivity:
+        """Classify how conservatively a prompt should be routed."""
+        explicit = explicit.lower().strip()
+        if explicit in {item.value for item in Sensitivity}:
+            return Sensitivity(explicit)
+
+        raw = text.lower()
+        secret_markers = (
+            "api key",
+            "token",
+            "password",
+            "secret",
+            "private key",
+            "ssh key",
+            "credit card",
+            "bank account",
+            "social security",
+        )
+        private_markers = (
+            "personal",
+            "medical",
+            "health",
+            "address",
+            "email",
+            "phone",
+            "contacts",
+            "calendar",
+            "diary",
+            "journal",
+            "memory",
+        )
+        internal_markers = ("project", "code", "repo", "workspace", "document", "file")
+        if any(marker in raw for marker in secret_markers):
+            return Sensitivity.SECRET
+        if any(marker in raw for marker in private_markers):
+            return Sensitivity.PRIVATE
+        if any(marker in raw for marker in internal_markers):
+            return Sensitivity.INTERNAL
+        return Sensitivity.PUBLIC
+
     def choose(
         self,
         intent: str | None = None,
@@ -92,8 +142,10 @@ class ModelPolicy:
         action: str = "",
         has_image: bool = False,
         risk: str = "",
+        sensitivity: str = "",
         context_chars: int = 0,
     ) -> ModelDecision:
+        resolved_sensitivity = self.detect_sensitivity(text, explicit=sensitivity)
         resolved_intent = intent or self.detect_intent(
             text,
             action=action,
@@ -117,15 +169,102 @@ class ModelPolicy:
         profile, reason = matrix.get(resolved_intent, ("fast", "default fast route"))
         profile = self._maybe_adjust_for_budget(profile, context_chars)
         profile = self._maybe_apply_preferred_profile(profile, resolved_intent)
+        profile, sensitivity_reason = self._maybe_adjust_for_sensitivity(
+            profile,
+            resolved_sensitivity,
+            resolved_intent,
+        )
+        profile, privacy_reason = self._maybe_adjust_for_privacy(profile, resolved_sensitivity)
+        if sensitivity_reason:
+            reason = f"{reason}; {sensitivity_reason}"
+        if privacy_reason:
+            reason = f"{reason}; {privacy_reason}"
         fallbacks = self.fallback_chain(profile)
+        cloud_allowed = self._cloud_allowed(resolved_sensitivity)
         return ModelDecision(
             intent=resolved_intent,
             profile=profile,
             model=self.registry.get(profile),
             reason=reason,
             fallback_profiles=fallbacks,
+            sensitivity=resolved_sensitivity.value,
+            cloud_allowed=cloud_allowed,
             use_cache=resolved_intent not in {"code_edit", "high_risk_action", "vision"},
         )
+
+    def explain_route(self, text: str, **kwargs: Any) -> dict[str, Any]:
+        """Return a JSON-safe routing explanation without making a model call."""
+        decision = self.choose(text=text, **kwargs)
+        return {
+            "intent": decision.intent,
+            "sensitivity": decision.sensitivity,
+            "profile": decision.profile,
+            "model_id": decision.model.model_id,
+            "provider": decision.model.provider,
+            "cloud_allowed": decision.cloud_allowed,
+            "fallback_profiles": list(decision.fallback_profiles),
+            "use_cache": decision.use_cache,
+            "reason": decision.reason,
+        }
+
+    def _maybe_adjust_for_sensitivity(
+        self,
+        profile: str,
+        sensitivity: Sensitivity,
+        intent: str,
+    ) -> tuple[str, str]:
+        local_profiles = ("local_code", "local_review", "local")
+        if sensitivity == Sensitivity.SECRET:
+            for candidate in local_profiles:
+                try:
+                    model = self.registry.get(candidate)
+                except KeyError:
+                    continue
+                if model.enabled and model.supports("text"):
+                    return candidate, "secret content is routed to a local profile"
+            return profile, "secret content detected but no enabled local profile is available"
+        if sensitivity == Sensitivity.PRIVATE and intent in {"summary", "chat", "tool_planning"}:
+            for candidate in ("local_review", "local"):
+                try:
+                    model = self.registry.get(candidate)
+                except KeyError:
+                    continue
+                if model.enabled and model.supports("text"):
+                    return candidate, "private content prefers local processing"
+        return profile, ""
+
+    def _maybe_adjust_for_privacy(
+        self, profile: str, sensitivity: Sensitivity
+    ) -> tuple[str, str]:
+        try:
+            from core.privacy_modes import get_privacy_mode_manager
+
+            privacy = get_privacy_mode_manager()
+            if privacy.allows_external_model(sensitivity.value):
+                return profile, ""
+            model = self.registry.get(profile)
+            if model.provider != "ollama":
+                for candidate in ("local_code", "local_review", "local"):
+                    try:
+                        local_model = self.registry.get(candidate)
+                    except KeyError:
+                        continue
+                    if local_model.enabled:
+                        return candidate, f"privacy mode {privacy.effective_mode()} requires local routing"
+                return profile, f"privacy mode {privacy.effective_mode()} blocks external models but no local model is enabled"
+        except Exception:
+            return profile, ""
+        return profile, ""
+
+    def _cloud_allowed(self, sensitivity: Sensitivity) -> bool:
+        if sensitivity == Sensitivity.SECRET:
+            return False
+        try:
+            from core.privacy_modes import get_privacy_mode_manager
+
+            return get_privacy_mode_manager().allows_external_model(sensitivity.value)
+        except Exception:
+            return True
 
     def _maybe_adjust_for_budget(self, profile: str, context_chars: int) -> str:
         threshold = int(self.config.get("model_router.long_context_chars", 40_000) or 40_000)

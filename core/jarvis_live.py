@@ -46,6 +46,7 @@ from core.security import get_api_key_manager
 from core.semantic_search import get_semantic_search
 from core.session_manager import get_session_manager
 from core.voice_emotion import get_emotion_analyzer
+from core.voice_conversation import get_voice_conversation_mode
 from core.vscode_bridge import get_vscode_bridge
 from memory.memory_manager import (
     MEMORY_PATH,
@@ -240,6 +241,7 @@ class JarvisLive:
         self._is_speaking = False
         self._speaking_lock = threading.Lock()
         self.ui.on_text_command = self._on_text_command
+        self.ui.on_voice_interrupt = self._on_voice_interrupt
         self._turn_done_event: Optional[asyncio.Event] = None
         self._refresh_requested = False
         self._refresh_reason = ""
@@ -256,6 +258,7 @@ class JarvisLive:
         self.hud = get_hud_manager()
         self.proactive = get_proactive_suggestions()
         self.emotion = get_emotion_analyzer()
+        self.voice_mode = get_voice_conversation_mode()
         self.vscode = get_vscode_bridge()
         self.cross_device = get_cross_device()
         self.obsidian_bridge = get_obsidian_bridge()
@@ -809,6 +812,26 @@ class JarvisLive:
             self.session.send_client_content(turns={"parts": [{"text": text}]}, turn_complete=True),
             self._loop,
         )
+
+    def _on_voice_interrupt(self) -> None:
+        """Interrupt current voice playback and return to listening."""
+        if not self._loop:
+            self.set_speaking(False)
+            return
+        asyncio.run_coroutine_threadsafe(self._interrupt_voice_playback(), self._loop)
+
+    async def _interrupt_voice_playback(self) -> None:
+        """Drain pending spoken audio after a user interrupt."""
+        if self.audio_in_queue is not None:
+            while True:
+                try:
+                    self.audio_in_queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+        if self._turn_done_event is not None:
+            self._turn_done_event.set()
+        self.set_speaking(False)
+        self.hud.set_status("Listening")
 
     def set_speaking(self, value: bool) -> None:
         """
@@ -1526,7 +1549,7 @@ class JarvisLive:
         def callback(indata, frames, time_info, status):
             with self._speaking_lock:
                 jarvis_speaking = self._is_speaking
-            if not jarvis_speaking and not self.ui.muted:
+            if self.voice_mode.should_capture_audio(self.ui.muted, jarvis_speaking):
                 data = indata.tobytes()
 
                 def safe_put():
@@ -1592,6 +1615,7 @@ class JarvisLive:
                             if full_in:
                                 self._note_user_input(full_in)
                                 self.ui.write_log(f"You: {full_in}")
+                                self.voice_mode.record_transcript("user", full_in)
                                 self.session_context.record_user_message(full_in)
                                 self.memory_brain.observe(full_in, source="conversation")
                             in_buf = []
@@ -1599,6 +1623,7 @@ class JarvisLive:
                             full_out = " ".join(out_buf).strip()
                             if full_out:
                                 self.ui.write_log(f"Jarvis: {full_out}")
+                                self.voice_mode.record_transcript("assistant", full_out)
                                 self.track_obsidian_response(full_out)
                                 self.session_context.record_jarvis_response(full_out)
                             out_buf = []

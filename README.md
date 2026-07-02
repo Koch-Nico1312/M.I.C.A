@@ -1,40 +1,43 @@
 # JARVIS
 
-JARVIS is a local-first desktop AI assistant for Windows-oriented personal automation. It combines voice interaction, Gemini model calls, tool execution, memory, safety approvals, optional retrieval, and a PyQt-based desktop UI. The repository also contains a React/Vite UI workspace under `UI/` for the frontend assets used by the assistant experience.
+JARVIS is a local-first AI assistant and personal automation workspace. It is built for a Windows-oriented desktop setup, with a Python runtime, Gemini model integration, voice interaction, tool execution, memory, approvals, workflows, local knowledge, and a React/Vite Studio UI.
 
-The project is designed as a modular assistant runtime: `main.py` starts the app, `tools/` declares what the model can call, `actions/` implements those tools, and `core/` provides shared services such as configuration, logging, approvals, memory, monitoring, plugins, sessions, and workflow execution.
+The runtime is modular: `main.py` starts the app, `core/jarvis_live.py` runs the assistant loop, `tools/` declares callable tools, `actions/` implements those tools, and `core/` provides shared services such as configuration, model routing, safety approvals, monitoring, workflows, plugins, publishing, and the Studio platform hub.
 
-## Features
+## Current Capabilities
 
-- Voice-capable assistant loop using Gemini live/audio models.
-- Tool calling for browser control, desktop automation, files, weather, reminders, messaging, YouTube, Spotify, Gmail, Google Calendar, and more.
-- Safety and approval flow for medium- and high-risk actions.
-- Persistent action history, session state, long-term memory, backups, and optional Obsidian integration.
-- Optional semantic search/RAG with ChromaDB and sentence-transformers.
-- Optional passive vision, screen processing, OCR, and HUD overlay features.
-- Optional local LLM fallback through Ollama.
-- Performance monitoring, health checks, cache support, and feature flags.
-- React/Vite UI workspace in `UI/` plus PyQt/PyQt WebEngine runtime dependencies.
-- Jarvis Studio Solo Workspace for single-user agents, tools, knowledge, workflows, artifacts, sandbox, publishing, companion access, quickstart, and audit.
+- Gemini 2.5 live/text/vision defaults with centralized model routing and optional Ollama fallback.
+- Voice-capable assistant loop, CLI mode, and desktop UI startup with browser fallback support.
+- Tool calling for browser control, desktop automation, files, reminders, messaging, weather, YouTube, Spotify, Gmail, Google Calendar, local analysis, screen processing, and more.
+- Safety approvals, permission profiles, disabled-action controls, and persistent action history.
+- Long-term memory, conversation compression, hybrid retrieval, memory curation, backups, Obsidian support, and optional ChromaDB vector storage.
+- Local analysis for files/images/documents plus multimodal context and passive vision hooks.
+- Workflow engine, task pipeline, background tasks, automation scheduling, proactive suggestions, and daily/morning routines.
+- Platform Hub / Jarvis Studio Solo Workspace for private agents, knowledge sync, document ingestion, sandbox runs, artifacts, publishing links, companion access, evaluations, metrics, marketplace review, MCP tools, and a 20-point audit.
+- React/Vite frontend workspace under `UI/`, backed by the Python `ui_bridge.py` API surface.
+- Docker Compose, Helm manifests, Postgres migration assets, and release helper scripts for deployment-oriented workflows.
 
 ## Repository Layout
 
 ```text
 .
 |-- actions/          # Concrete action implementations called by tools
-|-- agent/            # Planner, executor, task queue, and orchestration helpers
-|-- config/           # Config loaders, startup config, MCP server config
-|-- core/             # Runtime services: memory, safety, plugins, health, UI bridge, etc.
-|-- data/             # Local runtime data such as history and vector DB files
-|-- docs/             # Architecture, API, setup, troubleshooting, and integration docs
-|-- memory/           # Memory managers, backups, retrieval, Obsidian bridge
-|-- plugins/          # Local plugin directory
+|-- agent/            # Planner, executor, task queue, pipelines, orchestration
+|-- config/           # Config loader, startup config, MCP and API key examples
+|-- core/             # Runtime services: live loop, models, safety, platform hub, UI, workflows
+|-- data/             # Local runtime state, history, platform store, artifacts, vector DB
+|-- deploy/           # Docker, Helm, and Postgres deployment assets
+|-- docs/             # Architecture, API, setup, solo workspace, troubleshooting docs
+|-- extensions/       # Browser companion extension
+|-- memory/           # Memory managers, curation, backups, retrieval, Obsidian bridge
+|-- plugins/          # Local plugin directory and examples
+|-- scripts/          # Release/build helper scripts
 |-- startup/          # Application, safety, and performance initialization
 |-- tests/            # Unit, integration, and benchmark tests
 |-- tools/            # Gemini tool declarations
-|-- UI/               # React/Vite frontend workspace
+|-- UI/               # React/Vite Studio frontend
 |-- main.py           # Main runtime entry point
-|-- ui_bridge.py      # PyQt UI bridge and app surface
+|-- ui_bridge.py      # Local UI/API bridge for Studio and dashboard surfaces
 |-- config.yaml       # Main YAML configuration
 `-- .env.example      # Environment variable template
 ```
@@ -43,13 +46,14 @@ The project is designed as a modular assistant runtime: `main.py` starts the app
 
 - Python 3.11+
 - A Gemini API key in `GEMINI_API_KEY`
-- Windows is the primary target for desktop automation features
-- Optional microphone and speakers for voice interaction
-- Optional Node.js/npm for working on the `UI/` frontend
-- Optional Ollama for local model fallback
+- Windows for the primary desktop automation path
+- Optional microphone and speakers for voice mode
+- Optional Node.js/npm for `UI/`
 - Optional Playwright browsers for browser automation
+- Optional Ollama for local model fallback
+- Optional Docker/Compose for Postgres, Redis, MinIO, or deployment-style platform storage
 
-Some integrations require additional credentials or local setup, for example Gmail, Google Calendar, Spotify, Telegram, Discord, VS Code, Obsidian, OCR tools, or smart-home services.
+Additional integrations can require their own credentials or local setup, such as Gmail, Google Calendar, Spotify, Telegram, Discord, VS Code, Obsidian, OCR tools, smart-home services, or MCP servers.
 
 ## Setup
 
@@ -66,22 +70,22 @@ Install Python dependencies:
 pip install -r requirements.txt
 ```
 
-Install Playwright browsers if you want browser automation:
-
-```powershell
-python -m playwright install
-```
-
 Create your local environment file:
 
 ```powershell
 copy .env.example .env
 ```
 
-Then set at least:
+Set at least:
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+If you want browser automation, install Playwright browsers:
+
+```powershell
+python -m playwright install
 ```
 
 You can also run the helper setup script, which installs requirements, Playwright browsers, and pre-commit hooks:
@@ -92,23 +96,22 @@ python setup.py
 
 ## Configuration
 
-JARVIS reads configuration from `config.yaml` and environment variables. Environment variables are useful for secrets and local overrides, while `config.yaml` contains the broader runtime defaults.
+JARVIS reads `config.yaml` plus environment variables. Use `.env` for secrets and local overrides, and use `config.yaml` for broader runtime defaults.
 
-Common settings include:
+Important settings include:
 
 - `GEMINI_API_KEY`
 - `LIVE_MODEL`, `TEXT_MODEL`, `VISION_MODEL`
+- `MODEL_ROUTER_*` and the `model_router` section in `config.yaml`
 - `OLLAMA_ENABLED`, `OLLAMA_BASE_URL`, `OLLAMA_MODEL`
-- `PASSIVE_VISION_ENABLED`
-- `RAG_ENABLED`, `RAG_INDEX_PATH`
-- `HUD_ENABLED`
+- `PASSIVE_VISION_ENABLED`, `RAG_ENABLED`, `HUD_ENABLED`
 - `PROACTIVE_SUGGESTIONS_ENABLED`
-- `GMAIL_ENABLED`, `CALENDAR_ENABLED`
-- `SPOTIFY_ENABLED`
+- `GMAIL_ENABLED`, `CALENDAR_ENABLED`, `SPOTIFY_ENABLED`
 - `OBSIDIAN_ENABLED`, `OBSIDIAN_VAULT_PATH`
 - `PERMISSION_PROFILE`, `DISABLED_ACTIONS`
+- `JARVIS_PLATFORM_STORE`, `JARVIS_POSTGRES_URL`, `JARVIS_REDIS_URL`, `JARVIS_S3_ENDPOINT`, `JARVIS_S3_BUCKET`
 
-See `.env.example` and `config.yaml` for the current list of supported options.
+See `.env.example` and `config.yaml` for the active option set.
 
 ## Running JARVIS
 
@@ -124,11 +127,32 @@ Run in CLI mode:
 .\venv\Scripts\python.exe .\main.py --cli
 ```
 
-The startup flow checks configuration, initializes safety and performance systems, starts the UI when enabled, and then launches the assistant runtime. Heavy runtime pieces such as the live assistant loop, Qt/WebEngine UI bridge, optional resource metrics, and action modules are loaded lazily where possible so the first boot path stays responsive.
+On startup, JARVIS checks for a Gemini API key, initializes the UI mode, loads configuration, starts safety and performance systems, configures workflows, initializes local analysis and retrieval, verifies memory integrity, and then starts the live assistant runtime. Action modules, tool declarations, resource monitoring, and UI server work are lazily loaded where possible.
+
+If PyQt WebEngine cannot initialize and you want to allow browser fallback, set:
+
+```powershell
+$env:JARVIS_ALLOW_BROWSER_FALLBACK="1"
+```
+
+## Studio and Solo Workspace
+
+Jarvis Studio is the local workspace surface exposed through `UI/` and `ui_bridge.py`. Solo mode prepares the platform features for a private, single-user setup:
+
+- private local agents and personal ACLs
+- local knowledge sources, sync, hybrid search, and document ingestion
+- workflow builder/debugger primitives
+- sandbox execution and artifact rendering
+- local publishing links for app, embed, REST, and MCP access
+- browser/mobile companion pairing
+- marketplace and OpenAPI/MCP tool management paths
+- a 20-point readiness audit
+
+See `docs/SOLO_WORKSPACE.md` for the Studio buttons, expected good state, and the programmatic `core.platform_hub` quickstart/audit flow.
 
 ## Frontend Workspace
 
-The `UI/` directory contains the React/Vite workspace.
+The `UI/` directory contains the React/Vite frontend.
 
 ```powershell
 cd UI
@@ -142,7 +166,7 @@ Build the frontend:
 npm run build
 ```
 
-The resource monitor in the UI is refreshed from the dashboard API every two seconds so CPU, memory, disk, threads, and active-task state stay close to live while the assistant is running.
+The frontend uses React, Vite, TypeScript, Radix UI, Material UI icons, Recharts, Tailwind CSS, and local API helpers in `UI/src/app/lib/api.ts`.
 
 ## Tests and Quality
 
@@ -163,17 +187,31 @@ Useful focused commands:
 ```powershell
 pytest tests/test_healthcheck.py
 pytest tests/test_model_routing.py
+pytest tests/test_platform_hub.py
+pytest tests/test_local_first_model_policy.py
 pytest tests/integration
 pytest tests/benchmarks
 ```
 
-The project includes configuration for pytest, Black, isort, mypy, Bandit, and pre-commit.
+The project includes configuration for pytest, Black, isort, mypy, Bandit, and pre-commit. Some integration and benchmark tests require external services, credentials, browsers, or local runtime data.
+
+## Deployment Notes
+
+Local-first file storage is the default development path. Platform-style persistence can use Postgres, Redis, and S3-compatible storage when configured through environment variables and deployment assets:
+
+- `docker-compose.yml`
+- `Dockerfile`
+- `deploy/postgres/migrations/`
+- `deploy/helm/jarvis/`
+
+Use these paths when validating publishing, artifact storage, platform state, or deployment readiness outside the simple local file-store mode.
 
 ## Documentation
 
 - `docs/Architecture.md` - architecture and component overview
 - `docs/API.md` - API and integration surfaces
-- `docs/SOLO_WORKSPACE.md` - single-user Studio workspace, quickstart, and 20-point audit
+- `docs/SOLO_WORKSPACE.md` - single-user Studio workspace, quickstart, and audit
+- `docs/SELF_DEV_AND_DAILY_MODES.md` - self-development and daily-mode features
 - `docs/Troubleshooting.md` - common runtime issues
 - `docs/GMAIL_SETUP.md` - Gmail setup
 - `docs/OBSIDIAN_SETUP.md` - Obsidian setup
@@ -182,7 +220,7 @@ The project includes configuration for pytest, Black, isort, mypy, Bandit, and p
 
 ## Local Data and Secrets
 
-Do not commit `.env`, local credentials, tokens, logs, caches, virtual environments, coverage output, or generated runtime data. The repository includes `.gitignore` entries for common local artifacts, but check changes before committing because this app touches many local integrations.
+Do not commit `.env`, local credentials, tokens, logs, caches, virtual environments, coverage output, generated runtime data, or private local stores. The repository includes `.gitignore` entries for common local artifacts, but review changes before committing because JARVIS touches many local integrations and data directories.
 
 ## License
 

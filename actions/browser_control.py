@@ -356,6 +356,9 @@ def _resolve_browser(name: str) -> dict | None:
 
 
 def _detect_default_browser() -> str:
+    if os.environ.get("JARVIS_USE_SYSTEM_DEFAULT_BROWSER", "").lower() not in {"1", "true", "yes"}:
+        return "chrome"
+
     try:
         if _OS == "Windows":
             import winreg

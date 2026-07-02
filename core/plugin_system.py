@@ -4,6 +4,8 @@ Allows tools to be loaded dynamically from the plugins/ directory
 """
 
 import importlib
+import importlib.util
+import json
 import inspect
 import sys
 from dataclasses import dataclass
@@ -21,6 +23,7 @@ class ToolDeclaration:
     handler: Callable
     category: str = "general"
     enabled: bool = True
+    permissions: List[str] = None
 
 
 class PluginManager:
@@ -42,17 +45,42 @@ class PluginManager:
         self.loaded_plugins: Dict[str, Any] = {}
 
     def discover_plugins(self) -> List[Path]:
-        """Discover all Python files in the plugins directory"""
+        """Discover all Python plugin files and manifest directories."""
         if not self.plugins_dir.exists():
             return []
 
         plugin_files = list(self.plugins_dir.glob("*.py"))
-        # Ignore __init__.py
-        return [f for f in plugin_files if f.name != "__init__.py"]
+        manifest_dirs = [path for path in self.plugins_dir.iterdir() if (path / "plugin.json").exists()]
+        return [f for f in plugin_files if f.name != "__init__.py"] + manifest_dirs
+
+    def load_manifest(self, plugin_dir: Path) -> dict[str, Any] | None:
+        manifest_path = plugin_dir / "plugin.json"
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"[Plugin] ERROR: Invalid manifest {manifest_path}: {exc}")
+            return None
+        required = {"id", "name", "entrypoint", "permissions"}
+        missing = required - set(manifest)
+        if missing:
+            print(f"[Plugin] ERROR: Manifest {manifest_path} missing {sorted(missing)}")
+            return None
+        permissions = manifest.get("permissions")
+        if not isinstance(permissions, list):
+            print(f"[Plugin] ERROR: Manifest {manifest_path} permissions must be a list")
+            return None
+        return manifest
 
     def load_plugin(self, plugin_path: Path) -> Optional[ToolDeclaration]:
         """Load a single plugin from a file"""
         try:
+            manifest = None
+            if plugin_path.is_dir():
+                manifest = self.load_manifest(plugin_path)
+                if not manifest:
+                    return None
+                plugin_path = plugin_path / str(manifest["entrypoint"])
+
             # Import the module
             module_name = plugin_path.stem
             spec = importlib.util.spec_from_file_location(module_name, plugin_path)
@@ -81,6 +109,7 @@ class PluginManager:
                         handler=handler,
                         category=tool_decl.get("category", "general"),
                         enabled=tool_decl.get("enabled", True),
+                        permissions=(manifest or tool_decl).get("permissions", []),
                     )
 
                     self.loaded_plugins[module_name] = module
@@ -175,6 +204,38 @@ class PluginManager:
             return self.load_plugin(plugin_path)
 
         return None
+
+    def status(self) -> Dict[str, Any]:
+        """Return plugin health/status without executing plugin code."""
+        manifests = []
+        plugin_dirs = self.plugins_dir.iterdir() if self.plugins_dir.exists() else []
+        for plugin_dir in plugin_dirs:
+            if plugin_dir.is_dir() and (plugin_dir / "plugin.json").exists():
+                manifest = self.load_manifest(plugin_dir)
+                if manifest:
+                    manifests.append(
+                        {
+                            "id": manifest.get("id"),
+                            "name": manifest.get("name"),
+                            "enabled": bool(manifest.get("enabled", True)),
+                            "permissions": manifest.get("permissions", []),
+                            "entrypoint": manifest.get("entrypoint"),
+                        }
+                    )
+        return {
+            "plugins_dir": str(self.plugins_dir),
+            "loaded": sorted(self.loaded_plugins.keys()),
+            "tools": [
+                {
+                    "name": tool.name,
+                    "category": tool.category,
+                    "enabled": tool.enabled,
+                    "permissions": tool.permissions or [],
+                }
+                for tool in self.tools.values()
+            ],
+            "manifests": manifests,
+        }
 
     def create_plugin_template(
         self, name: str, description: str, parameters: Dict[str, Any]

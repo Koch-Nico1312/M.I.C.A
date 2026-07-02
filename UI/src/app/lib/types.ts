@@ -23,6 +23,25 @@ export interface ChatSession {
   messages?: ChatMessage[];
 }
 
+export interface VoiceTurn {
+  role: "user" | "assistant" | "system";
+  text: string;
+  timestamp: string;
+  source: string;
+}
+
+export interface VoiceConversationState {
+  enabled: boolean;
+  input_mode: "open_mic" | "push_to_talk" | "wakeword" | string;
+  push_to_talk_active: boolean;
+  wakeword_enabled: boolean;
+  wakeword: string;
+  last_transcript: string;
+  last_response: string;
+  last_interrupt_at?: string | null;
+  turns: VoiceTurn[];
+}
+
 export interface ResourceSummary {
   cpu_percent: number;
   memory_percent: number;
@@ -69,12 +88,34 @@ export interface CalendarStatus {
   token_path: string;
 }
 
+export interface ArtifactPanelItem {
+  id: string;
+  kind:
+    | "menu"
+    | "web"
+    | "chart"
+    | "note"
+    | "table"
+    | "code"
+    | "progress"
+    | string;
+  title: string;
+  content?: string;
+  language?: string;
+  columns?: string[];
+  rows?: Array<Record<string, unknown>>;
+  progress?: number;
+  url?: string;
+  created_at: string;
+}
+
 export interface DashboardResponse {
   state: {
     state: LiveMode;
     muted: boolean;
     speaking: boolean;
     current_file?: string | null;
+    voice?: VoiceConversationState;
     voice_focus: boolean;
     default_view: string;
     logs: Array<{ timestamp: number; text: string }>;
@@ -99,6 +140,13 @@ export interface DashboardResponse {
   reliability?: ReliabilityPayload;
   quick_actions?: QuickActionsPayload;
   command_center?: CommandCenterPayload;
+  artifacts?: ArtifactPanelItem[];
+  privacy?: PrivacyPayload;
+  automations?: AutomationsPayload;
+  project_workspaces?: ProjectWorkspacesPayload;
+  learning_feedback?: LearningFeedbackPayload;
+  plugins?: PluginsPayload;
+  os_integrations?: OSIntegrationsPayload;
 }
 
 export interface SessionPayload {
@@ -164,6 +212,12 @@ export interface DocumentRecord {
 export interface DocumentsPayload {
   files: DocumentRecord[];
   upload_dir?: string;
+  ingestion?: {
+    queued: number;
+    chunked: number;
+    duplicates: number;
+    errors: Array<{ id?: string; name?: string; error?: string }>;
+  };
 }
 
 export interface UploadDocumentsResponse {
@@ -313,6 +367,164 @@ export interface CommandCenterStatusCard {
   detail?: string;
 }
 
+export interface DailyBriefingItem {
+  category: string;
+  content: string;
+  priority: string;
+  source: string;
+  time_cost_minutes: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface DailyBriefingPayload {
+  status: "ready" | "degraded" | string;
+  generated_at: string;
+  date: string;
+  kind: string;
+  time_budget_minutes: number;
+  focus: DailyBriefingItem[];
+  items: DailyBriefingItem[];
+  summary: string;
+  error?: string;
+}
+
+export interface MemoryCurationSuggestion {
+  id: string;
+  kind: "duplicate" | "low_confidence" | string;
+  title: string;
+  confidence: number;
+  entries: string[];
+  recommendation: string;
+}
+
+export interface MemoryCurationPayload {
+  entries: Array<{
+    id: string;
+    category: string;
+    key: string;
+    value: string;
+    confidence: number;
+    tags: string[];
+    updated?: string | null;
+  }>;
+  suggestions: MemoryCurationSuggestion[];
+  counts: Record<string, number>;
+  error?: string;
+}
+
+export interface TaskPipelineStep {
+  id: string;
+  title: string;
+  status: string;
+  depends_on: string[];
+  verification: Array<{ timestamp: string; status: string; note: string }>;
+}
+
+export interface TaskPipeline {
+  id: string;
+  goal: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  steps: TaskPipelineStep[];
+  requires_approval: boolean;
+}
+
+export interface TaskPipelinesPayload {
+  pipelines: TaskPipeline[];
+  active: TaskPipeline[];
+  error?: string;
+}
+
+export interface KnowledgeGraphPayload {
+  nodes: Array<{
+    id: string;
+    label: string;
+    source: string;
+    tags: string[];
+    uri?: string;
+    metadata?: Record<string, unknown>;
+  }>;
+  edges: Array<{ source: string; target: string; relation: string; evidence?: string }>;
+  filters: { sources: string[]; tags: string[] };
+  counts: { nodes: number; edges: number };
+}
+
+export interface NoteDraftPayload {
+  id: string;
+  title: string;
+  markdown: string;
+  tags: string[];
+  sources: string[];
+  links: string[];
+  target_folder: string;
+  status: string;
+  duplicate_warning?: string;
+  created_at: string;
+}
+
+export interface AutomationsPayload {
+  items: Array<{
+    id: string;
+    name: string;
+    action: string;
+    schedule: string;
+    enabled: boolean;
+    last_run?: string | null;
+    last_error?: string | null;
+  }>;
+  allowed_actions: string[];
+}
+
+export interface PrivacyPayload {
+  mode: string;
+  temporary_until?: string | null;
+  updated_at: string;
+  rules: Record<string, unknown>;
+  modes: Record<string, Record<string, unknown>>;
+}
+
+export interface ProjectWorkspacesPayload {
+  items: Array<{
+    id: string;
+    name: string;
+    paths: string[];
+    notes: string[];
+    tags: string[];
+    active: boolean;
+    archived: boolean;
+    created_at: string;
+  }>;
+  active?: ProjectWorkspacesPayload["items"][number] | null;
+}
+
+export interface LearningFeedbackPayload {
+  records: Array<{
+    id: string;
+    rating: string;
+    target: string;
+    comment: string;
+    correction: string;
+    category: string;
+    status: string;
+    created_at: string;
+  }>;
+  counts: Record<string, number>;
+}
+
+export interface PluginsPayload {
+  plugins_dir: string;
+  loaded: string[];
+  tools: Array<{ name: string; category: string; enabled: boolean; permissions: string[] }>;
+  manifests: Array<{ id: string; name: string; enabled: boolean; permissions: string[]; entrypoint: string }>;
+}
+
+export interface OSIntegrationsPayload {
+  os: string;
+  actions: Record<string, { risk: string; requires_confirmation: boolean }>;
+  records: Array<{ id: string; action: string; status: string; message: string; timestamp: string }>;
+}
+
 export interface CommandCenterPayload {
   generated_at: string;
   status_cards: CommandCenterStatusCard[];
@@ -326,8 +538,15 @@ export interface CommandCenterPayload {
     reminders: CockpitItem[];
     tasks: CockpitItem[];
     next_best_step: CockpitPayload["next_best_step"];
+    briefing?: DailyBriefingPayload;
   };
   quick_actions: QuickActionPayload[];
+  task_pipelines?: TaskPipelinesPayload;
+  privacy?: PrivacyPayload;
+  automations?: AutomationsPayload;
+  project_workspaces?: ProjectWorkspacesPayload;
+  plugins?: PluginsPayload;
+  os_integrations?: OSIntegrationsPayload;
 }
 
 export interface ReliabilityCheckPayload {

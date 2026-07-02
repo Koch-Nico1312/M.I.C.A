@@ -3,18 +3,29 @@ import type {
   CommandCenterPayload,
   DashboardResponse,
   DocumentsPayload,
+  KnowledgeGraphPayload,
+  LearningFeedbackPayload,
+  MemoryCurationPayload,
   MemoryPayload,
   ModelsPayload,
   ActionHistoryPayload,
+  AutomationsPayload,
   ApprovalsPayload,
   DevicesPayload,
+  NoteDraftPayload,
+  OSIntegrationsPayload,
   PermissionsPayload,
+  PluginsPayload,
+  PrivacyPayload,
+  ProjectWorkspacesPayload,
   ReliabilityPayload,
   PlatformPayload,
   ResumePayload,
   SessionPayload,
   SetupPayload,
+  TaskPipelinesPayload,
   UploadDocumentsResponse,
+  VoiceConversationState,
 } from "./types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -113,7 +124,18 @@ function getMockData<T>(path: string): T {
       muted: false,
       speaking: false,
       voice_focus: true,
-      default_view: "home",
+      voice: {
+        enabled: true,
+        input_mode: "open_mic",
+        push_to_talk_active: true,
+        wakeword_enabled: false,
+        wakeword: "jarvis",
+        last_transcript: "",
+        last_response: "",
+        last_interrupt_at: null,
+        turns: [],
+      },
+      default_view: "voice-chat",
       current_file: null,
       logs: [],
       session: null,
@@ -140,7 +162,7 @@ function getMockData<T>(path: string): T {
     },
     settings: {
       ui: {
-        default_view: "home",
+        default_view: "voice-chat",
         voice_first: true,
       },
       calendar: {
@@ -203,7 +225,7 @@ function getMockData<T>(path: string): T {
       ollama_base_url: "http://localhost:11434",
       settings: {
         ui: {
-          default_view: "home",
+          default_view: "voice-chat",
           voice_first: true,
         },
         calendar: {
@@ -283,9 +305,24 @@ function getMockData<T>(path: string): T {
         reminders: [],
         tasks: [],
         next_best_step: null,
+        briefing: {
+          status: "ready",
+          generated_at: new Date().toISOString(),
+          date: new Date().toISOString().slice(0, 10),
+          kind: "morning",
+          time_budget_minutes: 15,
+          focus: [],
+          items: [],
+          summary: "Daily briefing bereit.",
+        },
       },
       quick_actions: [],
+      task_pipelines: {
+        pipelines: [],
+        active: [],
+      },
     },
+    artifacts: [],
   };
 
   if (path === "/api/dashboard") {
@@ -308,6 +345,9 @@ function getMockData<T>(path: string): T {
   }
   if (path === "/api/memory" || path === "/api/memory/export") {
     return mockDashboard.memory as T;
+  }
+  if (path === "/api/memory/curation") {
+    return { entries: [], suggestions: [], counts: { entries: 0, suggestions: 0 } } as T;
   }
   if (path === "/api/actions/history") {
     return mockDashboard.action_history as T;
@@ -795,21 +835,49 @@ function normalizePlatformPayload(payload: PlatformPayload): PlatformPayload {
   };
 }
 
+export interface TerminalActionResponse {
+  status?: string;
+  error?: string;
+  result?: {
+    id: string;
+    command: string;
+    argv?: string[];
+    status: string;
+    returncode: number;
+    stdout: string;
+    stderr: string;
+    latency_ms: number;
+    cwd: string;
+    allowed_commands?: string[];
+  };
+  platform?: PlatformPayload;
+}
+
 export const jarvisApi = {
   getDashboard: () => requestJson<DashboardResponse>("/api/dashboard"),
   getCommandCenter: () => requestJson<CommandCenterPayload>("/api/command-center"),
+  getTaskPipelines: () => requestJson<TaskPipelinesPayload>("/api/task-pipelines"),
+  getKnowledgeGraph: () => requestJson<KnowledgeGraphPayload>("/api/knowledge/graph"),
   getCockpit: () => requestJson<CockpitPayload>("/api/cockpit"),
   getResume: () => requestJson<ResumePayload>("/api/session/resume"),
   getDocuments: () => requestJson<DocumentsPayload>("/api/documents"),
   getSetup: () => requestJson<SetupPayload>("/api/setup"),
   getModels: () => requestJson<ModelsPayload>("/api/models"),
   getMemory: () => requestJson<MemoryPayload>("/api/memory"),
+  getMemoryCuration: () => requestJson<MemoryCurationPayload>("/api/memory/curation"),
   exportMemory: () => requestJson<MemoryPayload>("/api/memory/export"),
   getActionHistory: () => requestJson<ActionHistoryPayload>("/api/actions/history"),
   getApprovals: () => requestJson<ApprovalsPayload>("/api/approvals"),
   getPermissions: () => requestJson<PermissionsPayload>("/api/permissions"),
   getReliability: () => requestJson<ReliabilityPayload>("/api/reliability"),
   getDevices: () => requestJson<DevicesPayload>("/api/devices"),
+  getAutomations: () => requestJson<AutomationsPayload>("/api/automations"),
+  getPrivacy: () => requestJson<PrivacyPayload>("/api/privacy"),
+  getProjectWorkspaces: () => requestJson<ProjectWorkspacesPayload>("/api/project-workspaces"),
+  getLearningFeedback: () => requestJson<LearningFeedbackPayload>("/api/learning-feedback"),
+  getPlugins: () => requestJson<PluginsPayload>("/api/plugins"),
+  getOSIntegrations: () => requestJson<OSIntegrationsPayload>("/api/os-integrations"),
+  getNoteDrafts: () => requestJson<{ drafts: NoteDraftPayload[] }>("/api/notes/compose"),
   getPlatform: () => requestJson<PlatformPayload>("/api/platform").then(normalizePlatformPayload),
   getSettings: () => requestJson("/api/settings"),
   getCalendarStatus: () => requestJson("/api/calendar/status"),
@@ -824,6 +892,46 @@ export const jarvisApi = {
     requestJson("/api/mute", {
       method: "POST",
       body: JSON.stringify({ muted }),
+    }),
+  setVoiceMode: (settings: Partial<VoiceConversationState>) =>
+    requestJson<{ voice: VoiceConversationState; muted: boolean }>("/api/voice/mode", {
+      method: "POST",
+      body: JSON.stringify(settings),
+    }),
+  interruptVoice: () =>
+    requestJson<{ voice: VoiceConversationState }>("/api/voice/interrupt", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
+  taskPipelineAction: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; pipeline?: unknown; task_pipelines: TaskPipelinesPayload }>("/api/task-pipelines", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  noteComposerAction: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; draft?: NoteDraftPayload; drafts: NoteDraftPayload[] }>("/api/notes/compose", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  automationAction: (payload: Record<string, unknown>) =>
+    requestJson<Record<string, unknown>>("/api/automations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  setPrivacyMode: (payload: { mode: string; minutes?: number }) =>
+    requestJson<PrivacyPayload>("/api/privacy", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  projectWorkspaceAction: (payload: Record<string, unknown>) =>
+    requestJson<Record<string, unknown>>("/api/project-workspaces", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  submitFeedback: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; feedback: unknown; learning_feedback: LearningFeedbackPayload }>("/api/learning-feedback", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
   saveSettings: (settings: Record<string, unknown>) =>
     requestJson("/api/settings", {
@@ -844,6 +952,11 @@ export const jarvisApi = {
     requestJson<{ status: string; memory: MemoryPayload }>("/api/memory/forget", {
       method: "POST",
       body: JSON.stringify(entry),
+    }),
+  applyMemoryCuration: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; curation: MemoryCurationPayload }>("/api/memory/curation", {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
   approveAction: (request: { tool_name: string; action: string }) =>
     requestJson<ApprovalsPayload>("/api/approvals/approve", {
@@ -872,6 +985,14 @@ export const jarvisApi = {
     }).then((response) => ({
       ...response,
       platform: normalizePlatformPayload(response.platform),
+    })),
+  runLocalTerminal: (command: string) =>
+    strictRequestJson<TerminalActionResponse>("/api/platform/action", {
+      method: "POST",
+      body: JSON.stringify({ action: "run_local_terminal", payload: { command } }),
+    }).then((response) => ({
+      ...response,
+      platform: response.platform ? normalizePlatformPayload(response.platform) : undefined,
     })),
   knowledgeAction: (payload: Record<string, unknown>) =>
     strictRequestJson<Record<string, unknown>>("/api/knowledge", {

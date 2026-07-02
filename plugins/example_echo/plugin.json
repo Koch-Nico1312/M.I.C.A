@@ -1,0 +1,7 @@
+{
+  "id": "example_echo",
+  "name": "Example Echo",
+  "entrypoint": "plugin.py",
+  "permissions": ["text:read"],
+  "enabled": true
+}

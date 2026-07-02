@@ -11,6 +11,7 @@ import {
   PlayCircle,
   Send,
   ShieldAlert,
+  Sunrise,
   Zap,
 } from "lucide-react";
 import { Button } from "./ui/button";
@@ -82,6 +83,27 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           {isUser ? "You" : isTool ? "Tool" : "Jarvis"} - {formatTime(message.timestamp)}
         </div>
         <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
+        {!isUser && !isTool ? (
+          <div className="mt-3 flex gap-2">
+            {["positive", "negative"].map((rating) => (
+              <button
+                key={rating}
+                onClick={() =>
+                  jarvisApi.submitFeedback({
+                    rating,
+                    target: message.id,
+                    comment: message.content.slice(0, 240),
+                    category: "response",
+                    context: { timestamp: message.timestamp },
+                  })
+                }
+                className="rounded-lg border border-white/10 bg-white/[0.04] px-2 py-1 text-[11px] text-slate-300 hover:bg-white/10"
+              >
+                {rating === "positive" ? "Gut" : "Korrigieren"}
+              </button>
+            ))}
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -125,6 +147,12 @@ export function CommandCenterView({
   const warnings = payload?.warnings ?? [];
   const quickActions = payload?.quick_actions ?? dashboard?.quick_actions?.items ?? [];
   const dayOverview = payload?.day_overview;
+  const briefing = dayOverview?.briefing;
+  const taskPipelines = payload?.task_pipelines?.active ?? [];
+  const automations = payload?.automations?.items ?? [];
+  const activeProject = payload?.project_workspaces?.active;
+  const pluginTools = payload?.plugins?.tools ?? [];
+  const osActions = payload?.os_integrations?.actions ?? {};
 
   const handleSend = async () => {
     const text = input.trim();
@@ -136,6 +164,22 @@ export function CommandCenterView({
     } finally {
       setSending(false);
     }
+  };
+
+  const advancePipeline = async (pipelineId: string) => {
+    const result = await jarvisApi.taskPipelineAction({
+      action: "advance",
+      pipeline_id: pipelineId,
+      note: "Advanced from Command Center.",
+    });
+    setPayload((current) =>
+      current
+        ? {
+            ...current,
+            task_pipelines: result.task_pipelines,
+          }
+        : current,
+    );
   };
 
   return (
@@ -199,6 +243,39 @@ export function CommandCenterView({
               <div className="space-y-2">
                 {[...activeTasks, ...openQuestions].slice(0, 5).map((item) => <CompactItem key={item.id} item={item} />)}
                 {!activeTasks.length && !openQuestions.length ? <EmptyState label="Keine offenen Tasks oder Rueckfragen" /> : null}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
+                <PlayCircle className="h-4 w-4 text-emerald-200" />
+                Task Pipelines
+              </div>
+              <div className="space-y-2">
+                {taskPipelines.slice(0, 3).map((pipeline) => {
+                  const completed = pipeline.steps.filter((step) => step.status === "completed").length;
+                  return (
+                    <div key={pipeline.id} className="rounded-xl border border-white/10 bg-white/[0.04] p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-medium text-white">{pipeline.goal}</div>
+                          <div className="mt-1 text-xs text-slate-400">
+                            {completed}/{pipeline.steps.length} Schritte · {pipeline.status}
+                          </div>
+                        </div>
+                        <Button
+                          size="icon"
+                          onClick={() => advancePipeline(pipeline.id)}
+                          className="h-9 w-9 rounded-xl bg-emerald-300 text-slate-950 hover:bg-emerald-200"
+                          title="Naechsten Schritt abschliessen"
+                        >
+                          <CheckCircle2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {!taskPipelines.length ? <EmptyState label="Keine aktiven Pipelines" /> : null}
               </div>
             </div>
           </div>
@@ -287,6 +364,47 @@ export function CommandCenterView({
           </div>
         </div>
 
+        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+            <CircleDashed className="h-4 w-4 text-cyan-200" />
+            Systeme
+          </div>
+          <div className="space-y-2">
+            <CompactItem
+              item={{
+                id: "privacy-mode",
+                title: `Privacy: ${payload?.privacy?.mode ?? "balanced"}`,
+                subtitle: "Routing- und Tool-Grenzen",
+                status: payload?.privacy?.rules?.external_models ? "cloud" : "local",
+              }}
+            />
+            <CompactItem
+              item={{
+                id: "project-workspace",
+                title: activeProject?.name ?? "Kein Projekt aktiv",
+                subtitle: activeProject?.paths?.join(", ") || "Workspace-Kontext",
+                status: activeProject ? "active" : "idle",
+              }}
+            />
+            <CompactItem
+              item={{
+                id: "automations",
+                title: `${automations.length} Automation(en)`,
+                subtitle: automations.slice(0, 2).map((item) => item.name).join(", "),
+                status: "local",
+              }}
+            />
+            <CompactItem
+              item={{
+                id: "plugins-os",
+                title: `${pluginTools.length} Plugin-Tool(s), ${Object.keys(osActions).length} OS-Aktionen`,
+                subtitle: "Manifest-Plugins und sichere OS-Auditliste",
+                status: "ready",
+              }}
+            />
+          </div>
+        </div>
+
         <div className="min-h-0 flex-1 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
             <Zap className="h-4 w-4 text-cyan-200" />
@@ -308,6 +426,37 @@ export function CommandCenterView({
               {!actionRecords.length ? <EmptyState label="Noch keine Aktionen" /> : null}
             </div>
           </ScrollArea>
+        </div>
+
+        <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+          <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
+            <Sunrise className="h-4 w-4 text-amber-200" />
+            Daily Briefing
+          </div>
+          {briefing ? (
+            <div className="space-y-2">
+              <div className={`rounded-xl border p-3 ${toneFor(briefing.status)}`}>
+                <div className="text-xs uppercase tracking-[0.22em] opacity-75">
+                  {briefing.kind} · {briefing.time_budget_minutes} min
+                </div>
+                <div className="mt-2 line-clamp-3 text-sm leading-5">{briefing.summary}</div>
+              </div>
+              {briefing.focus.slice(0, 2).map((item, index) => (
+                <CompactItem
+                  key={`${item.source}-${index}`}
+                  item={{
+                    id: `${item.source}-${index}`,
+                    title: item.content,
+                    subtitle: item.category,
+                    status: item.priority,
+                    source: item.source,
+                  }}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState label="Kein Briefing verfügbar" />
+          )}
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">

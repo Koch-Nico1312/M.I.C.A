@@ -1,0 +1,92 @@
+{
+  "goal": "Fix the issue where the artifact panel is empty or not displaying information correctly due to recent UI changes.",
+  "before": {
+    "branch": "main",
+    "dirty_files": [
+      " M UI/src/app/App.tsx",
+      " D UI/src/app/components/AppSidebar.tsx",
+      " M UI/src/app/components/CommandCenterView.tsx",
+      " D UI/src/app/components/DocumentsView.tsx",
+      " D UI/src/app/components/KnowledgeView.tsx",
+      " D UI/src/app/components/MemoryView.tsx",
+      " D UI/src/app/components/ResourcesView.tsx",
+      " M UI/src/app/components/SettingsModal.tsx",
+      " D UI/src/app/components/StudioView.tsx",
+      " M UI/src/app/components/VoiceChatView.tsx",
+      " M UI/src/app/lib/api.ts",
+      " M UI/src/app/lib/types.ts",
+      " M UI/src/styles/globals.css",
+      " M UI/src/styles/index.css",
+      " M actions/browser_control.py",
+      " M core/jarvis_live.py",
+      " M core/model_policy.py",
+      " M core/model_runner.py",
+      " M core/platform_hub.py",
+      " M core/plugin_system.py",
+      " M tests/test_platform_hub.py",
+      " M ui_bridge.py",
+      "?? agent/task_pipeline.py",
+      "?? core/automation_scheduler.py",
+      "?? core/document_ingestion.py",
+      "?? core/knowledge_graph.py",
+      "?? core/learning_feedback.py",
+      "?? core/personal_os.py",
+      "?? core/privacy_modes.py",
+      "?? core/project_workspace.py",
+      "?? core/voice_conversation.py",
+      "?? memory/memory_curation.py",
+      "?? memory/smart_note_composer.py",
+      "?? plugins/example_echo/",
+      "?? tests/test_local_first_model_policy.py",
+      "?? tests/test_memory_curation.py",
+      "?? tests/test_plans_07_to_15.py",
+      "?? tests/test_task_pipeline.py",
+      "?? tests/test_voice_conversation.py"
+    ],
+    "diff_stat": "UI/src/app/App.tsx                          |  895 ++++++++++---\n UI/src/app/components/AppSidebar.tsx        |  306 -----\n UI/src/app/components/CommandCenterView.tsx |  149 +++\n UI/src/app/components/DocumentsView.tsx     |  290 -----\n UI/src/app/components/KnowledgeView.tsx     |  316 -----\n UI/src/app/components/MemoryView.tsx        |  336 -----\n UI/src/app/components/ResourcesView.tsx     |  412 ------\n UI/src/app/components/SettingsModal.tsx     |    2 +-\n UI/src/app/components/StudioView.tsx        | 1823 ---------------------------\n UI/src/app/components/VoiceChatView.tsx     |  268 +++-\n UI/src/app/lib/api.ts                       |  127 +-\n UI/src/app/lib/types.ts                     |  219 ++++\n UI/src/styles/globals.css                   |  272 ++++\n UI/src/styles/index.css                     |    1 +\n actions/browser_control.py                  |    3 +\n core/jarvis_live.py                         |   27 +-\n core/model_policy.py                        |  139 ++\n core/model_runner.py                        |    5 +\n core/platform_hub.py                        |   62 +-\n core/plugin_system.py                       |   67 +-\n tests/test_platform_hub.py                  |    4 +\n ui_bridge.py                                |  616 ++++++++-\n 22 files changed, 2629 insertions(+), 3710 deletions(-)",
+    "ready_for_cycle": false
+  },
+  "branch": {
+    "status": "created",
+    "branch": "codex/self-dev-fix-the-issue-where-the-artifact-panel-is-empty-",
+    "result": {
+      "command": [
+        "git",
+        "switch",
+        "-c",
+        "codex/self-dev-fix-the-issue-where-the-artifact-panel-is-empty-"
+      ],
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "Switched to a new branch 'codex/self-dev-fix-the-issue-where-the-artifact-panel-is-empty-'\n",
+      "started_at": "2026-07-02T16:18:26.432977",
+      "finished_at": "2026-07-02T16:18:26.472574",
+      "ok": true
+    }
+  },
+  "tests": {
+    "command": [
+      "pytest",
+      "-q"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "",
+    "started_at": "2026-07-02T16:18:26.472574",
+    "finished_at": "2026-07-02T16:18:26.627990",
+    "ok": false
+  },
+  "review": {
+    "diff": {
+      "stat": "UI/src/app/App.tsx                          |  895 ++++++++++---\n UI/src/app/components/AppSidebar.tsx        |  306 -----\n UI/src/app/components/CommandCenterView.tsx |  149 +++\n UI/src/app/components/DocumentsView.tsx     |  290 -----\n UI/src/app/components/KnowledgeView.tsx     |  316 -----\n UI/src/app/components/MemoryView.tsx        |  336 -----\n UI/src/app/components/ResourcesView.tsx     |  412 ------\n UI/src/app/components/SettingsModal.tsx     |    2 +-\n UI/src/app/components/StudioView.tsx        | 1823 ---------------------------\n UI/src/app/components/VoiceChatView.tsx     |  268 +++-\n UI/src/app/lib/api.ts                       |  127 +-\n UI/src/app/lib/types.ts                     |  219 ++++\n UI/src/styles/globals.css                   |  272 ++++\n UI/src/styles/index.css                     |    1 +\n actions/browser_control.py                  |    3 +\n core/jarvis_live.py                         |   27 +-\n core/model_policy.py                        |  139 ++\n core/model_runner.py                        |    5 +\n core/platform_hub.py                        |   62 +-\n core/plugin_system.py                       |   67 +-\n tests/test_platform_hub.py                  |    4 +\n ui_bridge.py                                |  616 ++++++++-\n 22 files changed, 2629 insertions(+), 3710 deletions(-)",
+      "patch": "vices\":\n             return request._send_json(200, self._devices_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/notes/compose\":\n+            return request._send_json(200, self._note_composer_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/automations\":\n+            return request._send_json(200, self._automation_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/privacy\":\n+            return request._send_json(200, self._privacy_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/project-workspaces\":\n+            return request._send_json(200, self._project_workspaces_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/learning-feedback\":\n+            return request._send_json(200, self._feedback_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/plugins\":\n+            return request._send_json(200, self._plugin_payload())  # type: ignore[attr-defined]\n+        if path == \"/api/os-integrations\":\n+            return request._send_json(200, self._os_payload())  # type: ignore[attr-defined]\n         if path == \"/api/platform\":\n             return request._send_json(200, get_platform_hub().snapshot())  # type: ignore[attr-defined]\n         if path == \"/api/companion/workspace\":\n@@ -1562,6 +2097,31 @@ class JarvisUI:\n             self.muted = muted\n             return request._send_json(200, {\"muted\": self.muted})  # type: ignore[attr-defined]\n \n+        if path == \"/api/voice/mode\":\n+            voice = self._voice_mode.configure(\n+                input_mode=payload.get(\"input_mode\"),\n+                push_to_talk_active=payload.get(\"push_to_talk_active\"),\n+                wakeword_enabled=payload.get(\"wakeword_enabled\"),\n+                wakeword=payload.get(\"wakeword\"),\n+            )\n+            if voice.get(\"input_mode\") == \"push_to_talk\":\n+                self.muted = not bool(voice.get(\"push_to_talk_active\"))\n+            else:\n+                self.muted = False\n+            self._log(f\"SYS: Voice mode set to {voice.get('input_mode')}.\")\n+            return request._send_json(200, {\"voice\": voice, \"muted\": self.muted})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/voice/interrupt\":\n+            voice = self._voice_mode.request_interrupt()\n+            if callable(self._on_voice_interrupt):\n+                threading.Thread(\n+                    target=self._on_voice_interrupt,\n+                    daemon=True,\n+                    name=\"JarvisVoiceInterrupt\",\n+                ).start()\n+            self._log(\"SYS: Voice output interrupted.\")\n+            return request._send_json(200, {\"voice\": voice})  # type: ignore[attr-defined]\n+\n         if path == \"/api/session/new\":\n             session_id = self._session_manager.start_session(force=True)\n             return request._send_json(\n@@ -1612,6 +2172,43 @@ class JarvisUI:\n         if path == \"/api/setup\":\n             return request._send_json(200, self._save_setup_payload(payload))  # type: ignore[attr-defined]\n \n+        if path == \"/api/model-route\":\n+            return request._send_json(200, self._model_route_payload(payload))  # type: ignore[attr-defined]\n+\n+        if path == \"/api/task-pipelines\":\n+            try:\n+                result = self._task_pipeline_action(payload)\n+                return request._send_json(200, result)  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), \"task_pipelines\": self._task_pipelines_payload()})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/notes/compose\":\n+            try:\n+                return request._send_json(200, self._note_composer_action(payload))  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), **self._note_composer_payload()})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/automations\":\n+            try:\n+                return request._send_json(200, self._automation_action(payload))  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), \"automations\": self._automation_payload()})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/privacy\":\n+            try:\n+                return request._send_json(200, self._privacy_action(payload))  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), \"privacy\": self._privacy_payload()})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/project-workspaces\":\n+            try:\n+                return request._send_json(200, self._project_workspace_action(payload))  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), \"project_workspaces\": self._project_workspaces_payload()})  # type: ignore[attr-defined]\n+\n+        if path == \"/api/learning-feedback\":\n+            return request._send_json(200, self._feedback_action(payload))  # type: ignore[attr-defined]\n+\n         if path == \"/api/memory/upsert\":\n             result = self._save_memory_entry(payload)\n             status = 400 if \"error\" in result else 200\n@@ -1622,6 +2219,13 @@ class JarvisUI:\n             status = 400 if \"error\" in result else 200\n             return request._send_json(status, result)  # type: ignore[attr-defined]\n \n+        if path == \"/api/memory/curation\":\n+            try:\n+                result = self._memory_curation_action(payload)\n+                return request._send_json(200, result)  # type: ignore[attr-defined]\n+            except Exception as exc:\n+                return request._send_json(400, {\"error\": str(exc), \"curation\": self._memory_curation_payload()})  # type: ignore[attr-defined]\n+\n         if path == \"/api/approvals/approve\":\n             from core.approval_flow import get_approval_flow\n \n",
+      "ok": true
+    },
+    "notes": [
+      "No automatic merge is performed.",
+      "Review changed files and test output before merging."
+    ],
+    "model_review": ""
+  },
+  "merge_state": "blocked"
+}

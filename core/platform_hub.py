@@ -109,6 +109,7 @@ ACTION_PERMISSIONS = {
     "aggregate_metrics": "metrics:read",
     "list_workspace_files": "artifacts:read",
     "read_workspace_file": "artifacts:read",
+    "run_local_terminal": "sandbox:execute",
     "run_companion_terminal": "sandbox:execute",
     "create_companion_pairing": "artifacts:read",
     "activate_companion_session": "artifacts:read",
@@ -674,7 +675,18 @@ class PlatformHub:
             "pairing_endpoint": "/api/companion/pair",
             "session_endpoint": "/api/companion/session",
             "workspace_snapshot_endpoint": "/api/companion/mobile-workspace",
-            "allowed_terminal_commands": ["git status", "python version", "list files"],
+            "allowed_terminal_commands": [
+                "git status",
+                "python version",
+                "list files",
+                "pwd",
+                "powershell version",
+                "powershell list files",
+                "powershell pwd",
+                "linux uname",
+                "linux list files",
+                "linux pwd",
+            ],
             "pairing_required": True,
             "pairing_codes": [],
             "sessions": [],
@@ -1175,6 +1187,7 @@ class PlatformHub:
             "aggregate_metrics": self._aggregate_metrics_action,
             "list_workspace_files": self._list_workspace_files,
             "read_workspace_file": self._read_workspace_file,
+            "run_local_terminal": self._run_local_terminal,
             "run_companion_terminal": self._run_companion_terminal,
             "create_companion_pairing": self._create_companion_pairing,
             "activate_companion_session": self._activate_companion_session,
@@ -4323,33 +4336,52 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "content": content,
         }
 
-    def _run_companion_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
-        session_error = self._require_companion_session(payload)
-        if session_error:
-            return session_error
-        command = str(payload.get("command") or "git status").lower().strip()
-        commands: dict[str, list[str]] = {
+    def _terminal_commands(self) -> dict[str, list[str]]:
+        powershell = shutil.which("pwsh") or shutil.which("powershell") or "powershell"
+        linux_shell = shutil.which("wsl") or shutil.which("bash") or "bash"
+        use_wsl = Path(linux_shell).name.lower().startswith("wsl")
+
+        def linux_command(command: str) -> list[str]:
+            if use_wsl:
+                return [linux_shell, *command.split()]
+            return [linux_shell, "-lc", command]
+
+        return {
             "git status": ["git", "status", "--short"],
             "python version": [sys.executable, "--version"],
-            "list files": ["dir"] if sys.platform.startswith("win") else ["ls", "-la"],
+            "list files": ["cmd", "/c", "dir"] if sys.platform.startswith("win") else ["ls", "-la"],
+            "pwd": ["cmd", "/c", "cd"] if sys.platform.startswith("win") else ["pwd"],
+            "powershell version": [powershell, "-NoProfile", "-NonInteractive", "-Command", "$PSVersionTable.PSVersion.ToString()"],
+            "powershell list files": [powershell, "-NoProfile", "-NonInteractive", "-Command", "Get-ChildItem -Force | Select-Object Mode,Length,Name | Format-Table -AutoSize"],
+            "powershell pwd": [powershell, "-NoProfile", "-NonInteractive", "-Command", "(Get-Location).Path"],
+            "linux uname": linux_command("uname -a"),
+            "linux list files": linux_command("ls -la"),
+            "linux pwd": linux_command("pwd"),
         }
+
+    def _execute_guarded_terminal(self, payload: dict[str, Any], *, require_session: bool) -> dict[str, Any]:
+        if require_session:
+            session_error = self._require_companion_session(payload)
+            if session_error:
+                return session_error
+        command = str(payload.get("command") or "git status").lower().strip()
+        commands = self._terminal_commands()
         argv = commands.get(command)
         if not argv:
             return {"error": "command not allowed", "allowed_commands": list(commands)}
-        shell = argv == ["dir"]
         started = time.perf_counter()
         completed = subprocess.run(
-            argv[0] if shell else argv,
+            argv,
             cwd=project_path(),
             capture_output=True,
             text=True,
             timeout=10,
-            shell=shell,
             check=False,
         )
         return {
             "id": f"terminal-{uuid4().hex[:8]}",
             "command": command,
+            "argv": argv,
             "status": "completed" if completed.returncode == 0 else "failed",
             "returncode": completed.returncode,
             "stdout": completed.stdout[-8000:],
@@ -4357,6 +4389,12 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "latency_ms": round((time.perf_counter() - started) * 1000, 2),
             "cwd": _display_path(project_path()),
         }
+
+    def _run_local_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._execute_guarded_terminal(payload, require_session=False)
+
+    def _run_companion_terminal(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._execute_guarded_terminal(payload, require_session=True)
 
     def _create_companion_pairing(self, payload: dict[str, Any]) -> dict[str, Any]:
         device_name = str(payload.get("device_name") or "Companion Device")
@@ -4437,7 +4475,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "files": files.get("entries", [])[:25],
             "agents": agents,
             "runs": recent_runs,
-            "terminal": {"allowed_commands": self.data.get("companion", {}).get("allowed_terminal_commands", [])},
+            "terminal": {"allowed_commands": list(self._terminal_commands())},
             "updated_at": _now(),
         }
 

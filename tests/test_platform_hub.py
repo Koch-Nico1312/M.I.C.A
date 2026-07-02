@@ -971,6 +971,8 @@ def test_companion_workspace_files_and_terminal_are_guarded(tmp_path):
     revoked = hub.action("revoke_companion_session", {"session_id": session_id})
     denied_terminal = hub.action("run_companion_terminal", {"command": "format disk"})
     denied_after_revoke = hub.action("run_companion_terminal", {"command": "python version", "session_id": session_id})
+    local_terminal = hub.action("run_local_terminal", {"command": "python version"})
+    denied_local_terminal = hub.action("run_local_terminal", {"command": "format disk"})
 
     assert files["result"]["entries"]
     assert readme["result"]["name"] == "pyproject.toml"
@@ -978,6 +980,8 @@ def test_companion_workspace_files_and_terminal_are_guarded(tmp_path):
     assert activated["result"]["session"]["status"] == "active"
     assert workspace["result"]["status"] == "ready"
     assert terminal["result"]["status"] == "completed"
+    assert local_terminal["result"]["status"] == "completed"
+    assert denied_local_terminal["error"] == "command not allowed"
     assert revoked["result"]["session"]["status"] == "revoked"
     assert denied_terminal["error"] == "companion session required"
     assert denied_after_revoke["error"] == "companion session inactive"
