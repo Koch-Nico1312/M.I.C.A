@@ -1,5 +1,5 @@
 """
-Central model registry for Jarvis.
+Central model registry for M.I.C.A.
 
 The registry keeps model metadata and profile aliases in one place while
 remaining compatible with the older ``models.text`` / ``models.vision`` config.

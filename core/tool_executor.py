@@ -1,5 +1,5 @@
 """
-Tool executor module for JARVIS AI Assistant.
+Tool executor module for M.I.C.A AI Assistant.
 
 This module provides:
 - Tool execution and routing
@@ -27,7 +27,7 @@ logger = get_logger(__name__)
 
 class ToolExecutor:
     """
-    Manages tool execution for JARVIS.
+    Manages tool execution for M.I.C.A.
     """
 
     def __init__(self):

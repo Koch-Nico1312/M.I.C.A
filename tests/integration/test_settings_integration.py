@@ -144,16 +144,16 @@ class TestSettingsIntegration:
         
         assert imported is not None
 
-    def test_config_with_jarvis(self):
-        """Test configuration integration with Jarvis."""
-        from main import JarvisLive
+    def test_config_with_mica(self):
+        """Test configuration integration with M.I.C.A."""
+        from main import MicaLive
         from config.config_loader import get_config
         
         config = get_config()
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
-        # Jarvis should use config
-        assert jarvis is not None
+        # M.I.C.A should use config
+        assert mica is not None
         assert config is not None
 
 

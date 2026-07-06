@@ -12,7 +12,7 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { ScrollArea } from "./ui/scroll-area";
-import { jarvisApi } from "../lib/api";
+import { micaApi } from "../lib/api";
 import type { ChatSession, DashboardResponse } from "../lib/types";
 
 export function ChatsView({
@@ -56,7 +56,7 @@ export function ChatsView({
 
       setLoadingSession(true);
       try {
-        const response = await jarvisApi.getChatSession(id);
+        const response = await micaApi.getChatSession(id);
         setSelectedSession(response.session);
       } finally {
         setLoadingSession(false);
@@ -256,7 +256,7 @@ export function ChatsView({
                         ) : (
                           <>
                             <Bot className="h-3.5 w-3.5" />
-                            Jarvis
+                            M.I.C.A
                           </>
                         )}
                       </div>

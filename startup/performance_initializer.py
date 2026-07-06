@@ -1,5 +1,5 @@
 """
-Performance system initializer for JARVIS AI Assistant.
+Performance system initializer for M.I.C.A AI Assistant.
 
 This module handles initialization of performance tracking, monitoring,
 and background task management.

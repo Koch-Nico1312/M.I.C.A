@@ -1,5 +1,5 @@
 """
-Health monitoring system for JARVIS AI Assistant.
+Health monitoring system for M.I.C.A AI Assistant.
 
 This module provides:
 - System health checks

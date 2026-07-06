@@ -1,5 +1,5 @@
 """
-Spotify Controller for JARVIS
+Spotify Controller for M.I.C.A
 Controls Spotify music playback using the Spotify Web API.
 """
 
@@ -772,7 +772,7 @@ def spotify_controller(
     parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None
 ) -> str:
     """
-    Spotify control tool for JARVIS.
+    Spotify control tool for M.I.C.A.
 
     Actions:
     - play: Play a song, album, playlist, artist, or direct Spotify URL/URI

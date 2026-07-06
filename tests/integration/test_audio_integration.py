@@ -60,7 +60,7 @@ class TestAudioIntegration:
         mock_stream = MagicMock()
         mock_sd.OutputStream.return_value = mock_stream
         
-        text = "Hello Jarvis"
+        text = "Hello M.I.C.A"
         audio_handler.speak(text)
         
         mock_sd.OutputStream.assert_called_once()
@@ -86,15 +86,15 @@ class TestAudioIntegration:
         assert emotion is not None
 
     @patch('core.audio_handler.sd')
-    def test_audio_with_jarvis(self, mock_sd):
-        """Test audio integration with Jarvis core."""
-        from main import JarvisLive
+    def test_audio_with_mica(self, mock_sd):
+        """Test audio integration with M.I.C.A core."""
+        from main import MicaLive
         from core.audio_handler import AudioHandler
         
         mock_stream = MagicMock()
         mock_sd.InputStream.return_value = mock_stream
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         audio = AudioHandler()
         
         # Record voice input
@@ -102,8 +102,8 @@ class TestAudioIntegration:
         audio_data = np.random.rand(16000).astype(np.float32)
         audio.stop_recording()
         
-        # Process through Jarvis
-        response = jarvis.process_audio(audio_data)
+        # Process through M.I.C.A
+        response = mica.process_audio(audio_data)
         
         assert response is not None
 

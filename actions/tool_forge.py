@@ -1,4 +1,4 @@
-"""Jarvis action wrapper for controlled generated tools and personality changes."""
+"""M.I.C.A action wrapper for controlled generated tools and personality changes."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from core.tool_forge import get_tool_forge
 TOOL_DECLARATION = {
     "name": "tool_forge",
     "description": (
-        "Controlled Tool-Maker/Forge system. Use when Jarvis lacks a requested capability. "
+        "Controlled Tool-Maker/Forge system. Use when M.I.C.A lacks a requested capability. "
         "It plans a generated plugin, writes it only into plugins/generated/<tool_name>/ after "
         "plan approval, validates it, and activates it only after a second approval. Also handles "
         "personality soul.md change proposals as diffs with versioned backups."

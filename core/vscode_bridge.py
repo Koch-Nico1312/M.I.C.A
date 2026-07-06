@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """
 VS Code Extension Bridge
-Allows JARVIS to communicate with VS Code for real-time code editing
+Allows M.I.C.A to communicate with VS Code for real-time code editing
 """
 
 import asyncio

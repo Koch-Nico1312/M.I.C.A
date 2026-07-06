@@ -56,7 +56,7 @@ class TestSessionManager:
         """Test adding messages to a session."""
         session = session_manager.create_session()
         
-        session_manager.add_message(session.session_id, "user", "Hello Jarvis")
+        session_manager.add_message(session.session_id, "user", "Hello M.I.C.A")
         session_manager.add_message(session.session_id, "assistant", "Hello user")
         
         retrieved = session_manager.get_session(session.session_id)

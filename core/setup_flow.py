@@ -442,7 +442,7 @@ class SetupFlow:
 
         if self.report.overall_status == SetupStatus.PASSED:
             lines.append("")
-            lines.append("✓ Setup complete! You can start using JARVIS.")
+            lines.append("✓ Setup complete! You can start using M.I.C.A.")
         elif self.report.overall_status == SetupStatus.WARNING:
             lines.append("")
             lines.append("⚠ Setup complete with warnings. Some features may be limited.")

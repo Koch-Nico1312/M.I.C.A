@@ -116,7 +116,7 @@ def _real_profile_dir(browser: str) -> str:
             logger.info(f"Real profile found for {browser}: {p}")
             return str(p)
 
-    fallback = home / ".jarvis_profiles" / browser
+    fallback = home / ".mica_profiles" / browser
     fallback.mkdir(parents=True, exist_ok=True)
     logger.warning(f"Real profile not found for {browser}, using: {fallback}")
     return str(fallback)
@@ -356,7 +356,7 @@ def _resolve_browser(name: str) -> dict | None:
 
 
 def _detect_default_browser() -> str:
-    if os.environ.get("JARVIS_USE_SYSTEM_DEFAULT_BROWSER", "").lower() not in {"1", "true", "yes"}:
+    if (os.environ.get("MICA_USE_SYSTEM_DEFAULT_BROWSER") or os.environ.get("JARVIS_USE_SYSTEM_DEFAULT_BROWSER", "")).lower() not in {"1", "true", "yes"}:
         return "chrome"
 
     try:
@@ -485,7 +485,7 @@ class _BrowserSession:
         engine_obj = getattr(self._pw, engine_name)
 
         if engine_name == "firefox":
-            profile = _firefox_profile_dir() or str(Path.home() / ".jarvis_profiles" / "firefox")
+            profile = _firefox_profile_dir() or str(Path.home() / ".mica_profiles" / "firefox")
             kwargs: dict = {
                 "headless": False,
                 "slow_mo": 0,
@@ -497,10 +497,10 @@ class _BrowserSession:
             try:
                 self._context = await engine_obj.launch_persistent_context(profile, **kwargs)
             except Exception as e:
-                logger.warning(f"Firefox real profile failed ({e}), using JARVIS profile")
-                jarvis = str(Path.home() / ".jarvis_profiles" / "firefox_jarvis")
-                Path(jarvis).mkdir(parents=True, exist_ok=True)
-                self._context = await engine_obj.launch_persistent_context(jarvis, **kwargs)
+                logger.warning(f"Firefox real profile failed ({e}), using M.I.C.A profile")
+                mica_profile = str(Path.home() / ".mica_profiles" / "firefox_mica")
+                Path(mica_profile).mkdir(parents=True, exist_ok=True)
+                self._context = await engine_obj.launch_persistent_context(mica_profile, **kwargs)
 
             await asyncio.sleep(0.5)
             self._page = await self._context.new_page()
@@ -508,7 +508,7 @@ class _BrowserSession:
             return
 
         if engine_name == "webkit":
-            safari_profile = str(Path.home() / ".jarvis_profiles" / "safari")
+            safari_profile = str(Path.home() / ".mica_profiles" / "safari")
             Path(safari_profile).mkdir(parents=True, exist_ok=True)
             kwargs = {
                 "headless": False,
@@ -558,15 +558,15 @@ class _BrowserSession:
         except Exception as e:
             logger.warning(f"Real profile failed for {label}: {e}")
 
-        jarvis_profile = str(Path.home() / ".jarvis_profiles" / self.browser_name)
-        Path(jarvis_profile).mkdir(parents=True, exist_ok=True)
-        logger.info(f"Retrying with JARVIS profile: {jarvis_profile}")
+        mica_profile = str(Path.home() / ".mica_profiles" / self.browser_name)
+        Path(mica_profile).mkdir(parents=True, exist_ok=True)
+        logger.info(f"Retrying with M.I.C.A profile: {mica_profile}")
 
         try:
-            self._context = await engine_obj.launch_persistent_context(jarvis_profile, **kwargs)
+            self._context = await engine_obj.launch_persistent_context(mica_profile, **kwargs)
             await asyncio.sleep(0.5)
             self._page = await self._context.new_page()
-            logger.info(f"Launched [{label}] with JARVIS profile")
+            logger.info(f"Launched [{label}] with M.I.C.A profile")
         except Exception as e2:
             raise RuntimeError(f"Could not launch {self.browser_name}: {e2}") from e2
 
@@ -762,7 +762,7 @@ class _BrowserSession:
     async def screenshot(self, path: str = None) -> str:
         page = await self._get_page()
         try:
-            save_path = path or str(Path.home() / "Desktop" / "jarvis_screenshot.png")
+            save_path = path or str(Path.home() / "Desktop" / "mica_screenshot.png")
             await page.screenshot(path=save_path, full_page=False)
             return f"Screenshot saved: {save_path}"
         except Exception as e:

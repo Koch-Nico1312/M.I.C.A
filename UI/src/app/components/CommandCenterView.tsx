@@ -17,7 +17,7 @@ import {
 import { Button } from "./ui/button";
 import { ScrollArea } from "./ui/scroll-area";
 import { Textarea } from "./ui/textarea";
-import { jarvisApi } from "../lib/api";
+import { micaApi } from "../lib/api";
 import type { ChatMessage, CockpitItem, CommandCenterPayload, DashboardResponse } from "../lib/types";
 
 function formatTime(value?: string | number | null) {
@@ -80,7 +80,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
         }`}
       >
         <div className="mb-1 text-[11px] uppercase tracking-[0.22em] text-slate-500">
-          {isUser ? "You" : isTool ? "Tool" : "Jarvis"} - {formatTime(message.timestamp)}
+          {isUser ? "You" : isTool ? "Tool" : "M.I.C.A"} - {formatTime(message.timestamp)}
         </div>
         <p className="whitespace-pre-wrap text-sm leading-6">{message.content}</p>
         {!isUser && !isTool ? (
@@ -89,7 +89,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               <button
                 key={rating}
                 onClick={() =>
-                  jarvisApi.submitFeedback({
+                  micaApi.submitFeedback({
                     rating,
                     target: message.id,
                     comment: message.content.slice(0, 240),
@@ -130,7 +130,7 @@ export function CommandCenterView({
 
   useEffect(() => {
     let alive = true;
-    jarvisApi.getCommandCenter().then((next) => {
+    micaApi.getCommandCenter().then((next) => {
       if (alive) setPayload(next);
     });
     return () => {
@@ -167,7 +167,7 @@ export function CommandCenterView({
   };
 
   const advancePipeline = async (pipelineId: string) => {
-    const result = await jarvisApi.taskPipelineAction({
+    const result = await micaApi.taskPipelineAction({
       action: "advance",
       pipeline_id: pipelineId,
       note: "Advanced from Command Center.",
@@ -316,7 +316,7 @@ export function CommandCenterView({
             <Textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Befehl an Jarvis ..."
+              placeholder="Befehl an M.I.C.A ..."
               className="min-h-[60px] flex-1 rounded-xl border-white/10 bg-white/5 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-400/40"
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {

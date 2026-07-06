@@ -95,11 +95,11 @@ export function SpeakingFaceAvatar({
       aria-label={muted ? "Mikrofon aktivieren" : "Mikrofon stummschalten"}
     >
       <style>{`
-        @keyframes jarvisBlink {
+        @keyframes micaBlink {
           0%, 88%, 100% { transform: scaleY(1); }
           91%, 94% { transform: scaleY(0.12); }
         }
-        @keyframes jarvisBreath {
+        @keyframes micaBreath {
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-4px); }
         }
@@ -110,13 +110,13 @@ export function SpeakingFaceAvatar({
       <div className="relative z-10 flex w-full max-w-[360px] flex-col items-center">
         <div className="mb-4 flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1 text-xs uppercase tracking-[0.24em] text-slate-300">
           <span className={`h-2 w-2 rounded-full ${speaking ? "bg-cyan-300" : muted ? "bg-rose-300" : "bg-emerald-300"}`} />
-          {speaking ? "Jarvis spricht" : muted ? "Mic muted" : status}
+          {speaking ? "M.I.C.A spricht" : muted ? "Mic muted" : status}
         </div>
 
         <div
           className="relative h-[310px] w-[248px]"
           style={{
-            animation: "jarvisBreath 4.8s ease-in-out infinite",
+            animation: "micaBreath 4.8s ease-in-out infinite",
             transform: `rotate(${headTilt}deg)`,
           }}
         >
@@ -132,7 +132,7 @@ export function SpeakingFaceAvatar({
                 className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1f2937]"
                 style={{
                   transform: `translate(calc(-50% + ${gazeOffset}px), -50%)`,
-                  animation: "jarvisBlink 5.6s infinite",
+                  animation: "micaBlink 5.6s infinite",
                 }}
               />
             </div>
@@ -141,7 +141,7 @@ export function SpeakingFaceAvatar({
                 className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#1f2937]"
                 style={{
                   transform: `translate(calc(-50% + ${gazeOffset}px), -50%)`,
-                  animation: "jarvisBlink 5.6s infinite",
+                  animation: "micaBlink 5.6s infinite",
                 }}
               />
             </div>

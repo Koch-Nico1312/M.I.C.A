@@ -1,24 +1,42 @@
 import { Component, startTransition, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentType, PointerEvent as ReactPointerEvent, ReactNode } from "react";
+import type { ComponentType, CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
   Activity,
+  Bell,
   Bot,
+  Brain,
   ChevronDown,
   CircleDot,
+  Code2,
+  Command,
+  Copy,
+  CornerDownLeft,
+  FileText,
+  Folder,
+  Grid2X2,
   Home,
+  Image as ImageIcon,
+  List,
   LayoutDashboard,
   Maximize2,
   MessageSquareText,
   Mic,
   Minimize2,
+  MoreHorizontal,
   PanelRightClose,
   Pause,
   PlayCircle,
   Radio,
+  Save,
+  Search,
   Settings,
   Shield,
+  Share2,
+  Sun,
   Sparkles,
   Square,
+  Volume2,
+  X,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
 import {
@@ -31,7 +49,8 @@ import { HomeView } from "./components/HomeView";
 import { VoiceChatView } from "./components/VoiceChatView";
 import { ChatsView } from "./components/ChatsView";
 import { SettingsModal } from "./components/SettingsModal";
-import { jarvisApi } from "./lib/api";
+import { getMicaBackgroundUrl } from "./lib/backgrounds";
+import { micaApi } from "./lib/api";
 import type { ArtifactPanelItem, ChatSession, DashboardResponse } from "./lib/types";
 
 type ViewId =
@@ -183,6 +202,13 @@ function stableDashboardSignature(dashboard: DashboardResponse) {
     quick_actions: dashboard.quick_actions,
     command_center: dashboard.command_center,
     artifacts: dashboard.artifacts,
+    personal_mode: dashboard.personal_mode,
+    active_mode: dashboard.active_mode,
+    trust_level: dashboard.trust_level,
+    silent_brain: dashboard.silent_brain,
+    command_palette: dashboard.command_palette,
+    artifact_panel: dashboard.artifact_panel,
+    project_awareness: dashboard.project_awareness,
   });
 }
 
@@ -190,52 +216,82 @@ function getValidViewId(value: string): ViewId {
   return viewRegistry.some((view) => view.id === value) ? (value as ViewId) : "voice-chat";
 }
 
-function JarvisHead({
+type MicaFaceMode = "idle" | "listening" | "thinking" | "speaking" | "muted";
+
+function MicaHead({
   speaking,
+  mode = speaking ? "speaking" : "idle",
   compact = false,
 }: {
   speaking: boolean;
+  mode?: MicaFaceMode;
   compact?: boolean;
 }) {
+  const humanDetails = ["glance-left", "glance-right", "soft-smile", "curious", "calm"] as const;
+  const [humanDetail, setHumanDetail] = useState<(typeof humanDetails)[number]>("calm");
+
+  useEffect(() => {
+    if (compact) return;
+    const pickNextDetail = () => {
+      setHumanDetail((current) => {
+        const pool = humanDetails.filter((detail) => detail !== current);
+        return pool[Math.floor(Math.random() * pool.length)] ?? "calm";
+      });
+    };
+    const firstTimer = window.setTimeout(pickNextDetail, 1800 + Math.random() * 2200);
+    const interval = window.setInterval(pickNextDetail, 6200 + Math.random() * 3800);
+    return () => {
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
+    };
+  }, [compact]);
+
   return (
     <div
-      className={`jarvis-head ${speaking ? "jarvis-head-speaking" : ""} relative flex aspect-square items-center justify-center ${
+      className={`mica-face mica-orb mica-orb-${mode} mica-human-${humanDetail} ${speaking ? "mica-orb-speaking" : ""} relative flex aspect-square items-center justify-center ${
         compact
           ? "w-24"
-          : "w-[86%] min-w-[280px] max-w-[680px]"
+          : "w-[min(27vw,342px)] min-w-[238px] max-w-[352px]"
       }`}
     >
-      <div className="jarvis-head-orbit absolute inset-[-9%] rounded-full border border-cyan-200/10" />
-      <div className="jarvis-head-scan absolute inset-[7%] rounded-full" />
-      <div
-        className={`absolute inset-0 rounded-full border-[#3498df] shadow-[0_0_34px_rgba(52,152,223,0.36),inset_0_0_28px_rgba(0,0,0,0.72)] ${
-          compact ? "border-[5px]" : "border-[9px]"
-        }`}
-      />
-      <div className="absolute inset-[4.5%] rounded-full border border-white/[0.045] bg-[#020707] shadow-[inset_0_22px_80px_rgba(255,255,255,0.025)]" />
-      <div className="absolute inset-[12%] rounded-full border border-white/[0.025]" />
+      <div className="mica-orb-halo absolute inset-[-7%] rounded-full" />
+      <div className="mica-orb-shell absolute inset-0 rounded-full" />
+      <div className="mica-orb-glass absolute inset-[4%] rounded-full" />
+      <div className="mica-orb-shade absolute inset-[10%] rounded-full" />
+      <div className="mica-cheek mica-cheek-left absolute rounded-full" />
+      <div className="mica-cheek mica-cheek-right absolute rounded-full" />
+      <div className="mica-brow mica-brow-left absolute" />
+      <div className="mica-brow mica-brow-right absolute" />
+      <div className="mica-nose-light absolute" />
 
-      <div className="relative flex w-[42%] items-center justify-between">
+      <div className="relative mt-[5%] flex w-[45%] items-center justify-between">
         {[0, 1].map((eye) => (
           <div
             key={eye}
-            className={`jarvis-eye rounded-[46%] bg-gradient-to-b from-white via-cyan-100 to-cyan-300 shadow-[0_0_34px_rgba(125,226,255,0.32)] ${
-              compact ? "h-6 w-4" : "h-14 w-10 sm:h-16 sm:w-11"
-            }`}
+            className={`mica-orb-eye ${compact ? "h-5 w-5" : "h-[46px] w-[46px]"}`}
           >
-            <div
-              className={`mx-auto rounded-full bg-[#26343b] ${
-                compact ? "mt-2 h-3 w-2" : "mt-4 h-7 w-5 sm:h-8 sm:w-6"
-              }`}
-            />
+            <span />
+            <i />
           </div>
         ))}
       </div>
       <div
-        className={`jarvis-mouth absolute bottom-[31%] rounded-full bg-slate-200/90 ${
-          compact ? "h-px w-7" : "h-px w-16"
+        className={`mica-orb-mouth absolute rounded-full ${
+          compact ? "bottom-[31%] h-1 w-8" : "bottom-[27%] h-[22px] w-[76px]"
         }`}
       />
+      <div className="mica-expression-line mica-expression-left absolute" />
+      <div className="mica-expression-line mica-expression-right absolute" />
+    </div>
+  );
+}
+
+function VoicePulse({ speaking }: { speaking: boolean }) {
+  return (
+    <div className={`voice-pulse ${speaking ? "voice-pulse-active" : ""}`} aria-hidden="true">
+      {[0, 1, 2, 3, 4, 5, 6].map((bar) => (
+        <span key={bar} style={{ ["--bar" as string]: bar }} />
+      ))}
     </div>
   );
 }
@@ -292,6 +348,16 @@ function ArtifactCard({ artifact }: { artifact: ArtifactPanelItem }) {
         </pre>
       ) : null}
 
+      {(artifact.kind === "image" || artifact.mime_type?.startsWith("image/")) && (artifact.url || artifact.path) ? (
+        <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-black/20">
+          <img
+            src={artifact.url ?? artifact.path}
+            alt={artifact.title}
+            className="max-h-[420px] w-full object-contain"
+          />
+        </div>
+      ) : null}
+
       {artifact.kind === "progress" && progress !== null ? (
         <div className="mt-4">
           <div className="h-2 overflow-hidden rounded-full bg-white/10">
@@ -318,6 +384,272 @@ function ArtifactCard({ artifact }: { artifact: ArtifactPanelItem }) {
         </div>
       ) : null}
     </article>
+  );
+}
+
+function GlassPill({
+  icon: Icon,
+  label,
+  value,
+  tone = "neutral",
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  tone?: "neutral" | "cyan" | "emerald" | "amber";
+}) {
+  const toneClass = {
+    neutral: "text-slate-200",
+    cyan: "text-cyan-100",
+    emerald: "text-emerald-100",
+    amber: "text-amber-100",
+  }[tone];
+
+  return (
+    <div className="liquid-pill flex min-w-0 items-center gap-2 px-3 py-2">
+      <Icon className={`h-4 w-4 ${toneClass}`} />
+      <div className="min-w-0">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-slate-500">{label}</div>
+        <div className={`truncate text-xs font-medium ${toneClass}`}>{value}</div>
+      </div>
+    </div>
+  );
+}
+
+function HintStrip({ dashboard }: { dashboard: DashboardResponse | null }) {
+  const brain = dashboard?.silent_brain;
+  const hints = brain?.hints ?? [];
+  const critical = brain?.critical ?? [];
+  const visible = critical.length ? critical : hints;
+
+  return (
+    <div className="grid gap-2 sm:grid-cols-3">
+      {visible.slice(0, 3).map((item) => (
+        <div key={item.id} className="liquid-tile px-3 py-3">
+          <div className="truncate text-sm font-medium text-white">{item.title}</div>
+          {item.subtitle ? (
+            <div className="mt-1 line-clamp-2 text-xs leading-5 text-slate-400">{item.subtitle}</div>
+          ) : null}
+        </div>
+      ))}
+      {!visible.length ? (
+        <div className="liquid-tile px-3 py-3 text-sm text-slate-400 sm:col-span-3">
+          Alles ruhig. M.I.C.A sammelt nur leise Kontext.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CommandPalette({
+  value,
+  inputRef,
+  placeholder,
+  examples,
+  sending,
+  onChange,
+  onSubmit,
+  onExample,
+}: {
+  value: string;
+  inputRef: RefObject<HTMLInputElement>;
+  placeholder: string;
+  examples: Array<{ id: string; label: string; command: string }>;
+  sending: boolean;
+  onChange: (value: string) => void;
+  onSubmit: (event: FormEvent) => void;
+  onExample: (command: string) => void;
+}) {
+  const visibleExamples = examples.slice(0, 3);
+  const footers = [
+    { id: "projects", label: "Projekte", icon: Folder },
+    { id: "notes", label: "Notizen", icon: FileText },
+    { id: "files", label: "Dateien", icon: Folder },
+    { id: "apps", label: "Apps", icon: Grid2X2 },
+  ];
+
+  return (
+    <form onSubmit={onSubmit} className="reference-command mx-auto w-full max-w-[760px]">
+      <div className="reference-command-input">
+        <Search className="h-6 w-6 shrink-0 text-[#8ed6ff]" />
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          placeholder={placeholder}
+          className="min-w-0 flex-1 bg-transparent text-lg text-white outline-none placeholder:text-slate-300/70"
+        />
+        <Mic className="h-5 w-5 shrink-0 text-white/85" />
+        <span className="reference-keycap">
+          <Command className="h-3.5 w-3.5" />K
+        </span>
+        <Button
+          type="submit"
+          disabled={!value.trim() || sending}
+          className="hidden"
+        >
+          Senden
+        </Button>
+      </div>
+      <div className="reference-command-list">
+        {visibleExamples.map((example, index) => {
+          const Icon = index === 0 ? Radio : index === 1 ? List : Code2;
+          const detail =
+            index === 0
+              ? "Starte Focus-Session mit Timer und Musik"
+              : index === 1
+                ? "Zeige meinen Tagesplan und offene Aufgaben"
+                : "Starte VS Code, Projekt und Terminal";
+          return (
+          <button
+            key={example.id}
+            type="button"
+            onClick={() => onExample(example.command)}
+            className="reference-command-row"
+          >
+            <span className="reference-command-row-icon"><Icon className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1 text-left">
+              <span className="block truncate text-base text-white">{example.command}</span>
+              <span className="block truncate text-sm text-slate-300/75">{detail}</span>
+            </span>
+            <CornerDownLeft className="h-4 w-4 text-white/70" />
+          </button>
+          );
+        })}
+      </div>
+      <div className="reference-command-footer">
+        {footers.map(({ id, label, icon: Icon }) => (
+          <button key={id} type="button" className="reference-footer-button">
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+        <button type="button" className="reference-footer-dot">
+          <MoreHorizontal className="h-4 w-4" />
+        </button>
+      </div>
+    </form>
+  );
+}
+
+function ReferenceArtifactPanel({
+  artifacts,
+  artifactTab,
+  onArtifactTab,
+  onViewMenu,
+  isViewMenuOpen,
+  onArtifactsView,
+  onViewChange,
+}: {
+  artifacts: ArtifactPanelItem[];
+  artifactTab: string;
+  onArtifactTab: (tab: string) => void;
+  onViewMenu: () => void;
+  isViewMenuOpen: boolean;
+  onArtifactsView: () => void;
+  onViewChange: (view: string) => void;
+}) {
+  const codeArtifact = artifacts.find((artifact) => artifact.kind === "code");
+  const content =
+    codeArtifact?.content ??
+    `import datetime
+from core.memory import MemoryManager
+from core.project import ProjectWorkspace
+
+class MICACore:
+    def __init__(self):
+        self.memory = MemoryManager()
+        self.project = ProjectWorkspace()
+        self.now = lambda: datetime.datetime.now()
+
+    def get_briefing(self):
+        today = self.now().strftime("%d.%m.%Y")
+        plan = self.project.get_today_plan()
+        health = self.project.get_health()
+
+        return {
+            "datum": today,
+            "plan": plan,
+            "gesundheit": health,
+        }`;
+  const lines = content.split("\n");
+
+  return (
+    <aside className="reference-artifact-panel">
+      <div className="reference-artifact-tabs">
+        <button type="button" onClick={() => onArtifactTab("text")} className={`reference-artifact-tab ${artifactTab === "text" ? "reference-artifact-tab-active" : ""}`}>
+          <FileText className="h-4 w-4" />Text
+        </button>
+        <button type="button" onClick={() => onArtifactTab("code")} className={`reference-artifact-tab ${artifactTab === "code" ? "reference-artifact-tab-active" : ""}`}>
+          <Code2 className="h-5 w-5" />Code
+        </button>
+        <button type="button" onClick={() => onArtifactTab("image")} className={`reference-artifact-tab ${artifactTab === "image" ? "reference-artifact-tab-active" : ""}`}>
+          <ImageIcon className="h-4 w-4" />Bild
+        </button>
+      </div>
+
+      <div className="reference-code-card">
+        <div className="reference-code-header">
+          <div>
+            <div className="text-base font-medium text-white">{codeArtifact?.title ?? "mica_core.py"}</div>
+            <div className="mt-1 text-xs text-slate-300/70">core &gt; {codeArtifact?.title ?? "mica_core.py"}</div>
+          </div>
+          <div className="flex gap-3 text-white/80">
+            <Copy className="h-5 w-5" />
+            <MoreHorizontal className="h-5 w-5" />
+          </div>
+        </div>
+        <pre className="reference-code-body">
+          {lines.map((line, index) => (
+            <span key={`${index}-${line}`} className="reference-code-line">
+              <span className="reference-line-number">{index + 1}</span>
+              <code>{line || " "}</code>
+            </span>
+          ))}
+        </pre>
+      </div>
+
+      <div className="reference-output">
+        <div className="reference-output-title">
+          <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" />Ausgabe</span>
+          <span className="flex items-center gap-2 text-xs text-slate-300/70"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />Ausgefuehrt: Heute, 09:41</span>
+        </div>
+        <pre>{`Briefing geladen
+• 5 Aufgaben geplant
+• 2 Tasks ueberfaellig
+• Projektstatus: Gut`}</pre>
+      </div>
+
+      <div className="reference-artifact-actions">
+        <button type="button" className="reference-save-button"><Save className="h-4 w-4" />Speichern</button>
+        <div className="ml-auto flex items-center gap-5 text-white/80">
+          <Share2 className="h-5 w-5" />
+          <span className="h-7 w-px bg-white/20" />
+          <Maximize2 className="h-5 w-5" />
+        </div>
+      </div>
+
+      {isViewMenuOpen ? (
+        <div className="reference-view-menu">
+          <button type="button" onClick={onArtifactsView} className="liquid-menu-row">
+            <Sparkles className="h-4 w-4 text-cyan-100" />
+            Artifacts
+          </button>
+          {viewRegistry.map((view) => {
+            const Icon = view.icon;
+            return (
+              <button key={view.id} type="button" onClick={() => onViewChange(view.id)} className="liquid-menu-row">
+                <Icon className="h-4 w-4 text-cyan-100" />
+                {view.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+      <button type="button" onClick={onViewMenu} className="reference-panel-peek" aria-label="Ansichten öffnen">
+        <ChevronDown className="h-5 w-5 -rotate-90" />
+      </button>
+    </aside>
   );
 }
 
@@ -349,6 +681,12 @@ export default function App() {
   const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
   const [isCompanionMode, setIsCompanionMode] = useState(false);
   const [companionPosition, setCompanionPosition] = useState({ x: 24, y: 24 });
+  const [commandInput, setCommandInput] = useState("");
+  const [isCommandSending, setIsCommandSending] = useState(false);
+  const [isArtifactPanelOpen, setIsArtifactPanelOpen] = useState(true);
+  const [artifactTab, setArtifactTab] = useState("code");
+  const [, setCustomBackgroundVersion] = useState(0);
+  const commandInputRef = useRef<HTMLInputElement>(null);
   const appliedVoiceDefault = useRef(false);
   const lastDashboardSignature = useRef<string | null>(null);
   const knownArtifactIds = useRef<Set<string> | null>(null);
@@ -357,7 +695,7 @@ export default function App() {
 
   const refreshDashboard = async (force = false) => {
     try {
-      const next = await jarvisApi.getDashboard();
+      const next = await micaApi.getDashboard();
       const signature = stableDashboardSignature(next);
       if (!force && signature === lastDashboardSignature.current) {
         setLoadError(null);
@@ -433,8 +771,23 @@ export default function App() {
 
     setActiveView(null);
     setIsPanelHidden(false);
+    setIsArtifactPanelOpen(true);
     setIsViewMenuOpen(false);
   }, [dashboard]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        commandInputRef.current?.focus();
+      }
+      if (event.key === "Escape") {
+        setIsViewMenuOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   useEffect(() => {
     if (!isCompanionMode) return;
@@ -495,27 +848,46 @@ export default function App() {
   };
 
   const handleSendCommand = async (text: string) => {
-    await jarvisApi.sendCommand(text);
+    await micaApi.sendCommand(text);
     await refreshDashboard(true);
+  };
+
+  const handleCommandPaletteSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    const text = commandInput.trim();
+    if (!text || isCommandSending) return;
+    setIsCommandSending(true);
+    try {
+      await micaApi.runCommandPalette(text);
+      setCommandInput("");
+      await refreshDashboard(true);
+    } finally {
+      setIsCommandSending(false);
+    }
+  };
+
+  const handleCommandExample = async (command: string) => {
+    setCommandInput(command);
+    commandInputRef.current?.focus();
   };
 
   const handleToggleMute = async (muted: boolean) => {
-    await jarvisApi.setMute(muted);
+    await micaApi.setMute(muted);
     await refreshDashboard(true);
   };
 
-  const handleSetVoiceMode = async (settings: Parameters<typeof jarvisApi.setVoiceMode>[0]) => {
-    await jarvisApi.setVoiceMode(settings);
+  const handleSetVoiceMode = async (settings: Parameters<typeof micaApi.setVoiceMode>[0]) => {
+    await micaApi.setVoiceMode(settings);
     await refreshDashboard(true);
   };
 
   const handleInterruptVoice = async () => {
-    await jarvisApi.interruptVoice();
+    await micaApi.interruptVoice();
     await refreshDashboard(true);
   };
 
   const handleStartNewChat = async () => {
-    const result = await jarvisApi.startNewSession();
+    const result = await micaApi.startNewSession();
     await refreshDashboard(true);
     const sessionId =
       (result as { session_id?: string; current_session?: ChatSession | null })?.current_session?.id ??
@@ -528,6 +900,7 @@ export default function App() {
   };
 
   const handleSettingsSaved = async () => {
+    setCustomBackgroundVersion((version) => version + 1);
     await refreshDashboard(true);
   };
 
@@ -542,6 +915,23 @@ export default function App() {
   const isSpeaking = Boolean(state?.speaking);
   const performance = resources?.performance;
   const activity = performance?.current_activity ?? state?.state ?? "idle";
+  const activityLabel = String(activity).toLowerCase();
+  const faceMode: MicaFaceMode = isMuted
+    ? "muted"
+    : isSpeaking
+      ? "speaking"
+      : /listen|record|hearing|voice/.test(activityLabel)
+        ? "listening"
+        : /think|process|load|run|work/.test(activityLabel)
+          ? "thinking"
+          : "idle";
+  const selectedBackgroundUrl = getMicaBackgroundUrl(
+    dashboard?.settings?.ui?.background_id,
+    dashboard?.settings?.ui?.background_url,
+  );
+  const wallpaperStyle = selectedBackgroundUrl
+    ? ({ "--mica-background-image": `url("${selectedBackgroundUrl}")` } as CSSProperties)
+    : undefined;
 
   const renderActiveView = () => {
     if (loadError) {
@@ -609,10 +999,10 @@ export default function App() {
           onPointerCancel={handleCompanionPointerUp}
         >
           <div className="flex items-center gap-4">
-            <JarvisHead speaking={isSpeaking} compact />
+            <MicaHead speaking={isSpeaking} mode={faceMode} compact />
             <div className="min-w-0">
               <div className="text-[10px] uppercase tracking-[0.34em] text-cyan-100/60">
-                Jarvis
+                M.I.C.A
               </div>
               <div className="mt-1 text-xs text-slate-300">
                 {isSpeaking ? "spricht" : isMuted ? "stumm" : "bereit"}
@@ -651,271 +1041,132 @@ export default function App() {
     );
   }
 
+  const personalMode = dashboard?.personal_mode;
+  const activeMode = dashboard?.active_mode;
+  const trustLevel = dashboard?.trust_level;
+  const silentBrain = dashboard?.silent_brain;
+  const artifacts = dashboard?.artifact_panel?.items ?? dashboard?.artifacts ?? [];
+  const artifactTabs = dashboard?.artifact_panel?.tabs ?? [];
+  const filteredArtifacts =
+    artifactTab === "all" ? artifacts : artifacts.filter((artifact) => artifact.kind === artifactTab);
+  const commandExamples = dashboard?.command_palette?.examples ?? [
+    { id: "focus", label: "Fokus starten", command: "fokus starten" },
+    { id: "today", label: "Heute", command: "was steht heute an" },
+    { id: "coding", label: "Coding Setup", command: "oeffne mein coding setup" },
+    { id: "health", label: "Systemcheck", command: "was ist kaputt im system" },
+  ];
+
   return (
-    <div className="apple-chrome min-h-screen overflow-hidden text-slate-100">
-      <div className="pointer-events-none fixed inset-0 bg-[linear-gradient(90deg,_rgba(255,255,255,0.025)_1px,_transparent_1px),linear-gradient(180deg,_rgba(255,255,255,0.018)_1px,_transparent_1px)] bg-[size:80px_80px]" />
-      <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_22%_48%,_rgba(55,169,255,0.16),_transparent_24%),radial-gradient(circle_at_78%_18%,_rgba(125,226,255,0.08),_transparent_28%),linear-gradient(180deg,_#070b0c_0%,_#030707_72%)]" />
+    <div className="reference-shell min-h-screen overflow-hidden p-3 text-slate-100">
+      <div className="reference-wallpaper pointer-events-none fixed inset-0" style={wallpaperStyle} />
+      <main className="reference-window relative z-10 mx-auto h-[calc(100vh-1.5rem)] min-h-[760px] max-w-[1720px] overflow-hidden">
+        <header className="reference-topbar">
+          <div className="reference-traffic">
+            <span className="bg-[#ff5f57]" />
+            <span className="bg-[#ffbd2e]" />
+            <span className="bg-[#28c840]" />
+          </div>
+          <div className="reference-brand">M.I.C.A</div>
 
-      <main className="relative z-10 min-h-screen overflow-x-hidden overflow-y-auto p-4 sm:p-6 lg:h-screen lg:min-h-[720px] lg:overflow-hidden">
-        <ResizablePanelGroup direction="horizontal" className="min-h-[calc(100vh-3rem)] gap-5 lg:min-h-0">
-          {!isPanelFullscreen ? (
-            <>
-              <ResizablePanel
-                id="jarvis-companion"
-                order={1}
-                defaultSize={26}
-                minSize={18}
-                maxSize={42}
-                collapsible
-                className={isPanelHidden ? "hidden lg:block" : ""}
-              >
-        <section
-          className={`apple-panel relative h-full min-h-[500px] min-w-0 overflow-hidden rounded-[1.75rem] border border-white/[0.08] transition-all duration-500 ease-out lg:min-h-0 ${
-            isPanelFullscreen ? "hidden pointer-events-none opacity-0 lg:block" : "opacity-100"
-          }`}
-        >
-          <div className="absolute left-8 top-8 flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 text-cyan-100 shadow-[0_0_24px_rgba(56,189,248,0.16)]">
-              <Bot className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.42em] text-slate-400">
-                JARVIS
-              </div>
-              <div className="text-xs text-cyan-100/70">Unified system interface</div>
-            </div>
+          <div className="reference-top-pills">
+            <button type="button" className="reference-top-pill">
+              <span className="reference-target-dot"><Radio className="h-4 w-4" /></span>
+              Focus
+              <ChevronDown className="h-4 w-4 text-white/70" />
+            </button>
+            <button type="button" className="reference-top-pill">
+              <Shield className="h-4 w-4 text-white/85" />
+              Local Privacy
+              <ChevronDown className="h-4 w-4 text-white/70" />
+            </button>
+            <button type="button" className="reference-top-pill">
+              <Bell className="h-4 w-4 text-white/85" />
+              {silentBrain?.hint_count ? `${silentBrain.hint_count} Hinweise` : "3 Hinweise"}
+              <span className="h-2.5 w-2.5 rounded-full bg-[#53c7ff]" />
+            </button>
           </div>
 
-          <div className="flex h-full flex-col items-center justify-center px-8 pb-28 pt-24">
-            <div className="relative">
-              <JarvisHead speaking={isSpeaking} />
-
-              <div className="absolute -bottom-16 left-1/2 grid w-[min(330px,86vw)] -translate-x-1/2 grid-cols-3 gap-2 lg:w-[300px]">
-                <div className="rounded-lg border border-white/[0.07] bg-black/30 px-3 py-2 backdrop-blur-xl">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">State</div>
-                  <div className="mt-1 truncate text-xs text-cyan-100">{state?.state ?? "LISTENING"}</div>
-                </div>
-                <div className="rounded-lg border border-white/[0.07] bg-black/30 px-3 py-2 backdrop-blur-xl">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Activity</div>
-                  <div className="mt-1 truncate text-xs text-slate-200">{activity}</div>
-                </div>
-                <div className="rounded-lg border border-white/[0.07] bg-black/30 px-3 py-2 backdrop-blur-xl">
-                  <div className="text-[10px] uppercase tracking-[0.24em] text-slate-500">Privacy</div>
-                  <div className="mt-1 truncate text-xs text-emerald-100">{dashboard?.privacy?.mode ?? "balanced"}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="apple-panel absolute bottom-7 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-white/[0.08] p-1.5">
+          <div className="reference-window-actions">
             <Button
               size="icon"
               title={isMuted ? "Voice aktivieren" : "Voice stummschalten"}
               onClick={() => handleToggleMute(!isMuted)}
-              className={`apple-button h-9 w-9 rounded-xl border text-slate-950 ${
-                isMuted
-                  ? "border-white/10 bg-white/85 hover:bg-white"
-                  : "border-cyan-200/30 bg-cyan-200 hover:bg-cyan-100"
-              }`}
+              className="reference-round-action"
             >
-              {isMuted ? <Pause className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+              <Volume2 className="h-5 w-5" />
             </Button>
             <Button
               size="icon"
-              title="Neue Sitzung"
-              onClick={handleStartNewChat}
-              className="apple-button h-9 w-9 rounded-xl border border-white/10 bg-white/[0.055] text-slate-200 hover:bg-white/10"
+              title="Settings"
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="reference-round-action"
             >
-              <PlayCircle className="h-4 w-4" />
+              <Settings className="h-5 w-5" />
             </Button>
             <Button
               size="icon"
-              title="Chats öffnen"
-              onClick={() => handleViewChange("chats")}
-              className="apple-button h-9 w-9 rounded-xl border border-white/10 bg-white/[0.055] text-slate-200 hover:bg-white/10"
-            >
-              <MessageSquareText className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              title="Voice unterbrechen"
-              onClick={handleInterruptVoice}
-              disabled={!isSpeaking}
-              className="apple-button h-9 w-9 rounded-xl border border-white/10 bg-white/[0.055] text-slate-200 hover:bg-white/10 disabled:opacity-45"
-            >
-              <Square className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              title="Mini-Pet"
+              title="Mini-Modus"
               onClick={() => setIsCompanionMode(true)}
-              className="apple-button h-9 w-9 rounded-xl border border-white/10 bg-white/[0.055] text-slate-200 hover:bg-white/10"
+              className="reference-user-orb"
             >
-              <Bot className="h-4 w-4" />
+              <span />
             </Button>
           </div>
-        </section>
-              </ResizablePanel>
-              <ResizableHandle
-                withHandle
-                className="jarvis-resize-handle hidden lg:flex"
+        </header>
+
+        <div className="reference-main-grid">
+          <section className="reference-stage">
+            <div className="reference-centerpiece">
+              <MicaHead speaking={isSpeaking} mode={faceMode} />
+              <VoicePulse speaking={isSpeaking} />
+              <div className="reference-ready">
+                <div>Alles klar. Ich bin bereit.</div>
+                <span>Wie kann ich dir helfen?</span>
+              </div>
+            </div>
+
+            <button type="button" className="reference-mode-card">
+              <span className="reference-mode-icon"><Radio className="h-5 w-5" /></span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm text-white/85">Aktiver Modus</span>
+                <span className="mt-1 block text-base font-medium text-[#8ed6ff]">{activeMode?.label ?? "Focus"}</span>
+                <span className="mt-2 block text-sm leading-4 text-white/65">Störungen minimiert<br />Fokus maximiert</span>
+              </span>
+              <ChevronDown className="h-5 w-5 -rotate-90 text-white/85" />
+            </button>
+
+            <div className="reference-bottom-tools">
+              <Button size="icon" className="reference-small-control" title="Voice">
+                <Volume2 className="h-4 w-4" />
+              </Button>
+              <Button size="icon" className="reference-small-control" title="Helligkeit">
+                <Sun className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="reference-command-wrap">
+              <CommandPalette
+                value={commandInput}
+                inputRef={commandInputRef}
+                placeholder="Befehl eingeben oder sprechen..."
+                examples={commandExamples}
+                sending={isCommandSending}
+                onChange={setCommandInput}
+                onSubmit={handleCommandPaletteSubmit}
+                onExample={handleCommandExample}
               />
-            </>
-          ) : null}
-
-          <ResizablePanel
-            id="jarvis-artifacts"
-            order={2}
-            defaultSize={isPanelFullscreen ? 100 : 74}
-            minSize={35}
-            className="min-w-0"
-          >
-        <section
-          className={`relative h-full min-h-[720px] min-w-0 overflow-hidden lg:min-h-0 ${
-            isPanelHidden ? "hidden pointer-events-none opacity-0 lg:block" : "opacity-100"
-          }`}
-        >
-          <div className="flex h-full flex-col pb-10 pt-0 lg:pb-0">
-            <div className="mb-5 flex flex-col items-start justify-between gap-4 sm:flex-row">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-cyan-100/70">
-                  <span className="rounded-sm bg-cyan-300/20 px-1.5 py-0.5 text-cyan-100">
-                    ARTIFACT PANEL
-                  </span>
-                  <span>{currentView?.category ?? "EMPTY"}</span>
-                </div>
-                <h1 className="mt-1 truncate text-[22px] font-semibold leading-tight text-white">
-                  {currentView?.label ?? "Artifacts"}
-                </h1>
-              </div>
-
-              <div className="relative flex w-full shrink-0 items-center gap-2 sm:w-auto">
-                <Button
-                  type="button"
-                  onClick={() => setIsViewMenuOpen((open) => !open)}
-                  className="apple-button h-10 rounded-2xl border border-white/[0.08] bg-white/[0.055] px-3 text-sm text-slate-100 shadow-none hover:bg-white/[0.08]"
-                  aria-expanded={isViewMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <CurrentViewIcon className="h-4 w-4 text-cyan-100" />
-                  <span className="max-w-28 truncate">{currentView?.label ?? "Switch"}</span>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                </Button>
-
-                {isViewMenuOpen ? (
-                  <div
-                    role="menu"
-                    className="apple-panel absolute right-0 top-12 z-50 w-80 rounded-[1.35rem] border border-white/[0.08] p-2 text-slate-100"
-                  >
-                    <div className="px-3 py-2 text-[11px] uppercase tracking-[0.28em] text-slate-500">
-                      Artefakt-Panel
-                    </div>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={handleArtifactsView}
-                      className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-200 outline-none transition hover:bg-cyan-300/10 hover:text-cyan-50 focus:bg-cyan-300/10 focus:text-cyan-50 ${
-                        activeView === null ? "bg-cyan-300/10 text-cyan-50" : ""
-                      }`}
-                    >
-                      <Sparkles className="h-4 w-4 text-cyan-100" />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm">Artifacts</span>
-                          {activeView === null ? <CircleDot className="h-3.5 w-3.5 text-cyan-200" /> : null}
-                        </div>
-                        <div className="truncate text-xs text-slate-500">Empty artifact space</div>
-                      </div>
-                    </button>
-                    {viewRegistry.map((view) => {
-                      const Icon = view.icon;
-                      const isActive = view.id === activeView;
-                      return (
-                        <button
-                          key={view.id}
-                          type="button"
-                          role="menuitem"
-                          onClick={() => handleViewChange(view.id)}
-                          className={`flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-200 outline-none transition hover:bg-cyan-300/10 hover:text-cyan-50 focus:bg-cyan-300/10 focus:text-cyan-50 ${
-                            isActive ? "bg-cyan-300/10 text-cyan-50" : ""
-                          }`}
-                        >
-                          <Icon className="h-4 w-4 text-cyan-100" />
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm">{view.label}</span>
-                              {isActive ? <CircleDot className="h-3.5 w-3.5 text-cyan-200" /> : null}
-                            </div>
-                            <div className="truncate text-xs text-slate-500">{view.description}</div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                    <div className="mx-2 my-2 h-px bg-white/[0.08]" />
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => setIsSettingsModalOpen(true)}
-                      className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left text-slate-200 transition hover:bg-cyan-300/10 hover:text-cyan-50 focus:bg-cyan-300/10 focus:text-cyan-50"
-                    >
-                      <Settings className="h-4 w-4 text-cyan-100" />
-                      Settings
-                    </button>
-                  </div>
-                ) : null}
-
-                <Button
-                  size="icon"
-                  title={isPanelFullscreen ? "Panel verkleinern" : "Fullscreen"}
-                  onClick={() => setIsPanelFullscreen((value) => !value)}
-                  className="apple-button hidden h-10 w-10 rounded-2xl border border-white/[0.08] bg-white/[0.055] text-slate-200 shadow-none hover:bg-white/[0.08] sm:flex"
-                >
-                  {isPanelFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-                </Button>
-                <Button
-                  size="icon"
-                  title="Hide"
-                  onClick={() => setIsPanelHidden(true)}
-                  className="apple-button hidden h-10 w-10 rounded-2xl border border-white/[0.08] bg-white/[0.055] text-slate-200 shadow-none hover:bg-white/[0.08] sm:flex"
-                >
-                  <PanelRightClose className="h-4 w-4" />
-                </Button>
-              </div>
             </div>
+          </section>
 
-            <div className="apple-panel min-h-0 flex-1 overflow-hidden rounded-[1.75rem] border border-white/[0.08] transition-all duration-500 ease-out">
-              {renderActiveView()}
-            </div>
-          </div>
-        </section>
-          </ResizablePanel>
-        </ResizablePanelGroup>
-
-        {isPanelHidden ? (
-          <button
-            onClick={() => setIsPanelHidden(false)}
-            className="absolute right-6 top-6 z-30 flex items-center gap-2 rounded-lg border border-white/[0.08] bg-[#131b1f]/90 px-3 py-2 text-sm text-slate-100 shadow-[0_18px_40px_rgba(0,0,0,0.38)] backdrop-blur-xl transition hover:bg-white/[0.08]"
-          >
-            <Sparkles className="h-4 w-4 text-cyan-100" />
-            Show panel
-          </button>
-        ) : null}
-
-        <div className="pointer-events-none absolute bottom-3 right-7 z-20 flex items-center gap-3 text-[11px] uppercase tracking-[0.2em] text-slate-500">
-          <span className="flex items-center gap-1.5">
-            <Radio className="h-3.5 w-3.5 text-cyan-200" />
-            {lastUpdated
-              ? `Updated ${new Date(lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-              : "Connecting"}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Shield className="h-3.5 w-3.5 text-emerald-200" />
-            {dashboard?.privacy?.mode ?? "balanced"}
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-cyan-200" />
-            {performance?.model_active ? "Model active" : "Standby"}
-          </span>
+          <ReferenceArtifactPanel
+            artifacts={artifacts}
+            artifactTab={artifactTab}
+            onArtifactTab={setArtifactTab}
+            onViewMenu={() => setIsViewMenuOpen((open) => !open)}
+            isViewMenuOpen={isViewMenuOpen}
+            onArtifactsView={handleArtifactsView}
+            onViewChange={handleViewChange}
+          />
         </div>
       </main>
 

@@ -12,9 +12,9 @@ class UploadField:
 
 
 def make_ui_bridge():
-    from ui_bridge import JarvisUI
+    from ui_bridge import MicaUI
 
-    ui = object.__new__(JarvisUI)
+    ui = object.__new__(MicaUI)
     ui._lock = threading.RLock()
     ui._logs = deque(maxlen=20)
     return ui
@@ -100,7 +100,7 @@ def test_knowledge_action_uses_shared_knowledge_manager(monkeypatch):
                         summary="Docker uses namespaces.",
                         sources=["docs/Docker.md"],
                         links=[],
-                        tags=["jarvis-knowledge"],
+                        tags=["mica-knowledge"],
                         confidence=0.7,
                         reason="test",
                         content="# Docker\n",

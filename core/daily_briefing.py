@@ -1,5 +1,5 @@
 """
-Daily Briefing System for JARVIS
+Daily Briefing System for M.I.C.A
 Provides automated morning and evening briefings combining weather, calendar, emails, and reminders
 """
 
@@ -601,7 +601,7 @@ def daily_briefing(
     parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None
 ) -> str:
     """
-    Daily briefing tool for JARVIS
+    Daily briefing tool for M.I.C.A
 
     Actions:
     - morning: Generate and speak morning briefing

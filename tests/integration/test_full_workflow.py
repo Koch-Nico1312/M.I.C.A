@@ -1,5 +1,5 @@
 """
-Integration tests for full Jarvis workflows
+Integration tests for full M.I.C.A workflows
 """
 
 import pytest
@@ -9,18 +9,18 @@ import tempfile
 
 
 class TestFullWorkflow:
-    """Integration tests for complete Jarvis workflows."""
+    """Integration tests for complete M.I.C.A workflows."""
 
     @pytest.fixture
-    def jarvis(self):
-        """Create a fresh Jarvis instance for testing."""
-        from main import JarvisLive
-        return JarvisLive()
+    def mica(self):
+        """Create a fresh M.I.C.A instance for testing."""
+        from main import MicaLive
+        return MicaLive()
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_voice_to_action_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_voice_to_action_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test complete workflow from voice input to action execution."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -30,14 +30,14 @@ class TestFullWorkflow:
         voice_input = "Open Chrome and search for Python tutorials"
         
         # Process input
-        response = jarvis.process_input(voice_input)
+        response = mica.process_input(voice_input)
         
         assert response is not None
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_multi_step_task_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_multi_step_task_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow with multiple sequential steps."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -66,24 +66,24 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_memory_integration_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_memory_integration_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow with memory integration."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
         # Store information in memory
-        jarvis.memory_manager.update_memory("user_preferences", {"theme": "dark"})
+        mica.memory_manager.update_memory("user_preferences", {"theme": "dark"})
         
         # Retrieve from memory
-        memory = jarvis.memory_manager.load_memory("user_preferences")
+        memory = mica.memory_manager.load_memory("user_preferences")
         
         assert memory is not None
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_approval_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_approval_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow requiring approval."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -104,7 +104,7 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_error_recovery_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_error_recovery_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow with error recovery."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -123,7 +123,7 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_multimodal_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_multimodal_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow with multimodal input (text + image)."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -150,7 +150,7 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_cross_device_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_cross_device_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow across multiple devices."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -174,7 +174,7 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_background_task_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_background_task_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test workflow with background task execution."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -197,7 +197,7 @@ class TestFullWorkflow:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_daily_briefing_workflow(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_daily_briefing_workflow(self, mock_loader, mock_memory, mock_config, mica):
         """Test daily briefing workflow."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -221,15 +221,15 @@ class TestWorkflowPerformance:
     """Performance tests for workflows."""
 
     @pytest.fixture
-    def jarvis(self):
-        """Create a fresh Jarvis instance for testing."""
-        from main import JarvisLive
-        return JarvisLive()
+    def mica(self):
+        """Create a fresh M.I.C.A instance for testing."""
+        from main import MicaLive
+        return MicaLive()
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_response_time(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_response_time(self, mock_loader, mock_memory, mock_config, mica):
         """Test response time for simple queries."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -238,7 +238,7 @@ class TestWorkflowPerformance:
         import time
         start = time.time()
         
-        jarvis.process_input("Hello Jarvis")
+        mica.process_input("Hello M.I.C.A")
         
         elapsed = time.time() - start
         assert elapsed < 5.0  # Should respond within 5 seconds
@@ -246,7 +246,7 @@ class TestWorkflowPerformance:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_concurrent_requests(self, mock_loader, mock_memory, mock_config, jarvis):
+    def test_concurrent_requests(self, mock_loader, mock_memory, mock_config, mica):
         """Test handling of concurrent requests."""
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
@@ -256,7 +256,7 @@ class TestWorkflowPerformance:
         
         async def process_concurrent():
             tasks = [
-                jarvis.process_input_async(f"Query {i}")
+                mica.process_input_async(f"Query {i}")
                 for i in range(5)
             ]
             results = await asyncio.gather(*tasks)

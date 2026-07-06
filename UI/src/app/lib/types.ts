@@ -67,6 +67,8 @@ export interface DashboardSettings {
   ui: {
     default_view: string;
     voice_first: boolean;
+    background_id?: string;
+    background_url?: string;
   };
   calendar: {
     enabled: boolean;
@@ -106,7 +108,71 @@ export interface ArtifactPanelItem {
   rows?: Array<Record<string, unknown>>;
   progress?: number;
   url?: string;
+  path?: string;
+  mime_type?: string;
   created_at: string;
+}
+
+export interface PersonalModePayload {
+  enabled: boolean;
+  owner_name: string;
+  profile_id: string;
+  local_first: boolean;
+  glass_design: boolean;
+  hidden_surfaces: string[];
+  preferred_apps: string[];
+  routines: string[];
+  preferences: Record<string, unknown>;
+}
+
+export interface ActiveModePayload {
+  id: "focus" | "coding" | "research" | "private" | "gaming" | "admin" | string;
+  label: string;
+  description: string;
+  privacy_mode: string;
+  trust_level: number;
+  proactive_mode: string;
+  status: string;
+}
+
+export interface TrustLevelPayload {
+  level: number;
+  label: string;
+  description: string;
+  permission_profile: string;
+  rules: Array<{ action: string; policy: string }>;
+}
+
+export interface SilentBrainPayload {
+  generated_at: string;
+  critical_count: number;
+  hint_count: number;
+  summary: string;
+  hints: CockpitItem[];
+  critical: CockpitItem[];
+  checks: Array<{ id: string; label: string; status: string; detail?: string }>;
+}
+
+export interface CommandPalettePayload {
+  placeholder: string;
+  examples: QuickActionPayload[];
+  suggestions: QuickActionPayload[];
+  modes: ActiveModePayload[];
+}
+
+export interface ArtifactPanelPayload {
+  open: boolean;
+  reason: string;
+  items: ArtifactPanelItem[];
+  tabs: Array<{ id: string; label: string; count: number }>;
+}
+
+export interface ProjectAwarenessPayload {
+  active_project: ProjectWorkspacesPayload["active"] | null;
+  relevant: CockpitItem[];
+  todos: CockpitItem[];
+  health: Array<{ id: string; label: string; status: string; detail?: string }>;
+  next_three: CockpitItem[];
 }
 
 export interface DashboardResponse {
@@ -147,6 +213,13 @@ export interface DashboardResponse {
   learning_feedback?: LearningFeedbackPayload;
   plugins?: PluginsPayload;
   os_integrations?: OSIntegrationsPayload;
+  personal_mode?: PersonalModePayload;
+  active_mode?: ActiveModePayload;
+  trust_level?: TrustLevelPayload;
+  silent_brain?: SilentBrainPayload;
+  command_palette?: CommandPalettePayload;
+  artifact_panel?: ArtifactPanelPayload;
+  project_awareness?: ProjectAwarenessPayload;
 }
 
 export interface SessionPayload {

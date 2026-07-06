@@ -105,17 +105,17 @@ class TestVSCodeIntegration:
         assert result is not None
 
     @patch('core.vscode_bridge.subprocess')
-    def test_integration_with_jarvis(self, mock_subprocess):
-        """Test VS Code integration with Jarvis."""
+    def test_integration_with_mica(self, mock_subprocess):
+        """Test VS Code integration with M.I.C.A."""
         from core.vscode_bridge import get_vscode_bridge
-        from main import JarvisLive
+        from main import MicaLive
         
         vscode = get_vscode_bridge()
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         mock_subprocess.run.return_value = MagicMock()
         
-        # Open file through Jarvis
+        # Open file through M.I.C.A
         result = vscode.open_file("/path/to/file.py")
         
         assert result is not None

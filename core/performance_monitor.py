@@ -1,5 +1,5 @@
 """
-Performance monitoring system for JARVIS AI Assistant.
+Performance monitoring system for M.I.C.A AI Assistant.
 
 This module provides:
 - API call tracking with metrics
@@ -91,7 +91,7 @@ class ResourceSnapshot:
 
 class PerformanceMonitor:
     """
-    Monitors system performance and API calls for JARVIS.
+    Monitors system performance and API calls for M.I.C.A.
     """
 
     def __init__(

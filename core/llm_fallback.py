@@ -154,7 +154,7 @@ class OllamaFallback:
         )
 
         system_prompt = (
-            "You are JARVIS, Tony Stark's AI assistant. "
+            "You are M.I.C.A (Modular Intern Computer Assistant), a calm, personal, local-first assistant. "
             "You have access to the following tools. "
             "When the user asks for something, decide if a tool is needed. "
             "If so, respond with a JSON object containing 'name' and 'parameters'. "

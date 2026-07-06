@@ -352,8 +352,8 @@ class PostgresPlatformStateStore(PlatformStateStore):
 
 def build_platform_state_store(path: Path) -> PlatformStateStore:
     json_store = JsonPlatformStateStore(path)
-    backend = os.environ.get("JARVIS_PLATFORM_STORE", "json").strip().lower()
-    postgres_url = os.environ.get("JARVIS_POSTGRES_URL", "").strip()
+    backend = (os.environ.get("MICA_PLATFORM_STORE") or os.environ.get("JARVIS_PLATFORM_STORE", "json")).strip().lower()
+    postgres_url = (os.environ.get("MICA_POSTGRES_URL") or os.environ.get("MICA_POSTGRES_URL", "")).strip()
     if backend == "postgres" or (backend == "auto" and postgres_url):
         if postgres_url:
             return PostgresPlatformStateStore(postgres_url, json_store)
@@ -397,15 +397,15 @@ class PlatformHub:
             {
                 "enabled": True,
                 "owner_user": "u-admin",
-                "workspace_name": "Personal Jarvis",
+                "workspace_name": "Personal M.I.C.A",
                 "local_only": True,
                 "status": "ready",
                 "updated_at": _now(),
             },
         )
         data.setdefault("users", [
-            {"id": "u-admin", "name": "You", "email": "you@jarvis.local", "roles": ["owner"], "groups": ["personal"]},
-            {"id": "u-builder", "name": "Agent Builder", "email": "builder@jarvis.local", "roles": ["builder"], "groups": ["personal"]},
+            {"id": "u-admin", "name": "You", "email": "you@mica.local", "roles": ["owner"], "groups": ["personal"]},
+            {"id": "u-builder", "name": "Agent Builder", "email": "builder@mica.local", "roles": ["builder"], "groups": ["personal"]},
         ])
         data.setdefault("groups", [
             {"id": "personal", "name": "Personal Workspace", "members": ["u-admin", "u-builder"]},
@@ -436,9 +436,9 @@ class PlatformHub:
         ])
         data.setdefault("agent_packages", [])
         data.setdefault("marketplace", [
-            {"id": "github-sync", "name": "GitHub Knowledge Sync", "kind": "connector", "installed": False, "enabled": False, "version": "1.0.0", "latest_version": "1.1.0", "trust": "community", "review_status": "pending", "checksum": "sha256:community-github-sync", "signature": "unsigned", "source_url": "https://plugins.jarvis.local/github-sync", "description": "Keeps repositories indexed for RAG.", "entrypoint": "github_sync"},
-            {"id": "docling-ingest", "name": "Docling/Tika Ingestion", "kind": "extractor", "installed": True, "enabled": True, "version": "0.4.0", "latest_version": "0.4.1", "trust": "verified", "review_status": "approved", "checksum": "sha256:verified-docling-ingest", "signature": "jarvis:verified-docling-ingest", "source_url": "https://plugins.jarvis.local/docling-ingest", "description": "Batch extracts PDFs, scans, tables, and layouts.", "entrypoint": "docling_ingest"},
-            {"id": "workflow-human-gate", "name": "Human Approval Gate", "kind": "workflow-node", "installed": True, "enabled": True, "version": "1.2.1", "latest_version": "1.2.1", "trust": "verified", "review_status": "approved", "checksum": "sha256:verified-human-gate", "signature": "jarvis:verified-human-gate", "source_url": "https://plugins.jarvis.local/workflow-human-gate", "description": "Adds human-in-the-loop workflow checkpoints.", "entrypoint": "workflow_human_gate"},
+            {"id": "github-sync", "name": "GitHub Knowledge Sync", "kind": "connector", "installed": False, "enabled": False, "version": "1.0.0", "latest_version": "1.1.0", "trust": "community", "review_status": "pending", "checksum": "sha256:community-github-sync", "signature": "unsigned", "source_url": "https://plugins.mica.local/github-sync", "description": "Keeps repositories indexed for RAG.", "entrypoint": "github_sync"},
+            {"id": "docling-ingest", "name": "Docling/Tika Ingestion", "kind": "extractor", "installed": True, "enabled": True, "version": "0.4.0", "latest_version": "0.4.1", "trust": "verified", "review_status": "approved", "checksum": "sha256:verified-docling-ingest", "signature": "mica:verified-docling-ingest", "source_url": "https://plugins.mica.local/docling-ingest", "description": "Batch extracts PDFs, scans, tables, and layouts.", "entrypoint": "docling_ingest"},
+            {"id": "workflow-human-gate", "name": "Human Approval Gate", "kind": "workflow-node", "installed": True, "enabled": True, "version": "1.2.1", "latest_version": "1.2.1", "trust": "verified", "review_status": "approved", "checksum": "sha256:verified-human-gate", "signature": "mica:verified-human-gate", "source_url": "https://plugins.mica.local/workflow-human-gate", "description": "Adds human-in-the-loop workflow checkpoints.", "entrypoint": "workflow_human_gate"},
         ])
         data.setdefault(
             "marketplace_policy",
@@ -448,7 +448,7 @@ class PlatformHub:
                 "allowed_trust": ["verified", "community"],
                 "max_risk": "medium",
                 "permission_denylist": ["system:write", "filesystem:write", "network:unrestricted", "secrets:read"],
-                "trusted_publishers": ["jarvis"],
+                "trusted_publishers": ["mica"],
                 "updated_at": _now(),
             },
         )
@@ -457,8 +457,8 @@ class PlatformHub:
         data.setdefault("tools", [
             {"id": "tool-openapi-weather", "name": "weather_lookup", "kind": "openapi", "status": "ready", "schema": {"type": "object", "properties": {"city": {"type": "string"}}}, "test_result": "Ready"},
             {"id": "tool-custom-summarize", "name": "summarize_text", "kind": "function", "status": "draft", "code": "return text[:500]", "test_result": "Not run"},
-            {"id": "filter-nonempty-text", "name": "nonempty_text", "kind": "filter", "status": "ready", "code": "return bool(parameters.get('text', '').strip())", "test_parameters": {"text": "Jarvis"}, "test_result": "Filter ready"},
-            {"id": "pipe-normalize-text", "name": "normalize_text", "kind": "pipe", "status": "ready", "code": "return parameters.get('text', '').strip().lower()", "test_parameters": {"text": "  Jarvis Studio  "}, "test_result": "Pipe ready"},
+            {"id": "filter-nonempty-text", "name": "nonempty_text", "kind": "filter", "status": "ready", "code": "return bool(parameters.get('text', '').strip())", "test_parameters": {"text": "M.I.C.A"}, "test_result": "Filter ready"},
+            {"id": "pipe-normalize-text", "name": "normalize_text", "kind": "pipe", "status": "ready", "code": "return parameters.get('text', '').strip().lower()", "test_parameters": {"text": "  M.I.C.A Studio  "}, "test_result": "Pipe ready"},
             {"id": "action-create-note", "name": "create_note_action", "kind": "action", "status": "ready", "code": "return {'artifact_title': parameters.get('title', 'Tool Note'), 'content': parameters.get('content', '')}", "test_parameters": {"title": "Tool Note", "content": "Created by action"}, "test_result": "Action ready"},
         ])
         self._normalize_tools(data)
@@ -547,9 +547,9 @@ class PlatformHub:
         data.setdefault("knowledge", [
             {"id": "local-documents", "source": "Folder", "target": "Documents", "uri": "Documents", "status": "synced", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "chroma", "schedule": "watch"},
             {"id": "obsidian-vault", "source": "Folder", "target": "Obsidian", "uri": "memory", "status": "watching", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "faiss", "schedule": "watch"},
-            {"id": "github-main", "source": "GitHub", "target": "Repository Index", "uri": "https://github.com/example/jarvis", "status": "scheduled", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "qdrant", "schedule": "*/15 * * * *"},
+            {"id": "github-main", "source": "GitHub", "target": "Repository Index", "uri": "https://github.com/example/mica", "status": "scheduled", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "qdrant", "schedule": "*/15 * * * *"},
             {"id": "drive-personal", "source": "Drive", "target": "Personal Drive", "uri": "drive://personal", "status": "optional", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "chroma", "schedule": "manual"},
-            {"id": "s3-archive", "source": "S3", "target": "Archive Bucket", "uri": "s3://jarvis-archive", "status": "scheduled", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "pgvector", "schedule": "daily"},
+            {"id": "s3-archive", "source": "S3", "target": "Archive Bucket", "uri": "s3://mica-archive", "status": "scheduled", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "pgvector", "schedule": "daily"},
             {"id": "confluence-docs", "source": "Confluence", "target": "Product Space", "uri": "confluence://product", "status": "scheduled", "last_sync": _now(), "rag": "hybrid: bm25 + vector + cross-encoder reranker", "vector_db": "weaviate", "schedule": "hourly"},
         ])
         self._normalize_knowledge_sources(data)
@@ -596,7 +596,7 @@ class PlatformHub:
         self._normalize_sandbox(data)
         data.setdefault("publishing", [
             {"id": "pub-chat", "agent_id": "research-copilot", "kind": "embeddable-chat", "status": "draft", "url": "/embed/research-copilot", "policy": {"auth": "workspace", "cors": ["http://localhost:5173"], "rate_limit_per_minute": 60, "allowed_groups": ["personal"], "secret_refs": []}},
-            {"id": "pub-mcp", "agent_id": "research-copilot", "kind": "mcp-server", "status": "draft", "url": "/mcp/research-copilot", "policy": {"auth": "api-key", "cors": [], "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["JARVIS_MCP_TOKEN"]}},
+            {"id": "pub-mcp", "agent_id": "research-copilot", "kind": "mcp-server", "status": "draft", "url": "/mcp/research-copilot", "policy": {"auth": "api-key", "cors": [], "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["MICA_MCP_TOKEN"]}},
         ])
         data.setdefault("invocation_audit", [])
         self._normalize_publications(data)
@@ -604,7 +604,7 @@ class PlatformHub:
             "docker_compose": "docker-compose.yml",
             "dockerfile": "Dockerfile",
             "kubernetes": "helm-ready",
-            "helm_chart": "deploy/helm/jarvis",
+            "helm_chart": "deploy/helm/mica",
             "postgres": "compose+helm-ready",
             "postgres_schema": "deploy/postgres/migrations/001_platform_hub.sql",
             "persistence": self.state_store.status(),
@@ -613,11 +613,11 @@ class PlatformHub:
             "storage": "persistent-volume+s3/minio-ready",
             "scaling": "horizontal-ready",
             "env_mapping": {
-                "postgres": "JARVIS_POSTGRES_URL",
-                "redis": "JARVIS_REDIS_URL",
-                "s3_endpoint": "JARVIS_S3_ENDPOINT",
-                "s3_bucket": "JARVIS_S3_BUCKET",
-                "storage_backend": "JARVIS_STORAGE_BACKEND",
+                "postgres": "MICA_POSTGRES_URL",
+                "redis": "MICA_REDIS_URL",
+                "s3_endpoint": "MICA_S3_ENDPOINT",
+                "s3_bucket": "MICA_S3_BUCKET",
+                "storage_backend": "MICA_STORAGE_BACKEND",
             },
             "readiness": {"status": "unknown", "checks": []},
         })
@@ -627,7 +627,7 @@ class PlatformHub:
                 "name": "Local Accounts",
                 "type": "local",
                 "status": "enabled",
-                "issuer": "jarvis://local",
+                "issuer": "mica://local",
                 "client_id": "",
                 "scim_enabled": False,
                 "last_test": _now(),
@@ -638,7 +638,7 @@ class PlatformHub:
                 "type": "oidc",
                 "status": "configured",
                 "issuer": "https://login.example.com",
-                "client_id": "jarvis",
+                "client_id": "mica",
                 "scim_enabled": True,
                 "last_test": None,
             },
@@ -701,7 +701,7 @@ class PlatformHub:
         solo = data.setdefault("solo", {})
         solo.setdefault("enabled", True)
         solo.setdefault("owner_user", "u-admin")
-        solo.setdefault("workspace_name", "Personal Jarvis")
+        solo.setdefault("workspace_name", "Personal M.I.C.A")
         solo.setdefault("local_only", True)
         solo.setdefault("status", "ready")
         solo.setdefault("updated_at", _now())
@@ -709,7 +709,7 @@ class PlatformHub:
         users = data.setdefault("users", [])
         owner = next((item for item in users if item.get("id") == owner_id), None)
         if owner is None:
-            owner = {"id": owner_id, "name": "You", "email": "you@jarvis.local", "roles": ["owner"], "groups": ["personal"]}
+            owner = {"id": owner_id, "name": "You", "email": "you@mica.local", "roles": ["owner"], "groups": ["personal"]}
             users.insert(0, owner)
         owner.setdefault("roles", ["owner"])
         owner.setdefault("groups", ["personal"])
@@ -736,7 +736,7 @@ class PlatformHub:
                 "allowed_trust": ["verified", "community"],
                 "max_risk": "medium",
                 "permission_denylist": ["system:write", "filesystem:write", "network:unrestricted", "secrets:read"],
-                "trusted_publishers": ["jarvis"],
+                "trusted_publishers": ["mica"],
                 "updated_at": _now(),
             },
         )
@@ -748,8 +748,8 @@ class PlatformHub:
             item.setdefault("review_status", "approved" if item.get("trust") == "verified" else "pending")
             item.setdefault("checksum", f"sha256:{_slug(str(item.get('id') or item.get('name') or 'extension'))}")
             item.setdefault("signature", "unsigned")
-            item.setdefault("source_url", f"https://plugins.jarvis.local/{item.get('id', 'extension')}")
-            item.setdefault("publisher", "jarvis" if item.get("trust") == "verified" else "community")
+            item.setdefault("source_url", f"https://plugins.mica.local/{item.get('id', 'extension')}")
+            item.setdefault("publisher", "mica" if item.get("trust") == "verified" else "community")
             item.setdefault("permissions", ["tools:execute"])
             item.setdefault("manifest", self._marketplace_manifest(item))
             item.setdefault("verification", self._verify_marketplace_payload(item))
@@ -811,8 +811,8 @@ class PlatformHub:
         tools = data.setdefault("tools", [])
         by_id = {str(tool.get("id")): tool for tool in tools}
         samples = [
-            {"id": "filter-nonempty-text", "name": "nonempty_text", "kind": "filter", "status": "ready", "code": "return bool(parameters.get('text', '').strip())", "test_parameters": {"text": "Jarvis"}, "test_result": "Filter ready"},
-            {"id": "pipe-normalize-text", "name": "normalize_text", "kind": "pipe", "status": "ready", "code": "return parameters.get('text', '').strip().lower()", "test_parameters": {"text": "  Jarvis Studio  "}, "test_result": "Pipe ready"},
+            {"id": "filter-nonempty-text", "name": "nonempty_text", "kind": "filter", "status": "ready", "code": "return bool(parameters.get('text', '').strip())", "test_parameters": {"text": "M.I.C.A"}, "test_result": "Filter ready"},
+            {"id": "pipe-normalize-text", "name": "normalize_text", "kind": "pipe", "status": "ready", "code": "return parameters.get('text', '').strip().lower()", "test_parameters": {"text": "  M.I.C.A Studio  "}, "test_result": "Pipe ready"},
             {"id": "action-create-note", "name": "create_note_action", "kind": "action", "status": "ready", "code": "return {'artifact_title': parameters.get('title', 'Tool Note'), 'content': parameters.get('content', '')}", "test_parameters": {"title": "Tool Note", "content": "Created by action"}, "test_result": "Action ready"},
         ]
         for sample in samples:
@@ -935,7 +935,7 @@ class PlatformHub:
         audit = {
             "id": f"solo-audit-{uuid4().hex[:8]}",
             "status": "ready" if not blocking else "needs-setup",
-            "workspace_name": status.get("workspace_name", "Personal Jarvis") if isinstance(status, dict) else "Personal Jarvis",
+            "workspace_name": status.get("workspace_name", "Personal M.I.C.A") if isinstance(status, dict) else "Personal M.I.C.A",
             "ready_count": status.get("ready_count", 0) if isinstance(status, dict) else 0,
             "optional_count": status.get("optional_count", 0) if isinstance(status, dict) else 0,
             "blocking_count": len(blocking),
@@ -1036,7 +1036,7 @@ class PlatformHub:
         return {
             "enabled": bool(solo.get("enabled", True)),
             "owner_user": solo.get("owner_user", "u-admin"),
-            "workspace_name": solo.get("workspace_name", "Personal Jarvis"),
+            "workspace_name": solo.get("workspace_name", "Personal M.I.C.A"),
             "local_only": bool(solo.get("local_only", True)),
             "status": "ready" if not blocking else "needs-setup",
             "ready_count": ready,
@@ -1241,7 +1241,7 @@ class PlatformHub:
             "parameters": agent.get("parameters", {}),
             "visibility": agent.get("visibility", "team"),
             "owner": agent.get("owner", "u-admin"),
-            "package_format": "jarvis-agent-package/v1",
+            "package_format": "mica-agent-package/v1",
             "endpoints": {
                 "web_app": f"/apps/{agent_id}",
                 "embed": f"/embed/{agent_id}",
@@ -1266,7 +1266,7 @@ class PlatformHub:
         if not manifest:
             return None
         return {
-            "format": "jarvis-agent-package/v1",
+            "format": "mica-agent-package/v1",
             "exported_at": _now(),
             "manifest": manifest,
             "runtime": {
@@ -1293,7 +1293,7 @@ class PlatformHub:
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{title} - Jarvis Agent</title>
+    <title>{title} - M.I.C.A Agent</title>
     <style>
       :root {{ color-scheme: dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }}
       body {{ margin: 0; background: #06131c; color: #e7eef7; }}
@@ -1323,7 +1323,7 @@ class PlatformHub:
           <span>Tools: {tools}</span>
           <span>Knowledge: {knowledge}</span>
         </div>
-        <textarea id="message" placeholder="Send a message to this Jarvis agent"></textarea>
+        <textarea id="message" placeholder="Send a message to this M.I.C.A agent"></textarea>
         <button id="send">Send</button>
         <pre id="output">Ready.</pre>
       </section>
@@ -1355,12 +1355,12 @@ class PlatformHub:
             return None
         return {
             "schema_version": "2024-11-05",
-            "name": f"jarvis-agent-{agent_id}",
+            "name": f"mica-agent-{agent_id}",
             "description": f"MCP descriptor for {manifest['name']}",
             "tools": [
                 {
                     "name": "invoke_agent",
-                    "description": f"Invoke {manifest['name']} through Jarvis.",
+                    "description": f"Invoke {manifest['name']} through M.I.C.A.",
                     "inputSchema": {
                         "type": "object",
                         "properties": {
@@ -1372,7 +1372,7 @@ class PlatformHub:
                 }
             ],
             "resources": [
-                {"uri": f"jarvis://agents/{agent_id}/manifest", "name": manifest["name"], "mimeType": "application/json"}
+                {"uri": f"mica://agents/{agent_id}/manifest", "name": manifest["name"], "mimeType": "application/json"}
             ],
             "manifest": manifest,
         }
@@ -1679,7 +1679,7 @@ class PlatformHub:
 
     def _prepare_solo_workspace(self, payload: dict[str, Any]) -> dict[str, Any]:
         owner_id = str(payload.get("owner_user") or self.data.get("solo", {}).get("owner_user") or "u-admin")
-        workspace_name = str(payload.get("workspace_name") or self.data.get("solo", {}).get("workspace_name") or "Personal Jarvis")
+        workspace_name = str(payload.get("workspace_name") or self.data.get("solo", {}).get("workspace_name") or "Personal M.I.C.A")
         self.data["solo"] = {
             "enabled": True,
             "owner_user": owner_id,
@@ -1693,7 +1693,7 @@ class PlatformHub:
         owner = next((item for item in self.data.get("users", []) if item.get("id") == owner_id), None)
         if owner:
             owner["name"] = payload.get("owner_name") or owner.get("name") or "You"
-            owner["email"] = payload.get("owner_email") or owner.get("email") or "you@jarvis.local"
+            owner["email"] = payload.get("owner_email") or owner.get("email") or "you@mica.local"
             owner["roles"] = ["owner"]
             owner["groups"] = ["personal"]
         for group in self.data.get("groups", []):
@@ -1727,7 +1727,7 @@ class PlatformHub:
             "allowed_trust": ["verified", "community", "local"],
             "max_risk": "medium",
             "permission_denylist": ["system:write", "network:unrestricted", "secrets:read"],
-            "trusted_publishers": ["jarvis", "local"],
+            "trusted_publishers": ["mica", "local"],
             "solo_install_mode": "local-review",
             "updated_at": _now(),
         }
@@ -1739,7 +1739,7 @@ class PlatformHub:
             source.setdefault("watch_mode", source.get("source") == "Folder")
         for source in [
             {"id": "local-documents", "source": "Folder", "target": "Documents", "uri": "Documents", "status": "watching", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "chroma", "schedule": "watch", "watch_mode": True},
-            {"id": "jarvis-memory", "source": "Folder", "target": "Jarvis Memory", "uri": "memory", "status": "watching", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "chroma", "schedule": "watch", "watch_mode": True},
+            {"id": "mica-memory", "source": "Folder", "target": "M.I.C.A Memory", "uri": "memory", "status": "watching", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "chroma", "schedule": "watch", "watch_mode": True},
         ]:
             self._upsert("knowledge", source)
         self._normalize_knowledge_sources(self.data)
@@ -1763,8 +1763,8 @@ class PlatformHub:
         publication_defaults = [
             ("web-app", "/apps/research-copilot", {"auth": "workspace", "rate_limit_per_minute": 60, "allowed_groups": ["personal"], "secret_refs": []}),
             ("embeddable-chat", "/embed/research-copilot", {"auth": "workspace", "rate_limit_per_minute": 60, "allowed_groups": ["personal"], "secret_refs": []}),
-            ("rest-api", "/api/agents/research-copilot/invoke", {"auth": "api-key", "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["JARVIS_AGENT_TOKEN"]}),
-            ("mcp-server", "/mcp/research-copilot", {"auth": "api-key", "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["JARVIS_MCP_TOKEN"]}),
+            ("rest-api", "/api/agents/research-copilot/invoke", {"auth": "api-key", "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["MICA_AGENT_TOKEN"]}),
+            ("mcp-server", "/mcp/research-copilot", {"auth": "api-key", "rate_limit_per_minute": 120, "allowed_groups": ["personal"], "secret_refs": ["MICA_MCP_TOKEN"]}),
         ]
         for kind, url, policy in publication_defaults:
             if kind in existing_publication_kinds:
@@ -1787,7 +1787,7 @@ class PlatformHub:
                     "id": "artifact-solo-start",
                     "title": "Solo Workspace Start",
                     "kind": "note",
-                    "content": "Personal Jarvis workspace is ready for private agents, local tools, knowledge sync, sandbox runs, and local publishing.",
+                    "content": "Personal M.I.C.A workspace is ready for private agents, local tools, knowledge sync, sandbox runs, and local publishing.",
                     "created_by": owner_id,
                 }
             )
@@ -1801,13 +1801,13 @@ class PlatformHub:
     def _run_solo_quickstart(self, payload: dict[str, Any]) -> dict[str, Any]:
         setup = self._prepare_solo_workspace(
             {
-                "workspace_name": payload.get("workspace_name") or self.data.get("solo", {}).get("workspace_name") or "Personal Jarvis",
+                "workspace_name": payload.get("workspace_name") or self.data.get("solo", {}).get("workspace_name") or "Personal M.I.C.A",
                 "owner_user": payload.get("user") or self.data.get("solo", {}).get("owner_user") or "u-admin",
             }
         )
         agent_id = str(payload.get("agent_id") or "research-copilot")
-        message = str(payload.get("message") or "Summarize my local Jarvis workspace and suggest the next useful action.")
-        query = str(payload.get("query") or "local Jarvis workspace hybrid rag tools")
+        message = str(payload.get("message") or "Summarize my local M.I.C.A workspace and suggest the next useful action.")
+        query = str(payload.get("query") or "local M.I.C.A workspace hybrid rag tools")
         files = _as_list(payload.get("files") or ["solo-note.md", "local-scan.pdf"])
 
         knowledge = self._sync_knowledge({"id": "local-documents"})
@@ -1816,7 +1816,7 @@ class PlatformHub:
         sandbox = self._run_sandbox(
             {
                 "language": "python",
-                "code": "print('Solo Jarvis quickstart ready')\nprint('local tools, knowledge, artifacts, and publishing are prepared')",
+                "code": "print('Solo M.I.C.A quickstart ready')\nprint('local tools, knowledge, artifacts, and publishing are prepared')",
             }
         )
         workflow_id = str(payload.get("workflow_id") or (self.data.get("workflows", [{}])[0].get("id") if self.data.get("workflows") else ""))
@@ -1849,7 +1849,7 @@ class PlatformHub:
         rendered = self._render_artifact({"id": artifact["id"]})
         publications = [item for item in self.data.get("publishing", []) if item.get("agent_id") == agent_id]
         summary = {
-            "title": f"{self.data.get('solo', {}).get('workspace_name', 'Personal Jarvis')} ist lokal bereit",
+            "title": f"{self.data.get('solo', {}).get('workspace_name', 'Personal M.I.C.A')} ist lokal bereit",
             "agent_output": str(agent.get("output") or ""),
             "knowledge_results": len(search.get("results", [])),
             "ingested_documents": len(ingestion.get("documents", [])),
@@ -1909,7 +1909,7 @@ class PlatformHub:
             "id": payload.get("id") or _slug(name),
             "name": name,
             "model": payload.get("model", "fast"),
-            "prompt": payload.get("prompt", "You are a helpful Jarvis agent."),
+            "prompt": payload.get("prompt", "You are a helpful M.I.C.A agent."),
             "tools": _as_list(payload.get("tools")),
             "knowledge": _as_list(payload.get("knowledge")),
             "parameters": parameters,
@@ -1966,7 +1966,7 @@ class PlatformHub:
                 "id": imported_id,
                 "name": payload.get("name") or manifest.get("name"),
                 "model": manifest.get("model", "fast"),
-                "prompt": manifest.get("prompt", "You are a helpful Jarvis agent."),
+                "prompt": manifest.get("prompt", "You are a helpful M.I.C.A agent."),
                 "tools": manifest.get("tools", []),
                 "knowledge": manifest.get("knowledge", []),
                 "parameters": manifest.get("parameters", {}),
@@ -1981,7 +1981,7 @@ class PlatformHub:
         user = {
             "id": payload.get("id") or _slug(str(payload.get("email") or payload.get("name") or "user")),
             "name": payload.get("name", "New User"),
-            "email": payload.get("email", "user@jarvis.local"),
+            "email": payload.get("email", "user@mica.local"),
             "roles": _as_list(payload.get("roles") or ["viewer"]),
             "groups": _as_list(payload.get("groups")),
         }
@@ -2150,7 +2150,7 @@ class PlatformHub:
         nonce = f"nonce-{uuid4().hex}"
         redirect_uri = str(payload.get("redirect_uri") or "/api/auth/callback")
         scopes = _as_list(payload.get("scopes") or ["openid", "profile", "email", "groups"])
-        issuer = str(provider.get("issuer") or "jarvis://local").rstrip("/")
+        issuer = str(provider.get("issuer") or "mica://local").rstrip("/")
         if provider_type == "local":
             authorization_url = f"/api/auth/local?state={state}"
         else:
@@ -2337,7 +2337,7 @@ class PlatformHub:
         # Fetch from remote
         try:
             request = urllib.request.Request(jwks_uri)
-            request.add_header("User-Agent", "Jarvis-PlatformHub/1.0")
+            request.add_header("User-Agent", "MICA-PlatformHub/1.0")
             with urllib.request.urlopen(request, timeout=5) as response:
                 data = response.read().decode("utf-8")
                 jwks = json.loads(data) if isinstance(data, (str, bytes)) else data
@@ -2405,7 +2405,7 @@ class PlatformHub:
             "provider_id": provider_id,
             "device_name": str(device_name or "Browser"),
             "status": "active",
-            "token": f"jarvis-session-{uuid4().hex}",
+            "token": f"mica-session-{uuid4().hex}",
             "issued_at": _now(),
             "expires_at": (datetime.now() + timedelta(hours=8)).isoformat(timespec="seconds"),
             "groups": user.get("groups", []),
@@ -2533,7 +2533,7 @@ class PlatformHub:
         return item
 
     def _sync_marketplace_registry(self, payload: dict[str, Any]) -> dict[str, Any]:
-        registry_url = str(payload.get("registry_url") or os.environ.get("JARVIS_MARKETPLACE_REGISTRY_URL") or "")
+        registry_url = str(payload.get("registry_url") or (os.environ.get("MICA_MARKETPLACE_REGISTRY_URL") or os.environ.get("JARVIS_MARKETPLACE_REGISTRY_URL")) or "")
         
         # Use remote registry if configured
         if registry_url:
@@ -2569,7 +2569,7 @@ class PlatformHub:
                 "signature": "unsigned",
                 "publisher": "community",
                 "permissions": ["tools:execute", "browser:read"],
-                "source_url": "https://plugins.jarvis.local/browser-companion-tools",
+                "source_url": "https://plugins.mica.local/browser-companion-tools",
                 "description": "Adds browser-side capture and workspace actions.",
                 "entrypoint": "browser_companion_tools",
                 }
@@ -2590,9 +2590,9 @@ class PlatformHub:
                 "review_status": str(raw.get("review_status") or "pending"),
                 "checksum": str(raw.get("checksum") or f"sha256:{_slug(str(raw.get('id') or raw.get('name') or 'extension'))}"),
                 "signature": str(raw.get("signature") or "unsigned"),
-                "publisher": str(raw.get("publisher") or ("jarvis" if raw.get("trust") == "verified" else "community")),
+                "publisher": str(raw.get("publisher") or ("mica" if raw.get("trust") == "verified" else "community")),
                 "permissions": _as_list(raw.get("permissions") or ["tools:execute"]),
-                "source_url": str(raw.get("source_url") or f"https://plugins.jarvis.local/{raw.get('id', 'extension')}"),
+                "source_url": str(raw.get("source_url") or f"https://plugins.mica.local/{raw.get('id', 'extension')}"),
                 "description": str(raw.get("description") or ""),
                 "entrypoint": str(raw.get("entrypoint") or _slug(str(raw.get("id") or raw.get("name") or "extension")).replace("-", "_")),
                 "synced_at": _now(),
@@ -2719,7 +2719,7 @@ class PlatformHub:
         checksum_ok = checksum.startswith("sha256:") and len(checksum.removeprefix("sha256:")) >= 8
         publisher = str(item.get("publisher") or "")
         trusted_publishers = [str(value) for value in _as_list(self.data.get("marketplace_policy", {}).get("trusted_publishers"))]
-        signature_ok = signature.startswith("jarvis:") or (item.get("trust") == "verified" and publisher in trusted_publishers)
+        signature_ok = signature.startswith("mica:") or (item.get("trust") == "verified" and publisher in trusted_publishers)
         review_ok = item.get("review_status") in {"approved", "verified"}
         policy = self._evaluate_marketplace_policy(item, checksum_ok, signature_ok, review_ok)
         status = "passed" if checksum_ok and signature_ok and review_ok and policy["status"] == "passed" else "failed"
@@ -2768,7 +2768,7 @@ class PlatformHub:
             score += 1
             reasons.append("community trust")
         signature = str(item.get("signature") or "")
-        if not signature.startswith("jarvis:"):
+        if not signature.startswith("mica:"):
             score += 2
             reasons.append("unsigned")
         source_url = str(item.get("source_url") or "")
@@ -2828,7 +2828,7 @@ class PlatformHub:
         tool_name = entrypoint
         template = f'''"""
 Community marketplace extension: {item.get("name", tool_name)}
-Generated by Jarvis Studio marketplace installer.
+Generated by M.I.C.A Studio marketplace installer.
 """
 
 TOOL_DECLARATION = {{
@@ -3109,9 +3109,9 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
     def _run_tool_code(self, code: str, parameters: Any) -> dict[str, str]:
         wrapper = (
             "parameters = __PARAMETERS__\n"
-            "def __jarvis_tool__(parameters):\n"
+            "def __mica_tool__(parameters):\n"
             + "\n".join(f"    {line}" if line.strip() else "" for line in code.splitlines())
-            + "\nresult = __jarvis_tool__(parameters)\n"
+            + "\nresult = __mica_tool__(parameters)\n"
             "print(result if result is not None else '')\n"
         )
         safe_code = wrapper.replace("__PARAMETERS__", repr(parameters if isinstance(parameters, dict) else {}))
@@ -3775,7 +3775,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             {
                 "id": f"doc-{_slug(target)}-overview",
                 "name": f"{target} Overview",
-                "text": f"{target} from {source_type} at {uri} contains Jarvis knowledge, sync status, connector metadata, and retrieval examples.",
+                "text": f"{target} from {source_type} at {uri} contains M.I.C.A knowledge, sync status, connector metadata, and retrieval examples.",
                 "source_uri": uri,
             },
             {
@@ -4162,7 +4162,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
 
     def _run_sandbox(self, payload: dict[str, Any]) -> dict[str, Any]:
         language = str(payload.get("language") or "python").lower()
-        code = str(payload.get("code") or "print('hello from Jarvis sandbox')")
+        code = str(payload.get("code") or "print('hello from M.I.C.A sandbox')")
         sandbox = self.data.setdefault("sandbox", {})
         policy = sandbox.setdefault("policy", {})
         uploaded_files = self._prepare_sandbox_uploads(payload, policy)
@@ -4525,7 +4525,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             violations = self._sandbox_policy_violations(tree, policy)
             if violations:
                 return {"status": "blocked", "stdout": "", "stderr": "Sandbox policy blocked: " + ", ".join(violations)}
-            with tempfile.TemporaryDirectory(prefix="jarvis-sandbox-") as tmp:
+            with tempfile.TemporaryDirectory(prefix="mica-sandbox-") as tmp:
                 upload_dir = Path(tmp) / "uploads"
                 upload_dir.mkdir()
                 for item in uploaded_files or []:
@@ -4562,7 +4562,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         if not node:
             return {"status": "failed", "stdout": "", "stderr": "Node.js runtime not found"}
         try:
-            with tempfile.TemporaryDirectory(prefix="jarvis-js-sandbox-") as tmp:
+            with tempfile.TemporaryDirectory(prefix="mica-js-sandbox-") as tmp:
                 tmp_path = Path(tmp)
                 upload_dir = tmp_path / "uploads"
                 upload_dir.mkdir()
@@ -4707,7 +4707,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         publication = next((item for item in self.data.get("publishing", []) if item.get("id") == publication_id), None)
         if not publication:
             return {"error": "publication not found"}
-        raw_key = f"jarvis-pub-{uuid4().hex}{uuid4().hex[:8]}"
+        raw_key = f"mica-pub-{uuid4().hex}{uuid4().hex[:8]}"
         key_hash = self._hash_publish_api_key(raw_key)
         key_id = f"pkey-{uuid4().hex[:8]}"
         policy = publication.setdefault("policy", self._normalize_publish_policy(str(publication.get("kind") or "rest-api"), {}))
@@ -4784,7 +4784,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             return {"error": "api key not found"}
         
         # Generate new key
-        new_raw_key = f"jarvis-pub-{uuid4().hex}{uuid4().hex[:8]}"
+        new_raw_key = f"mica-pub-{uuid4().hex}{uuid4().hex[:8]}"
         new_key_hash = self._hash_publish_api_key(new_raw_key)
         
         # Update key record
@@ -4828,8 +4828,8 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             self._deployment_check("docker-compose.yml", project_path("docker-compose.yml").exists(), "Compose stack for Postgres/Redis/MinIO"),
             self._deployment_check("Postgres schema", project_path("deploy", "postgres", "migrations", "001_platform_hub.sql").exists(), "Platform hub SQL migration"),
             self._deployment_check("Postgres migrations", bool(migration_state.get("catalog")) and not migration_state.get("missing_files"), f"{len(migration_state.get('catalog', []))} migration(s), {len(migration_state.get('pending', []))} pending"),
-            self._deployment_check("Helm chart", project_path("deploy", "helm", "jarvis", "Chart.yaml").exists(), "Kubernetes release chart"),
-            self._deployment_check("Helm values", project_path("deploy", "helm", "jarvis", "values.yaml").exists(), "Configurable production values"),
+            self._deployment_check("Helm chart", self._helm_chart_path("Chart.yaml").exists(), "Kubernetes release chart"),
+            self._deployment_check("Helm values", self._helm_chart_path("values.yaml").exists(), "Configurable production values"),
             self._deployment_check("Published artifact dir", self.published_dir.parent.exists(), "Persistent published app storage"),
         ]
         deployment = self.data.setdefault("deployment", {})
@@ -4851,36 +4851,36 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         checks: list[dict[str, Any]] = []
         dockerfile = self._read_text_if_exists(project_path("Dockerfile"))
         compose = self._read_text_if_exists(project_path("docker-compose.yml"))
-        helm_values = self._read_text_if_exists(project_path("deploy", "helm", "jarvis", "values.yaml"))
-        helm_deployment = self._read_text_if_exists(project_path("deploy", "helm", "jarvis", "templates", "deployment.yaml"))
-        helm_hpa = self._read_text_if_exists(project_path("deploy", "helm", "jarvis", "templates", "hpa.yaml"))
-        helm_config = self._read_text_if_exists(project_path("deploy", "helm", "jarvis", "templates", "configmap.yaml"))
-        migration_config = self._read_text_if_exists(project_path("deploy", "helm", "jarvis", "templates", "postgres-migrations-configmap.yaml"))
+        helm_values = self._read_text_if_exists(self._helm_chart_path("values.yaml"))
+        helm_deployment = self._read_text_if_exists(self._helm_chart_path("templates", "deployment.yaml"))
+        helm_hpa = self._read_text_if_exists(self._helm_chart_path("templates", "hpa.yaml"))
+        helm_config = self._read_text_if_exists(self._helm_chart_path("templates", "configmap.yaml"))
+        migration_config = self._read_text_if_exists(self._helm_chart_path("templates", "postgres-migrations-configmap.yaml"))
 
         docker_checks = {
-            "non_root_user": "USER jarvis" in dockerfile,
+            "non_root_user": "USER mica" in dockerfile or "USER jarvis" in dockerfile,
             "healthcheck": "HEALTHCHECK" in dockerfile,
             "port_8080": "EXPOSE 8080" in dockerfile,
             "persistent_dirs": all(fragment in dockerfile for fragment in ["data/published", "data/ingestion", "plugins/community"]),
         }
         compose_checks = {
-            "jarvis_service": re.search(r"(?m)^\s{2}jarvis:", compose) is not None,
+            "mica_service": re.search(r"(?m)^\s{2}mica:", compose) is not None,
             "postgres_service": re.search(r"(?m)^\s{2}postgres:", compose) is not None,
             "redis_service": re.search(r"(?m)^\s{2}redis:", compose) is not None,
             "minio_service": re.search(r"(?m)^\s{2}minio:", compose) is not None,
             "migration_mount": "./deploy/postgres/migrations:/docker-entrypoint-initdb.d:ro" in compose,
             "health_dependencies": "condition: service_healthy" in compose,
             "persistent_volumes": all(volume in compose for volume in ["postgres_data:", "redis_data:", "minio_data:"]),
-            "env_urls": all(name in compose for name in ["JARVIS_POSTGRES_URL", "JARVIS_REDIS_URL", "JARVIS_S3_ENDPOINT"]),
-            "env_substitution": all(fragment in compose for fragment in ["${JARVIS_POSTGRES_URL", "${POSTGRES_PASSWORD", "${MINIO_ROOT_PASSWORD"]),
+            "env_urls": all(name in compose for name in ["MICA_POSTGRES_URL", "MICA_REDIS_URL", "MICA_S3_ENDPOINT"]),
+            "env_substitution": all(fragment in compose for fragment in ["${MICA_POSTGRES_URL", "${POSTGRES_PASSWORD", "${MINIO_ROOT_PASSWORD"]),
             "resource_limits": "deploy:" in compose and "resources:" in compose and "limits:" in compose,
-            "replica_hint": "${JARVIS_REPLICAS" in compose,
+            "replica_hint": "${MICA_REPLICAS" in compose,
         }
         helm_checks = {
             "persistence_values": "persistence:" in helm_values and "size:" in helm_values,
             "autoscaling_values": "autoscaling:" in helm_values and "maxReplicas" in helm_values,
-            "env_config": all(name in helm_config for name in ["JARVIS_POSTGRES_URL", "JARVIS_REDIS_URL", "JARVIS_S3_ENDPOINT", "JARVIS_STORAGE_BACKEND"]),
-            "secret_values": "requiredKeys:" in helm_values and "JARVIS_AGENT_TOKEN" in helm_values and "existingSecret" in helm_values,
+            "env_config": all(name in helm_config for name in ["MICA_POSTGRES_URL", "MICA_REDIS_URL", "MICA_S3_ENDPOINT", "MICA_STORAGE_BACKEND"]),
+            "secret_values": "requiredKeys:" in helm_values and "MICA_AGENT_TOKEN" in helm_values and "existingSecret" in helm_values,
             "pod_security_context": "runAsNonRoot: true" in helm_values and "securityContext:" in helm_deployment,
             "container_security_context": "allowPrivilegeEscalation: false" in helm_values and "capabilities:" in helm_values,
             "resource_values": "requests:" in helm_values and "limits:" in helm_values,
@@ -4898,6 +4898,12 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
                 checks.append(self._deployment_check(f"{group}:{name}", bool(ready), "configured" if ready else "missing or incomplete"))
         status = "ready" if all(check["status"] == "ready" for check in checks) else "needs-attention"
         return {"status": status, "checks": checks, "checked_at": _now()}
+
+    def _helm_chart_path(self, *parts: str) -> Path:
+        mica_chart = project_path("deploy", "helm", "mica", *parts)
+        if mica_chart.exists():
+            return mica_chart
+        return project_path("deploy", "helm", "jarvis", *parts)
 
     def _read_text_if_exists(self, path: Path) -> str:
         if not path.exists():
@@ -4978,13 +4984,13 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
   <head>
     <meta charset=\"utf-8\" />
     <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
-    <title>{agent.get("name")} · Jarvis</title>
+    <title>{agent.get("name")} · M.I.C.A</title>
   </head>
   <body>
-    <main data-jarvis-agent=\"{agent_id}\">
+    <main data-mica-agent=\"{agent_id}\">
       <h1>{agent.get("name")}</h1>
       <p>{agent.get("prompt")}</p>
-      <script type=\"application/json\" id=\"jarvis-agent-manifest\">{json.dumps(manifest, ensure_ascii=False)}</script>
+      <script type=\"application/json\" id=\"mica-agent-manifest\">{json.dumps(manifest, ensure_ascii=False)}</script>
     </main>
   </body>
 </html>
@@ -4997,27 +5003,27 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         manifest_path = self.browser_companion_dir / "manifest.json"
         manifest = {
             "manifest_version": 3,
-            "name": "Jarvis Companion",
+            "name": "M.I.C.A Companion",
             "version": "0.1.0",
-            "description": "Connects the browser to Jarvis workspaces, files, terminal actions, and remote agents.",
+            "description": "Connects the browser to M.I.C.A workspaces, files, terminal actions, and remote agents.",
             "permissions": ["activeTab", "contextMenus", "storage", "scripting"],
             "host_permissions": ["http://127.0.0.1:8000/*", "http://localhost:8000/*"],
-            "action": {"default_title": "Jarvis Companion", "default_popup": "popup.html"},
+            "action": {"default_title": "M.I.C.A Companion", "default_popup": "popup.html"},
             "background": {"service_worker": "service-worker.js"},
         }
         if not manifest_path.exists():
             manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
         service_worker = (
-            "const JARVIS_BASE_URL = 'http://127.0.0.1:8000';\n"
+            "const MICA_BASE_URL = 'http://127.0.0.1:8000';\n"
             "chrome.runtime.onInstalled.addListener(() => {\n"
-            "  chrome.contextMenus.create({ id: 'send-page-to-jarvis', title: 'Send page to Jarvis', contexts: ['page', 'selection', 'link'] });\n"
+            "  chrome.contextMenus.create({ id: 'send-page-to-mica', title: 'Send page to M.I.C.A', contexts: ['page', 'selection', 'link'] });\n"
             "});\n"
             "chrome.contextMenus.onClicked.addListener(async (info, tab) => {\n"
-            "  await chrome.storage.local.set({ lastJarvisTab: tab?.url || '', lastJarvisSelection: info.selectionText || '' });\n"
-            "  await fetch(`${JARVIS_BASE_URL}/api/platform/action`, {\n"
+            "  await chrome.storage.local.set({ lastMicaTab: tab?.url || '', lastMicaSelection: info.selectionText || '' });\n"
+            "  await fetch(`${MICA_BASE_URL}/api/platform/action`, {\n"
             "    method: 'POST', headers: { 'Content-Type': 'application/json' },\n"
             "    body: JSON.stringify({ action: 'create_artifact', payload: { title: tab?.title || 'Browser capture', kind: 'note', content: info.selectionText || tab?.url || '' } })\n"
-            "  }).catch(async (error) => chrome.storage.local.set({ lastJarvisError: String(error) }));\n"
+            "  }).catch(async (error) => chrome.storage.local.set({ lastMicaError: String(error) }));\n"
             "});\n"
         )
         service_worker_path = self.browser_companion_dir / "service-worker.js"
@@ -5027,7 +5033,7 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         if not popup_html_path.exists():
             self._write_companion_asset(
                 popup_html_path,
-                "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Jarvis Companion</title><link rel=\"stylesheet\" href=\"popup.css\"></head><body><main><header><strong>Jarvis</strong><span id=\"status\">Checking</span></header><textarea id=\"message\" rows=\"5\" placeholder=\"Ask the active Jarvis agent\"></textarea><button id=\"send\">Send to Agent</button><pre id=\"output\"></pre></main><script src=\"popup.js\"></script></body></html>",
+                "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>M.I.C.A Companion</title><link rel=\"stylesheet\" href=\"popup.css\"></head><body><main><header><strong>M.I.C.A</strong><span id=\"status\">Checking</span></header><textarea id=\"message\" rows=\"5\" placeholder=\"Ask the active M.I.C.A agent\"></textarea><button id=\"send\">Send to Agent</button><pre id=\"output\"></pre></main><script src=\"popup.js\"></script></body></html>",
             )
         popup_js_path = self.browser_companion_dir / "popup.js"
         if not popup_js_path.exists():

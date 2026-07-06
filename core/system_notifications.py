@@ -1,5 +1,5 @@
 """
-System Notifications for JARVIS AI Assistant.
+System Notifications for M.I.C.A AI Assistant.
 
 This module provides a cross-platform notification system for displaying
 desktop notifications to the user.
@@ -72,7 +72,7 @@ class SystemNotifier:
         """Initialize Linux libnotify."""
         try:
             import notify2
-            notify2.init("JARVIS")
+            notify2.init("M.I.C.A")
             self._notifier = notify2
             logger.info("Linux notifier initialized")
         except ImportError:

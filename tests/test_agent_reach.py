@@ -14,7 +14,7 @@ def test_agent_reach_doctor_missing_cli(monkeypatch):
 def test_agent_reach_blocks_login_state_without_opt_in():
     from actions.agent_reach import agent_reach
 
-    result = agent_reach({"action": "run", "args": ["reddit", "search", "jarvis"]})
+    result = agent_reach({"action": "run", "args": ["reddit", "search", "mica"]})
 
     assert "login state or cookies" in result
 

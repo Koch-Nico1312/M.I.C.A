@@ -11,16 +11,16 @@ class TestStressScenarios:
 
     def test_rapid_request_stress_performance(benchmark):
         """Benchmark rapid request stress."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.session_manager import SessionManager
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         session = SessionManager()
         
         def rapid_requests():
             # Simulate rapid user requests
             for i in range(100):
-                jarvis.process_input(f"Query {i}")
+                mica.process_input(f"Query {i}")
             return True
         
         result = benchmark(rapid_requests)
@@ -205,10 +205,10 @@ class TestLongRunningOperations:
 
     def test_long_session_performance(benchmark):
         """Benchmark long session duration."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.session_manager import SessionManager
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         session = SessionManager()
         
         def long_session():

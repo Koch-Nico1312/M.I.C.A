@@ -1,5 +1,5 @@
 """
-Startup configuration for JARVIS AI Assistant.
+Startup configuration for M.I.C.A AI Assistant.
 
 This module handles configuration loading and initialization constants
 used during application startup.
@@ -102,7 +102,7 @@ def load_system_prompt() -> str:
     except Exception:
         metrics.end_operation("load_system_prompt_uncached", {"cached": False, "error": True})
         return (
-            "You are JARVIS, Tony Stark's AI assistant. "
+            "You are M.I.C.A (Modular Intern Computer Assistant), a calm, personal, local-first assistant. "
             "Be concise, direct, and always use the provided tools to complete tasks. "
             "Never simulate or guess results — always call the appropriate tool."
         )
@@ -154,7 +154,7 @@ def _load_system_prompt_cached() -> str:
                     return _system_prompt_cache["prompt"]
                 metrics.end_operation("load_system_prompt_cached", {"cached": False, "error": True})
                 return (
-                    "You are JARVIS, Tony Stark's AI assistant. "
+                    "You are M.I.C.A (Modular Intern Computer Assistant), a calm, personal, local-first assistant. "
                     "Be concise, direct, and always use the provided tools to complete tasks. "
                     "Never simulate or guess results — always call the appropriate tool."
                 )

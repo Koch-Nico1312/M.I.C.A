@@ -1,5 +1,5 @@
 """
-Dynamic Action Loader for JARVIS AI Assistant
+Dynamic Action Loader for M.I.C.A AI Assistant
 ============================================
 Lazy loads action modules to reduce startup time and memory footprint.
 """

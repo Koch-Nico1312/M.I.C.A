@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { GlassModal } from "./GlassModal";
-import { Bot, CalendarRange, CheckCircle2, Key, Link2, RefreshCw, Sparkles } from "lucide-react";
+import { Bot, CalendarRange, CheckCircle2, Image as ImageIcon, Key, Link2, RefreshCw, Sparkles, Upload } from "lucide-react";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Switch } from "./ui/switch";
 import { Button } from "./ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
-import { jarvisApi } from "../lib/api";
+import { CUSTOM_BACKGROUND_STORAGE_KEY, MICA_BACKGROUND_PRESETS } from "../lib/backgrounds";
+import { micaApi } from "../lib/api";
 import type { DashboardSettings, CalendarStatus, ModelsPayload, SetupPayload } from "../lib/types";
 
 interface SettingsModalProps {
@@ -19,6 +20,8 @@ const DEFAULT_SETTINGS: DashboardSettings = {
   ui: {
     default_view: "voice-chat",
     voice_first: true,
+    background_id: "lake",
+    background_url: "/backgrounds/mica-lake.jpg",
   },
   calendar: {
     enabled: true,
@@ -44,6 +47,7 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
   const [ollamaBaseUrl, setOllamaBaseUrl] = useState("http://localhost:11434");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [customBackgroundPreview, setCustomBackgroundPreview] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,12 +58,17 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setLoading(true);
     setError(null);
     setMessage(null);
+    try {
+      setCustomBackgroundPreview(window.localStorage.getItem(CUSTOM_BACKGROUND_STORAGE_KEY));
+    } catch {
+      setCustomBackgroundPreview(null);
+    }
 
     Promise.all([
-      jarvisApi.getSettings(),
-      jarvisApi.getCalendarStatus(),
-      jarvisApi.getSetup(),
-      jarvisApi.getModels(),
+      micaApi.getSettings(),
+      micaApi.getCalendarStatus(),
+      micaApi.getSetup(),
+      micaApi.getModels(),
     ])
       .then(([nextSettings, nextCalendar, nextSetup, nextModels]) => {
         if (cancelled) return;
@@ -70,6 +79,8 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
           ui: {
             default_view: settingsData?.ui?.default_view ?? DEFAULT_SETTINGS.ui.default_view,
             voice_first: Boolean(settingsData?.ui?.voice_first ?? DEFAULT_SETTINGS.ui.voice_first),
+            background_id: settingsData?.ui?.background_id ?? DEFAULT_SETTINGS.ui.background_id,
+            background_url: settingsData?.ui?.background_url ?? DEFAULT_SETTINGS.ui.background_url,
           },
           calendar: {
             enabled: Boolean(settingsData?.calendar?.enabled ?? DEFAULT_SETTINGS.calendar.enabled),
@@ -116,6 +127,38 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setSettings((current) => ({ ...current, ui: { ...current.ui, ...patch } }));
   };
 
+  const handleBackgroundPreset = (id: string, url: string) => {
+    updateUi({ background_id: id, background_url: url });
+  };
+
+  const handleCustomBackground = (file: File | null) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Bitte ein Bild auswählen.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) {
+        setError("Bild konnte nicht gelesen werden.");
+        return;
+      }
+      try {
+        window.localStorage.setItem(CUSTOM_BACKGROUND_STORAGE_KEY, result);
+      } catch {
+        setError("Das Bild ist zu groß für den lokalen Browserspeicher.");
+        return;
+      }
+      setCustomBackgroundPreview(result);
+      updateUi({ background_id: "custom", background_url: "custom" });
+      setMessage("Eigenes Hintergrundbild ausgewählt. Speichern übernimmt es dauerhaft.");
+    };
+    reader.onerror = () => setError("Bild konnte nicht gelesen werden.");
+    reader.readAsDataURL(file);
+  };
+
   const updateCalendar = (patch: Partial<DashboardSettings["calendar"]>) => {
     setSettings((current) => ({ ...current, calendar: { ...current.calendar, ...patch } }));
   };
@@ -138,7 +181,7 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     setMessage(null);
 
     try {
-      await jarvisApi.saveSetup({
+      await micaApi.saveSetup({
         gemini_api_key: geminiKey,
         openai_api_key: openaiKey,
         ollama_base_url: ollamaBaseUrl,
@@ -146,19 +189,19 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
         ollama_model: ollamaModel,
         model_router: settings.model_router,
       });
-      await jarvisApi.saveSettings(settings as unknown as Record<string, unknown>);
+      await micaApi.saveSettings(settings as unknown as Record<string, unknown>);
       if (settings.calendar.enabled) {
-        const result = await jarvisApi.connectCalendar(settings.calendar) as { message?: string } | null;
+        const result = await micaApi.connectCalendar(settings.calendar) as { message?: string } | null;
         setMessage(
           result?.message
             ? String(result.message)
             : "Einstellungen gespeichert und Kalenderstatus aktualisiert."
         );
-        const updated = await jarvisApi.getCalendarStatus();
+        const updated = await micaApi.getCalendarStatus();
         setCalendar(updated as CalendarStatus);
       } else {
         setMessage("Einstellungen gespeichert.");
-        const updated = await jarvisApi.getCalendarStatus();
+        const updated = await micaApi.getCalendarStatus();
         setCalendar(updated as CalendarStatus);
       }
       onSaved();
@@ -174,7 +217,7 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
     <GlassModal isOpen={isOpen} onClose={onClose} title="Einstellungen">
       <div className="space-y-6 text-slate-100">
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
-          Jarvis ist voice-first. Textchat bleibt optional. Modelle, API-Keys und Google Calendar werden hier verbunden.
+          M.I.C.A ist voice-first. Textchat bleibt optional. Modelle, API-Keys und Google Calendar werden hier verbunden.
         </div>
 
         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -277,6 +320,78 @@ export function SettingsModal({ isOpen, onClose, onSaved }: SettingsModalProps) 
                 <SelectItem value="command-center">Command</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-white">
+              <ImageIcon className="h-4 w-4 text-cyan-300" />
+              Hintergrund
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {MICA_BACKGROUND_PRESETS.map((preset) => {
+                const active = settings.ui.background_id === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleBackgroundPreset(preset.id, preset.url)}
+                    className={`group overflow-hidden rounded-xl border text-left transition ${
+                      active
+                        ? "border-cyan-300/70 bg-cyan-300/10 shadow-[0_0_0_1px_rgba(103,232,249,0.22)]"
+                        : "border-white/10 bg-black/10 hover:border-white/25 hover:bg-white/10"
+                    }`}
+                  >
+                    <div
+                      className="h-24 bg-cover bg-center"
+                      style={{ backgroundImage: `url("${preset.url}")` }}
+                    />
+                    <div className="px-3 py-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-sm font-medium text-white">{preset.label}</span>
+                        {active ? <CheckCircle2 className="h-4 w-4 text-cyan-300" /> : null}
+                      </div>
+                      <p className="mt-1 text-xs text-slate-400">{preset.description}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <label
+              className={`flex cursor-pointer items-center justify-between gap-4 rounded-xl border px-4 py-3 transition ${
+                settings.ui.background_id === "custom"
+                  ? "border-cyan-300/70 bg-cyan-300/10"
+                  : "border-white/10 bg-black/10 hover:border-white/25 hover:bg-white/10"
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <div
+                  className="h-12 w-16 shrink-0 rounded-lg border border-white/10 bg-cover bg-center bg-black/20"
+                  style={{
+                    backgroundImage: customBackgroundPreview
+                      ? `url("${customBackgroundPreview}")`
+                      : "linear-gradient(135deg, rgba(125,211,252,0.22), rgba(15,23,42,0.8))",
+                  }}
+                />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-white">Eigenes Bild</div>
+                  <div className="truncate text-xs text-slate-400">Lokal auswählen und als Hintergrund verwenden</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-cyan-100">
+                <Upload className="h-4 w-4" />
+                Auswählen
+              </div>
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(event) => {
+                  handleCustomBackground(event.target.files?.[0] ?? null);
+                  event.currentTarget.value = "";
+                }}
+              />
+            </label>
           </div>
         </div>
 

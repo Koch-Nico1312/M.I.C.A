@@ -1,5 +1,5 @@
 """
-Safety and approval system initializer for JARVIS AI Assistant.
+Safety and approval system initializer for M.I.C.A AI Assistant.
 
 This module handles initialization of safety, approval flow, and action history.
 

@@ -15,7 +15,7 @@ export function AIChat() {
     {
       id: "1",
       role: "assistant",
-      content: "Hallo! Ich bin JARVIS. Wie kann ich dir heute helfen?",
+      content: "Hallo! Ich bin M.I.C.A. Wie kann ich dir heute helfen?",
     },
   ]);
   const [input, setInput] = useState("");
@@ -152,7 +152,7 @@ export function AIChat() {
                     handleSend();
                   }
                 }}
-                placeholder={`Anweisung an JARVIS (${selectedMode})...`}
+                placeholder={`Anweisung an M.I.C.A (${selectedMode})...`}
                 className="min-h-[60px] py-4 bg-transparent border-0 resize-none text-[#395886] placeholder:text-[#8AAEE0] focus-visible:ring-0 px-2"
               />
             </div>

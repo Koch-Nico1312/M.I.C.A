@@ -10,19 +10,19 @@ from core.error_handler import (
     ConfigurationError,
     ErrorHandler,
     ErrorSeverity,
-    JarvisError,
+    MicaError,
     ResourceError,
     get_error_handler,
     handle_errors,
 )
 
 
-class TestJarvisError:
-    """Test cases for JarvisError base class."""
+class TestMicaError:
+    """Test cases for MicaError base class."""
     
     def test_basic_error_creation(self):
         """Test basic error creation."""
-        error = JarvisError("Test error")
+        error = MicaError("Test error")
         assert error.message == "Test error"
         assert error.severity == ErrorSeverity.MEDIUM
         assert error.recoverable is True
@@ -30,13 +30,13 @@ class TestJarvisError:
     
     def test_error_with_severity(self):
         """Test error with custom severity."""
-        error = JarvisError("Test error", severity=ErrorSeverity.HIGH)
+        error = MicaError("Test error", severity=ErrorSeverity.HIGH)
         assert error.severity == ErrorSeverity.HIGH
     
     def test_error_with_context(self):
         """Test error with context."""
         context = {"key": "value"}
-        error = JarvisError("Test error", context=context)
+        error = MicaError("Test error", context=context)
         assert error.context == context
 
 

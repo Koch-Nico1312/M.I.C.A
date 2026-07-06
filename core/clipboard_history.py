@@ -1,5 +1,5 @@
 """
-Clipboard History for JARVIS AI Assistant.
+Clipboard History for M.I.C.A AI Assistant.
 
 This module provides clipboard history tracking and management.
 """

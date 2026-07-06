@@ -53,7 +53,7 @@ def _get_os() -> str:
 
 
 def _computer_backend() -> str:
-    return os.getenv("JARVIS_COMPUTER_BACKEND", "").lower().strip()
+    return (os.getenv("MICA_COMPUTER_BACKEND") or os.getenv("JARVIS_COMPUTER_BACKEND", "")).lower().strip()
 
 
 def _run_cua_action(action: str, params: dict) -> str:
@@ -69,7 +69,7 @@ _SAFE_SCREENSHOT_ROOTS = (Path.home(),)
 
 
 def _safe_screenshot_path(requested: str | None) -> Path:
-    fallback = Path.home() / "Desktop" / "jarvis_screenshot.png"
+    fallback = Path.home() / "Desktop" / "mica_screenshot.png"
     if not requested:
         return fallback
     try:

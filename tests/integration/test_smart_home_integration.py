@@ -109,19 +109,19 @@ class TestSmartHomeIntegration:
         assert "total_kwh" in energy
 
     @patch('core.smart_home.requests')
-    def test_integration_with_jarvis(self, mock_requests):
-        """Test smart home integration with Jarvis."""
+    def test_integration_with_mica(self, mock_requests):
+        """Test smart home integration with M.I.C.A."""
         from core.smart_home import SmartHome
-        from main import JarvisLive
+        from main import MicaLive
         
         smart_home = SmartHome()
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         mock_response = MagicMock()
         mock_response.json.return_value = {"status": "success"}
         mock_requests.post.return_value = mock_response
         
-        # Control device through Jarvis
+        # Control device through M.I.C.A
         result = smart_home.control_device("light1", "turn_on")
         
         assert result is not None

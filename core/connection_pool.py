@@ -1,5 +1,5 @@
 """
-Connection Pool Manager for JARVIS AI Assistant
+Connection Pool Manager for M.I.C.A AI Assistant
 ===============================================
 Manages HTTP connection pools for external API calls to improve performance.
 """

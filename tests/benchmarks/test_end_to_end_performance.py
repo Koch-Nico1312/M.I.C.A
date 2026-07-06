@@ -14,23 +14,23 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_complete_user_session_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark complete user session."""
-        from main import JarvisLive
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         def complete_session():
             # User greeting
-            jarvis.process_input("Hello Jarvis")
+            mica.process_input("Hello M.I.C.A")
             # User question
-            jarvis.process_input("What's the weather?")
+            mica.process_input("What's the weather?")
             # User request
-            jarvis.process_input("Open Chrome")
+            mica.process_input("Open Chrome")
             # User farewell
-            jarvis.process_input("Goodbye")
+            mica.process_input("Goodbye")
             return True
         
         result = benchmark(complete_session)
@@ -41,14 +41,14 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_workflow_execution_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark complete workflow execution."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.workflow_engine import WorkflowEngine
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         engine = WorkflowEngine()
         
         def execute_workflow():
@@ -76,7 +76,7 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_multimodal_interaction_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark multimodal interaction."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.multimodal_context import MultimodalContext
         import numpy as np
         
@@ -84,7 +84,7 @@ class TestEndToEndScenariosPerformance:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         context = MultimodalContext()
         
         def multimodal_interaction():
@@ -93,8 +93,8 @@ class TestEndToEndScenariosPerformance:
             # Add image context
             image = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
             context.add_image(image, description="Screenshot")
-            # Process through Jarvis
-            jarvis.process_input("What's in this image?", context=context)
+            # Process through M.I.C.A
+            mica.process_input("What's in this image?", context=context)
             return True
         
         result = benchmark(multimodal_interaction)
@@ -105,14 +105,14 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_cross_device_handoff_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark cross-device handoff."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.cross_device import CrossDevice
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         cross_device = CrossDevice()
         
         def cross_device_handoff():
@@ -134,7 +134,7 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_backup_and_recovery_performance(self, mock_loader, mock_memory, mock_config, benchmark, tmp_path):
         """Benchmark backup and recovery."""
-        from main import JarvisLive
+        from main import MicaLive
         from memory.memory_backup import get_backup_manager
         from memory.memory_manager import MemoryManager
         
@@ -142,7 +142,7 @@ class TestEndToEndScenariosPerformance:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         memory = MemoryManager()
         
         backup_path = tmp_path / "backups"
@@ -169,7 +169,7 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_morning_routine_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark morning routine execution."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.morning_routine import MorningRoutine
         from core.daily_briefing import DailyBriefing
         
@@ -177,7 +177,7 @@ class TestEndToEndScenariosPerformance:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         routine = MorningRoutine()
         briefing = DailyBriefing()
         
@@ -188,8 +188,8 @@ class TestEndToEndScenariosPerformance:
             # Execute routine tasks
             routine.add_task("Skin Check", "skin_analysis", None)
             routine.start_routine()
-            # Process through Jarvis
-            jarvis.process_input("Good morning Jarvis")
+            # Process through M.I.C.A
+            mica.process_input("Good morning M.I.C.A")
             return True
         
         result = benchmark(morning_routine)
@@ -200,23 +200,23 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_research_session_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark research session."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.semantic_search import SemanticSearch
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         search = SemanticSearch()
         
         def research_session():
             # Add to search index
             search.add_text("Python machine learning research")
             # Process research query
-            jarvis.process_input("Research Python machine learning")
+            mica.process_input("Research Python machine learning")
             # Follow-up query
-            jarvis.process_input("Tell me more about deep learning")
+            mica.process_input("Tell me more about deep learning")
             return True
         
         result = benchmark(research_session)
@@ -227,21 +227,21 @@ class TestEndToEndScenariosPerformance:
     @patch('main.get_action_loader')
     def test_error_recovery_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark error recovery."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.llm_fallback import LLMFallback
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         fallback = LLMFallback()
         fallback.enable_auto_fallback = True
         
         def error_recovery():
             # Simulate primary failure
             with patch.object(fallback, '_generate_primary', side_effect=Exception("Primary failed")):
-                jarvis.process_input("Test query")
+                mica.process_input("Test query")
             return True
         
         result = benchmark(error_recovery)

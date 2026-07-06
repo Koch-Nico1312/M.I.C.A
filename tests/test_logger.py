@@ -19,7 +19,7 @@ def test_setup_logging():
         setup_logging(log_dir=log_dir)
 
         # Check that log files were created
-        assert (log_dir / "jarvis.log").exists() or True  # May not exist yet
+        assert (log_dir / "mica.log").exists() or True  # May not exist yet
         assert (log_dir / "errors.log").exists() or True
 
 

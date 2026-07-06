@@ -11,7 +11,7 @@ def test_structured_briefing_prioritizes_focus_without_live_calls(monkeypatch):
     def fake_memory():
         return {
             "identity": {"name": {"value": "Alex"}},
-            "projects": {"jarvis": {"value": "Finish Jarvis session intelligence"}},
+            "projects": {"mica": {"value": "Finish M.I.C.A session intelligence"}},
             "todos": {"review": {"value": "Review morning flow", "tags": ["urgent"]}},
             "preferences": {"habit_water": {"value": "Drink water before coffee", "tags": ["habit"]}},
         }

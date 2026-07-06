@@ -1,6 +1,6 @@
 """Optional adapters for third-party agent infrastructure.
 
-The adapters in this module deliberately lazy-import vendor SDKs. Jarvis can
+The adapters in this module deliberately lazy-import vendor SDKs. M.I.C.A can
 ship the integration points without making startup depend on heavyweight or
 platform-specific packages.
 """
@@ -158,7 +158,7 @@ class CUAComputerBackend:
     """Adapter for CUA driver/CLI-style computer-use backends."""
 
     def __init__(self, command: str | None = None):
-        raw = command or os.getenv("JARVIS_CUA_DRIVER_CMD", "").strip()
+        raw = command or (os.getenv("MICA_CUA_DRIVER_CMD") or os.getenv("JARVIS_CUA_DRIVER_CMD", "")).strip()
         self.command = raw.split() if raw else []
 
     def available(self) -> bool:
@@ -193,7 +193,7 @@ class CUAComputerBackend:
                 action,
                 error=(
                     "CUA backend is not configured. Install CUA and set "
-                    "JARVIS_CUA_DRIVER_CMD to a JSON stdin/stdout bridge command. "
+                    "MICA_CUA_DRIVER_CMD to a JSON stdin/stdout bridge command. "
                     f"Import error: {exc}"
                 ),
             )
@@ -201,7 +201,7 @@ class CUAComputerBackend:
             False,
             "cua",
             action,
-            error="CUA Python package detected, but no Jarvis CUA bridge command is configured.",
+            error="CUA Python package detected, but no M.I.C.A CUA bridge command is configured.",
         )
 
 
@@ -212,14 +212,14 @@ class Mem0MemoryBridge:
         self.enabled = (
             enabled
             if enabled is not None
-            else os.getenv("JARVIS_MEM0_ENABLED", "").lower() in {"1", "true", "yes"}
+            else (os.getenv("MICA_MEM0_ENABLED") or os.getenv("JARVIS_MEM0_ENABLED", "")).lower() in {"1", "true", "yes"}
         )
-        self.user_id = user_id or os.getenv("JARVIS_MEM0_USER_ID", "jarvis-user")
+        self.user_id = user_id or os.getenv("MICA_MEM0_USER_ID") or os.getenv("JARVIS_MEM0_USER_ID", "mica-user")
         self._client: Any = None
 
     def _get_client(self) -> Any:
         if not self.enabled:
-            raise OptionalIntegrationError("Mem0 is disabled. Set JARVIS_MEM0_ENABLED=true.")
+            raise OptionalIntegrationError("Mem0 is disabled. Set MICA_MEM0_ENABLED=true.")
         if self._client is not None:
             return self._client
         try:
@@ -345,4 +345,3 @@ def openhands_status() -> IntegrationResult:
         except Exception as exc:
             checks.append({"command": command, "ok": False, "output": str(exc)})
     return IntegrationResult(any(check["ok"] for check in checks), "openhands", "status", result=checks)
-

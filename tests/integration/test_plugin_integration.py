@@ -128,23 +128,23 @@ def test_function():
             result = plugin_manager.execute_plugin("reload_plugin", "test_function")
             assert result == "v2"
 
-    def test_plugin_with_jarvis(self, plugin_manager):
-        """Test plugin integration with Jarvis core."""
+    def test_plugin_with_mica(self, plugin_manager):
+        """Test plugin integration with M.I.C.A core."""
         with tempfile.TemporaryDirectory() as temp_dir:
             plugin_dir = Path(temp_dir) / "plugins"
             plugin_dir.mkdir()
             
-            # Create Jarvis-integrated plugin
-            plugin_file = plugin_dir / "jarvis_plugin.py"
+            # Create M.I.C.A-integrated plugin
+            plugin_file = plugin_dir / "mica_plugin.py"
             plugin_file.write_text("""
-def jarvis_action(jarvis, params):
+def mica_action(mica, params):
     return f"Action executed with params: {params}"
 """)
             
             plugin_manager.plugin_dir = plugin_dir
             plugin_manager.load_plugins()
             
-            # Should integrate with Jarvis
+            # Should integrate with M.I.C.A
             assert True  # Placeholder for actual integration test
 
     def test_plugin_sandboxing(self, plugin_manager):

@@ -1,5 +1,5 @@
 """
-Unified Configuration Loader for JARVIS
+Unified Configuration Loader for M.I.C.A
 Loads configuration from .env and config.yaml
 """
 

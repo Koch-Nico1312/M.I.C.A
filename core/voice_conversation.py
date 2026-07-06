@@ -1,5 +1,5 @@
 """
-Voice conversation mode state for Jarvis.
+Voice conversation mode state for M.I.C.A.
 
 This module keeps the voice-mode decisions separate from the low-level audio
 streaming code: push-to-talk gating, optional wakeword metadata, transcripts,
@@ -34,7 +34,7 @@ class VoiceConversationMode:
         self._input_mode: VoiceInputMode = "push_to_talk"
         self._push_to_talk_active = False
         self._wakeword_enabled = False
-        self._wakeword = "jarvis"
+        self._wakeword = "mica"
         self._last_transcript = ""
         self._last_response = ""
         self._last_interrupt_at: str | None = None
@@ -62,10 +62,17 @@ class VoiceConversationMode:
                 self._wakeword = str(wakeword).strip().lower() or self._wakeword
             return self.snapshot()
 
-    def should_capture_audio(self, muted: bool, jarvis_speaking: bool) -> bool:
+    def should_capture_audio(
+        self,
+        muted: bool,
+        mica_speaking: bool | None = None,
+        **legacy_kwargs: Any,
+    ) -> bool:
         """Return whether microphone frames should be sent to the live session."""
+        if mica_speaking is None:
+            mica_speaking = bool(legacy_kwargs.get("jarvis_speaking", False))
         with self._lock:
-            if not self._enabled or muted or jarvis_speaking:
+            if not self._enabled or muted or mica_speaking:
                 return False
             if self._input_mode == "push_to_talk":
                 return self._push_to_talk_active

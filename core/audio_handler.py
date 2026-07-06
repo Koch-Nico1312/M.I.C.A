@@ -1,5 +1,5 @@
 """
-Audio handler module for JARVIS AI Assistant.
+Audio handler module for M.I.C.A AI Assistant.
 
 This module provides:
 - Audio input/output management
@@ -40,7 +40,7 @@ class AudioConfig:
 
 class AudioHandler:
     """
-    Manages audio input and output for JARVIS.
+    Manages audio input and output for M.I.C.A.
     """
 
     def __init__(self, config: Optional[AudioConfig] = None):
@@ -182,8 +182,8 @@ class AudioHandler:
 
         def callback(indata, frames, time_info, status):
             with self._speaking_lock:
-                jarvis_speaking = self._is_speaking
-            if not jarvis_speaking and not self._muted:
+                mica_speaking = self._is_speaking
+            if not mica_speaking and not self._muted:
                 data = indata.tobytes()
 
                 if self.config.use_double_buffer:

@@ -1,5 +1,5 @@
 """
-Unified local knowledge access for JARVIS.
+Unified local knowledge access for M.I.C.A.
 
 The KnowledgeManager is the single entry point for retrieval across personal
 notes, indexed documents, and long-term memory. Source-specific integrations
@@ -509,7 +509,7 @@ class KiwixWikipediaAdapter:
 
 
 class MemoryKnowledgeAdapter:
-    """Adapter for JARVIS long-term structured memory."""
+    """Adapter for M.I.C.A long-term structured memory."""
 
     name = "memory"
 
@@ -789,7 +789,7 @@ class KnowledgeManager:
         return text[:477].rstrip() + "..."
 
     def _tags_for_result(self, result: KnowledgeResult) -> list[str]:
-        tags = ["jarvis-knowledge", str(result.source).replace(" ", "-")]
+        tags = ["mica-knowledge", str(result.source).replace(" ", "-")]
         categories = result.metadata.get("categories")
         if isinstance(categories, list):
             tags.extend(str(category).replace(" ", "-") for category in categories[:5])

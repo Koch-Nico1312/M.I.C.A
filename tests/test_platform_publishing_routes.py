@@ -27,9 +27,9 @@ class DummyRequest:
 
 
 def make_ui_bridge():
-    from ui_bridge import JarvisUI
+    from ui_bridge import MicaUI
 
-    ui = object.__new__(JarvisUI)
+    ui = object.__new__(MicaUI)
     ui._lock = threading.RLock()
     ui._logs = deque(maxlen=20)
     return ui

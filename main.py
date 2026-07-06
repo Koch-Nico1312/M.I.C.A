@@ -100,9 +100,14 @@ def _get_action_module(action_name: str):
 
 
 def __getattr__(name: str):
-    """Lazy compatibility exports for action functions used by JarvisLive."""
+    """Lazy compatibility exports for action functions used by MicaLive."""
     if name.startswith("__"):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    if name in {"MicaLive", "JarvisLive"}:
+        from core.mica_live import MicaLive
+
+        return MicaLive
 
     aliases = {
         "agent_reach": ("agent_reach", "agent_reach"),
@@ -219,11 +224,11 @@ def _clean_transcript(text: str) -> str:
 
 
 # TOOL_DECLARATIONS and FEATURE_TOOL_DECLARATIONS moved to tools/tool_declarations.py
-# JarvisLive class has been moved to core/jarvis_live.py
+# MicaLive class is exposed through core/mica_live.py; JarvisLive remains as a compatibility alias
 
 
 def main() -> None:
-    """Main entry point for JARVIS AI Assistant."""
+    """Main entry point for M.I.C.A AI Assistant."""
     from config.config_loader import get_config
     from config.startup_config import BASE_DIR
     from core.first_run_wizard import ensure_gemini_api_key
@@ -260,12 +265,12 @@ def main() -> None:
             # Check if QApplication already exists
             if QApplication.instance() is None:
                 app = QApplication(sys.argv)
-                app.setApplicationName("JARVIS")
+                app.setApplicationName("M.I.C.A")
         except Exception as e:
-            if os.environ.get("JARVIS_ALLOW_BROWSER_FALLBACK"):
+            if (os.environ.get("MICA_ALLOW_BROWSER_FALLBACK") or os.environ.get("JARVIS_ALLOW_BROWSER_FALLBACK")):
                 logger.warning(
                     "Failed to initialize the Qt WebEngine desktop window: %s. "
-                    "Browser fallback is enabled, so JARVIS will start the local UI server.",
+                    "Browser fallback is enabled, so M.I.C.A will start the local UI server.",
                     e,
                 )
             else:
@@ -273,13 +278,13 @@ def main() -> None:
                     "Failed to initialize the Qt WebEngine desktop window: %s. "
                     "Falling back to CLI mode. Install GUI dependencies in the active "
                     "environment with `python -m pip install -r requirements.txt`, or set "
-                    "JARVIS_ALLOW_BROWSER_FALLBACK=1 to open the local UI in a browser.",
+                    "MICA_ALLOW_BROWSER_FALLBACK=1 to open the local UI in a browser.",
                     e,
                 )
                 use_gui = False
 
     if not ensure_gemini_api_key(use_gui=use_gui):
-        logger.error("JARVIS cannot start without a valid Gemini API key.")
+        logger.error("M.I.C.A cannot start without a valid Gemini API key.")
         return
     
     # Initialize application and UI (pass use_gui to ensure correct UI type)
@@ -416,12 +421,12 @@ def main() -> None:
         def runner():
             import asyncio
 
-            from core.jarvis_live import JarvisLive
+            from core.mica_live import MicaLive
 
             ui.wait_for_api_key()
-            jarvis = JarvisLive(ui)
+            mica = MicaLive(ui)
             try:
-                asyncio.run(jarvis.run())
+                asyncio.run(mica.run())
             except KeyboardInterrupt:
                 logger.info("Shutting down...")
             finally:
@@ -437,21 +442,21 @@ def main() -> None:
         # CLI mode: run directly
         import asyncio
 
-        from core.jarvis_live import JarvisLive
+        from core.mica_live import MicaLive
 
         print()
-        print("JARVIS is ready in CLI mode!")
+        print("M.I.C.A is ready in CLI mode!")
         print("Press Ctrl+C to exit")
         print("=" * 60)
         print()
 
-        jarvis = JarvisLive(ui)
+        mica = MicaLive(ui)
         try:
-            asyncio.run(jarvis.run())
+            asyncio.run(mica.run())
         except KeyboardInterrupt:
             logger.info("Shutting down...")
             print()
-            print("JARVIS shutting down...")
+            print("M.I.C.A shutting down...")
         finally:
             # Cleanup
             get_session_manager().finalize_session()

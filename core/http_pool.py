@@ -1,5 +1,5 @@
 """
-HTTP Connection Pool Manager for JARVIS AI Assistant
+HTTP Connection Pool Manager for M.I.C.A AI Assistant
 ====================================================
 Manages aiohttp ClientSession with connection pooling for external APIs.
 """

@@ -86,16 +86,16 @@ class TestNotificationIntegration:
         
         assert result is not None
 
-    def test_notification_with_jarvis(self, notification_system):
-        """Test notification integration with Jarvis."""
-        from main import JarvisLive
+    def test_notification_with_mica(self, notification_system):
+        """Test notification integration with M.I.C.A."""
+        from main import MicaLive
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
-        # Send notification through Jarvis
+        # Send notification through M.I.C.A
         result = notification_system.send(
-            title="Jarvis Alert",
-            message="Jarvis has a message for you"
+            title="M.I.C.A Alert",
+            message="M.I.C.A has a message for you"
         )
         
         assert result is not None

@@ -93,8 +93,8 @@ class TestMCPIntegration:
             mcp_client.connect_server("test_server", "python server.py")
 
     @patch('core.mcp_client.subprocess')
-    def test_mcp_with_jarvis(self, mock_subprocess):
-        """Test MCP integration with Jarvis core."""
+    def test_mcp_with_mica(self, mock_subprocess):
+        """Test MCP integration with M.I.C.A core."""
         from core.mcp_client import get_mcp_client
         from core.tool_executor import ToolExecutor
         

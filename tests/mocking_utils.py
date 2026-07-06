@@ -1,5 +1,5 @@
 """
-Mocking utilities for JARVIS AI Assistant tests.
+Mocking utilities for M.I.C.A AI Assistant tests.
 
 This module provides common mocking utilities for testing external dependencies,
 file system operations, database operations, and network requests.

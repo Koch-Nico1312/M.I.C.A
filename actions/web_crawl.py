@@ -1,4 +1,4 @@
-"""Crawl4AI-powered web crawling action for JARVIS."""
+"""Crawl4AI-powered web crawling action for M.I.C.A."""
 
 from __future__ import annotations
 

@@ -12,18 +12,18 @@ class TestFullWorkflowPerformance:
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_jarvis_response_performance(self, mock_loader, mock_memory, mock_config, benchmark):
-        """Benchmark Jarvis response time."""
-        from main import JarvisLive
+    def test_mica_response_performance(self, mock_loader, mock_memory, mock_config, benchmark):
+        """Benchmark M.I.C.A response time."""
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         def process_query():
-            return jarvis.process_input("Hello Jarvis")
+            return mica.process_input("Hello M.I.C.A")
         
         result = benchmark(process_query)
         assert result is not None
@@ -33,18 +33,18 @@ class TestFullWorkflowPerformance:
     @patch('main.get_action_loader')
     def test_multiturn_conversation_performance(self, mock_loader, mock_memory, mock_config, benchmark):
         """Benchmark multi-turn conversation."""
-        from main import JarvisLive
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         def multi_turn():
-            jarvis.process_input("Hello")
-            jarvis.process_input("How are you?")
-            jarvis.process_input("What can you do?")
+            mica.process_input("Hello")
+            mica.process_input("How are you?")
+            mica.process_input("What can you do?")
             return True
         
         result = benchmark(multi_turn)

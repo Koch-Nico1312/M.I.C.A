@@ -23,7 +23,7 @@ class TestSessionIntegration:
         session_id = session.session_id
         
         # Add messages
-        session_manager.add_message(session_id, "user", "Hello Jarvis")
+        session_manager.add_message(session_id, "user", "Hello M.I.C.A")
         session_manager.add_message(session_id, "assistant", "Hi there!")
         
         # Get session

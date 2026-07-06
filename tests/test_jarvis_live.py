@@ -1,5 +1,5 @@
 """
-Tests for core.jarvis_live module
+Tests for core.mica_live module
 """
 
 import pytest
@@ -7,204 +7,204 @@ from unittest.mock import Mock, patch, MagicMock, AsyncMock
 import asyncio
 
 
-class TestJarvisLive:
-    """Test cases for JarvisLive class."""
+class TestMicaLive:
+    """Test cases for MicaLive class."""
 
     @pytest.fixture
-    def jarvis_live(self):
-        """Create a fresh JarvisLive instance for testing."""
-        from core.jarvis_live import JarvisLive
-        return JarvisLive()
+    def mica_live(self):
+        """Create a fresh MicaLive instance for testing."""
+        from core.mica_live import MicaLive
+        return MicaLive()
 
-    def test_jarvis_live_initialization(self, jarvis_live):
-        """Test JarvisLive initialization."""
-        assert jarvis_live is not None
-        assert hasattr(jarvis_live, 'start')
-        assert hasattr(jarvis_live, 'stop')
-        assert hasattr(jarvis_live, 'process_input')
+    def test_mica_live_initialization(self, mica_live):
+        """Test MicaLive initialization."""
+        assert mica_live is not None
+        assert hasattr(mica_live, 'start')
+        assert hasattr(mica_live, 'stop')
+        assert hasattr(mica_live, 'process_input')
 
-    @patch('core.jarvis_live.get_config')
-    def test_start_jarvis(self, mock_config, jarvis_live):
-        """Test starting Jarvis."""
+    @patch('core.mica_live.get_config')
+    def test_start_mica(self, mock_config, mica_live):
+        """Test starting M.I.C.A."""
         mock_config.return_value = Mock()
         
-        jarvis_live.start()
+        mica_live.start()
         
-        assert jarvis_live.is_running
+        assert mica_live.is_running
 
-    @patch('core.jarvis_live.get_config')
-    def test_stop_jarvis(self, mock_config, jarvis_live):
-        """Test stopping Jarvis."""
+    @patch('core.mica_live.get_config')
+    def test_stop_mica(self, mock_config, mica_live):
+        """Test stopping M.I.C.A."""
         mock_config.return_value = Mock()
-        jarvis_live.is_running = True
+        mica_live.is_running = True
         
-        jarvis_live.stop()
+        mica_live.stop()
         
-        assert not jarvis_live.is_running
+        assert not mica_live.is_running
 
-    @patch('core.jarvis_live.get_config')
-    def test_process_text_input(self, mock_config, jarvis_live):
+    @patch('core.mica_live.get_config')
+    def test_process_text_input(self, mock_config, mica_live):
         """Test processing text input."""
         mock_config.return_value = Mock()
         
-        response = jarvis_live.process_input("Hello Jarvis")
+        response = mica_live.process_input("Hello M.I.C.A")
         
         assert response is not None
         assert isinstance(response, str)
 
-    @patch('core.jarvis_live.get_config')
-    def test_process_audio_input(self, mock_config, jarvis_live):
+    @patch('core.mica_live.get_config')
+    def test_process_audio_input(self, mock_config, mica_live):
         """Test processing audio input."""
         mock_config.return_value = Mock()
         
         import numpy as np
         audio_data = np.array([0.1, 0.2, 0.3], dtype=np.float32)
         
-        response = jarvis_live.process_audio(audio_data)
+        response = mica_live.process_audio(audio_data)
         
         assert response is not None
 
-    def test_tool_execution(self, jarvis_live):
+    def test_tool_execution(self, mica_live):
         """Test tool execution."""
         tool_name = "test_tool"
         parameters = {"param": "value"}
         
         # Mock the tool executor
-        jarvis_live.tool_executor = Mock()
-        jarvis_live.tool_executor.execute_tool.return_value = "result"
+        mica_live.tool_executor = Mock()
+        mica_live.tool_executor.execute_tool.return_value = "result"
         
-        result = jarvis_live.execute_tool(tool_name, parameters)
+        result = mica_live.execute_tool(tool_name, parameters)
         
         assert result == "result"
-        jarvis_live.tool_executor.execute_tool.assert_called_once()
+        mica_live.tool_executor.execute_tool.assert_called_once()
 
-    def test_memory_integration(self, jarvis_live):
+    def test_memory_integration(self, mica_live):
         """Test memory integration."""
-        # Test that Jarvis can access memory
-        jarvis_live.memory_manager = Mock()
-        jarvis_live.memory_manager.load_memory.return_value = {"test": "data"}
+        # Test that M.I.C.A can access memory
+        mica_live.memory_manager = Mock()
+        mica_live.memory_manager.load_memory.return_value = {"test": "data"}
         
-        memory = jarvis_live.get_memory()
+        memory = mica_live.get_memory()
         
         assert memory is not None
-        jarvis_live.memory_manager.load_memory.assert_called_once()
+        mica_live.memory_manager.load_memory.assert_called_once()
 
-    def test_voice_output(self, jarvis_live):
+    def test_voice_output(self, mica_live):
         """Test voice output."""
-        jarvis_live.audio_handler = Mock()
+        mica_live.audio_handler = Mock()
         
-        jarvis_live.speak("Hello")
+        mica_live.speak("Hello")
         
-        jarvis_live.audio_handler.speak.assert_called_once_with("Hello")
+        mica_live.audio_handler.speak.assert_called_once_with("Hello")
 
 
-class TestJarvisLiveAsync:
-    """Test async functionality in JarvisLive."""
+class TestMicaLiveAsync:
+    """Test async functionality in MicaLive."""
 
     @pytest.fixture
-    def jarvis_live(self):
-        """Create a fresh JarvisLive instance for testing."""
-        from core.jarvis_live import JarvisLive
-        return JarvisLive()
+    def mica_live(self):
+        """Create a fresh MicaLive instance for testing."""
+        from core.mica_live import MicaLive
+        return MicaLive()
 
     @pytest.mark.asyncio
-    async def test_async_tool_execution(self, jarvis_live):
+    async def test_async_tool_execution(self, mica_live):
         """Test async tool execution."""
-        jarvis_live.tool_executor = Mock()
-        jarvis_live.tool_executor.execute_tool_async = AsyncMock(return_value="result")
+        mica_live.tool_executor = Mock()
+        mica_live.tool_executor.execute_tool_async = AsyncMock(return_value="result")
         
-        result = await jarvis_live.execute_tool_async("test_tool", {"param": "value"})
+        result = await mica_live.execute_tool_async("test_tool", {"param": "value"})
         
         assert result == "result"
 
     @pytest.mark.asyncio
-    async def test_async_input_processing(self, jarvis_live):
+    async def test_async_input_processing(self, mica_live):
         """Test async input processing."""
-        jarvis_live.process_input_async = AsyncMock(return_value="response")
+        mica_live.process_input_async = AsyncMock(return_value="response")
         
-        result = await jarvis_live.process_input_async("test input")
+        result = await mica_live.process_input_async("test input")
         
         assert result == "response"
 
 
-class TestJarvisLiveErrorHandling:
-    """Test error handling in JarvisLive."""
+class TestMicaLiveErrorHandling:
+    """Test error handling in MicaLive."""
 
     @pytest.fixture
-    def jarvis_live(self):
-        """Create a fresh JarvisLive instance for testing."""
-        from core.jarvis_live import JarvisLive
-        return JarvisLive()
+    def mica_live(self):
+        """Create a fresh MicaLive instance for testing."""
+        from core.mica_live import MicaLive
+        return MicaLive()
 
-    def test_tool_execution_error(self, jarvis_live):
+    def test_tool_execution_error(self, mica_live):
         """Test error handling during tool execution."""
-        jarvis_live.tool_executor = Mock()
-        jarvis_live.tool_executor.execute_tool.side_effect = Exception("Tool error")
+        mica_live.tool_executor = Mock()
+        mica_live.tool_executor.execute_tool.side_effect = Exception("Tool error")
         
         with pytest.raises(Exception):
-            jarvis_live.execute_tool("test_tool", {})
+            mica_live.execute_tool("test_tool", {})
 
-    def test_invalid_input_handling(self, jarvis_live):
+    def test_invalid_input_handling(self, mica_live):
         """Test handling of invalid input."""
         invalid_inputs = [None, "", [], {}]
         
         for invalid_input in invalid_inputs:
             try:
-                jarvis_live.process_input(invalid_input)
+                mica_live.process_input(invalid_input)
             except (ValueError, TypeError, AttributeError):
                 pass  # Expected to raise an error
 
-    def test_memory_error_handling(self, jarvis_live):
+    def test_memory_error_handling(self, mica_live):
         """Test error handling for memory operations."""
-        jarvis_live.memory_manager = Mock()
-        jarvis_live.memory_manager.load_memory.side_effect = Exception("Memory error")
+        mica_live.memory_manager = Mock()
+        mica_live.memory_manager.load_memory.side_effect = Exception("Memory error")
         
         with pytest.raises(Exception):
-            jarvis_live.get_memory()
+            mica_live.get_memory()
 
 
-class TestJarvisLiveIntegration:
-    """Integration tests for JarvisLive."""
+class TestMicaLiveIntegration:
+    """Integration tests for MicaLive."""
 
-    @patch('core.jarvis_live.get_config')
-    @patch('core.jarvis_live.get_memory_manager')
-    @patch('core.jarvis_live.get_action_loader')
+    @patch('core.mica_live.get_config')
+    @patch('core.mica_live.get_memory_manager')
+    @patch('core.mica_live.get_action_loader')
     def test_full_session_lifecycle(self, mock_loader, mock_memory, mock_config):
-        """Test a full Jarvis session lifecycle."""
-        from core.jarvis_live import JarvisLive
+        """Test a full M.I.C.A session lifecycle."""
+        from core.mica_live import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         # Start session
-        jarvis.start()
-        assert jarvis.is_running
+        mica.start()
+        assert mica.is_running
         
         # Process input
-        jarvis.process_input("Hello")
+        mica.process_input("Hello")
         
         # Stop session
-        jarvis.stop()
-        assert not jarvis.is_running
+        mica.stop()
+        assert not mica.is_running
 
-    @patch('core.jarvis_live.get_config')
+    @patch('core.mica_live.get_config')
     def test_multi_turn_conversation(self, mock_config):
         """Test multi-turn conversation handling."""
-        from core.jarvis_live import JarvisLive
+        from core.mica_live import MicaLive
         
         mock_config.return_value = Mock()
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         # Simulate conversation
-        jarvis.process_input("What's the weather?")
-        jarvis.process_input("What about tomorrow?")
-        jarvis.process_input("Thanks")
+        mica.process_input("What's the weather?")
+        mica.process_input("What about tomorrow?")
+        mica.process_input("Thanks")
         
         # Verify conversation history is maintained
-        assert len(jarvis.conversation_history) >= 3
+        assert len(mica.conversation_history) >= 3
 
 
 if __name__ == '__main__':

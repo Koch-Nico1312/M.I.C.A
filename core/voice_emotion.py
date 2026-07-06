@@ -1,6 +1,6 @@
 """
 Voice Emotional Analysis
-Detects user frustration or urgency to adjust JARVIS's tone
+Detects user frustration or urgency to adjust M.I.C.A's tone
 """
 
 from dataclasses import dataclass

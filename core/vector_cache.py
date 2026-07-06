@@ -1,5 +1,5 @@
 """
-Vector DB Cache for JARVIS AI Assistant
+Vector DB Cache for M.I.C.A AI Assistant
 =======================================
 Caches ChromaDB query results to reduce redundant vector searches.
 """

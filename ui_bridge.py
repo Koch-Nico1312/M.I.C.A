@@ -33,8 +33,8 @@ from core.session_manager import get_session_manager
 from core.voice_conversation import get_voice_conversation_mode
 
 try:
-    if os.environ.get("JARVIS_NO_QT"):
-        raise ImportError("Qt disabled by JARVIS_NO_QT environment variable")
+    if (os.environ.get("MICA_NO_QT") or os.environ.get("JARVIS_NO_QT")):
+        raise ImportError("Qt disabled by MICA_NO_QT environment variable")
     from PyQt6.QtCore import QEvent, Qt, QUrl
     from PyQt6.QtGui import QColor
     from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -96,13 +96,13 @@ def get_qt_webengine_diagnostic() -> str:
 
 
 def get_qt_webengine_recovery_hint() -> str:
-    if os.environ.get("JARVIS_NO_QT"):
-        return "Unset JARVIS_NO_QT to enable the desktop Qt window."
+    if (os.environ.get("MICA_NO_QT") or os.environ.get("JARVIS_NO_QT")):
+        return "Unset MICA_NO_QT to enable the desktop Qt window."
     return (
         "Install the GUI dependency in the active virtual environment with "
         "`python -m pip install -r requirements.txt` or "
         "`python -m pip install PyQt6-WebEngine==6.11.0`. "
-        "For a browser-only UI, set JARVIS_ALLOW_BROWSER_FALLBACK=1 before starting JARVIS."
+        "For a browser-only UI, set MICA_ALLOW_BROWSER_FALLBACK=1 before starting M.I.C.A."
     )
 
 
@@ -127,13 +127,13 @@ def _find_node_executable() -> Optional[str]:
     return None
 
 
-class _JarvisMiniHeadWindow(QMainWindow):
-    def __init__(self, parent_window: "_JARVISWindow"):
+class _MicaMiniHeadWindow(QMainWindow):
+    def __init__(self, parent_window: "_MICAWindow"):
         super().__init__()
         self._parent_window = parent_window
         self._drag_offset = None
         self._drag_started = False
-        self.setWindowTitle("J.A.R.V.I.S Mini")
+        self.setWindowTitle("M.I.C.A Mini")
         self.setFixedSize(118, 118)
 
         if Qt is not None:
@@ -177,7 +177,7 @@ class _JarvisMiniHeadWindow(QMainWindow):
         face = QLabel("● ●", root)
         face.setObjectName("miniFace")
         face.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
-        caption = QLabel("JARVIS", root)
+        caption = QLabel("M.I.C.A", root)
         caption.setObjectName("miniCaption")
         caption.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
         layout.addStretch(1)
@@ -231,11 +231,11 @@ class _JarvisMiniHeadWindow(QMainWindow):
         super().mouseReleaseEvent(event)
 
 
-class _JARVISWindow(QMainWindow):
-    def __init__(self, ui: "JarvisUI", url: str):
+class _MICAWindow(QMainWindow):
+    def __init__(self, ui: "MicaUI", url: str):
         super().__init__()
         self._ui = ui
-        self.setWindowTitle("J.A.R.V.I.S")
+        self.setWindowTitle("M.I.C.A")
         self.resize(1460, 960)
         self.setMinimumSize(1180, 760)
         
@@ -245,7 +245,7 @@ class _JARVISWindow(QMainWindow):
             Qt.WindowType.WindowMinMaxButtonsHint |
             Qt.WindowType.WindowCloseButtonHint
         )
-        self._mini_head = _JarvisMiniHeadWindow(self)
+        self._mini_head = _MicaMiniHeadWindow(self)
 
         if QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
@@ -275,7 +275,7 @@ class _JARVISWindow(QMainWindow):
             super().closeEvent(event)
 
 
-class JarvisUI:
+class MicaUI:
     """
     Small Python bridge that launches the React UI in a dedicated window and
     exposes the runtime state for the frontend.
@@ -316,7 +316,7 @@ class JarvisUI:
         self._log("SYS: UI bridge ready.")
 
     # ------------------------------------------------------------------
-    # Compatibility API used by JarvisLive
+    # Compatibility API used by MicaLive
     # ------------------------------------------------------------------
     @property
     def muted(self) -> bool:
@@ -387,7 +387,7 @@ class JarvisUI:
         progress: float | int | None = None,
         url: str | None = None,
     ) -> str:
-        """Publish a structured item into the Jarvis-only artifact panel."""
+        """Publish a structured item into the M.I.C.A-only artifact panel."""
         artifact_id = f"artifact-{uuid4().hex[:10]}"
         item = {
             "id": artifact_id,
@@ -440,7 +440,7 @@ class JarvisUI:
         return None
 
     def mainloop(self):
-        if os.environ.get("JARVIS_NO_QT"):
+        if (os.environ.get("MICA_NO_QT") or os.environ.get("JARVIS_NO_QT")):
             logger.info("Running in server-only mode (Qt disabled)")
             try:
                 while not self._shutdown_event.wait(0.25):
@@ -455,17 +455,17 @@ class JarvisUI:
             self._run_qt_window()
             return
 
-        if self._server_url and os.environ.get("JARVIS_ALLOW_BROWSER_FALLBACK"):
+        if self._server_url and (os.environ.get("MICA_ALLOW_BROWSER_FALLBACK") or os.environ.get("JARVIS_ALLOW_BROWSER_FALLBACK")):
             import webbrowser
 
             webbrowser.open(self._server_url, new=1, autoraise=True)
             logger.warning(
                 "Qt WebEngine is not available. Falling back to the system browser because "
-                "JARVIS_ALLOW_BROWSER_FALLBACK is set."
+                "MICA_ALLOW_BROWSER_FALLBACK is set."
             )
         else:
             logger.error(
-                "%s JARVIS cannot open the desktop window. %s The system browser will not "
+                "%s M.I.C.A cannot open the desktop window. %s The system browser will not "
                 "be opened automatically because voice mode depends on the local desktop runtime.",
                 get_qt_webengine_diagnostic(),
                 get_qt_webengine_recovery_hint(),
@@ -606,6 +606,8 @@ class JarvisUI:
             "ui": {
                 "default_view": self._config.get("ui.default_view", "home"),
                 "voice_first": bool(self._config.get("ui.voice_first", True)),
+                "background_id": self._config.get("ui.background_id", "lake"),
+                "background_url": self._config.get("ui.background_url", "/backgrounds/mica-lake.jpg"),
             },
             "calendar": {
                 "enabled": bool(self._config.get("calendar.enabled", True)),
@@ -1555,7 +1557,7 @@ class JarvisUI:
                 {
                     "id": "approvals",
                     "title": f"{len(pending_approvals)} offene Tool-Freigabe(n)",
-                    "subtitle": "Jarvis wartet auf Entscheidung",
+                    "subtitle": "M.I.C.A wartet auf Entscheidung",
                     "status": "blocked",
                     "source": "approvals",
                 }
@@ -1654,6 +1656,236 @@ class JarvisUI:
             "os_integrations": os_integrations,
         }
 
+    def _trust_level_payload(self) -> Dict[str, Any]:
+        level = int(self._config.get("personal_mode.trust_level", 2) or 2)
+        level = max(1, min(4, level))
+        permission_profile = "safe" if level == 1 else "normal"
+        if level >= 4:
+            permission_profile = "normal"
+        labels = {
+            1: "Stufe 1",
+            2: "Stufe 2",
+            3: "Stufe 3",
+            4: "Stufe 4",
+        }
+        descriptions = {
+            1: "M.I.C.A darf automatisch lesen, suchen und zusammenfassen.",
+            2: "M.I.C.A darf zusaetzlich Apps oeffnen, finden und sortieren.",
+            3: "Dateiaenderungen brauchen deine Bestaetigung.",
+            4: "Senden, Loeschen, Kaufen und Posten brauchen immer deine Bestaetigung.",
+        }
+        return {
+            "level": level,
+            "label": labels[level],
+            "description": descriptions[level],
+            "permission_profile": permission_profile,
+            "rules": [
+                {"action": "Lesen und zusammenfassen", "policy": "automatisch"},
+                {"action": "Apps oeffnen, suchen, sortieren", "policy": "automatisch" if level >= 2 else "bestaetigen"},
+                {"action": "Dateien aendern", "policy": "bestaetigen"},
+                {"action": "Senden, loeschen, kaufen, posten", "policy": "immer bestaetigen"},
+            ],
+        }
+
+    def _active_mode_payload(self) -> Dict[str, Any]:
+        mode = str(self._config.get("personal_mode.active_mode", "focus") or "focus").lower()
+        presets = {
+            "focus": ("Focus", "Leise arbeiten, nur wichtige Hinweise.", "local_only", 2, "off"),
+            "coding": ("Coding", "Projektkontext, Tests, Git und lokale Docs.", "balanced", 3, "subtle"),
+            "research": ("Research", "Web, Dateien und Notizen sammeln und strukturieren.", "balanced", 2, "normal"),
+            "private": ("Private", "Maximal lokal, externe Calls nur mit Bestaetigung.", "local_only", 1, "off"),
+            "gaming": ("Gaming", "Performance, Game-Setup und leise Begleitung.", "balanced", 2, "subtle"),
+            "admin": ("Admin", "Systempflege, Logs, Updates und Backups.", "private_with_approval", 4, "normal"),
+        }
+        label, description, privacy_mode, trust_level, proactive_mode = presets.get(mode, presets["focus"])
+        return {
+            "id": mode,
+            "label": label,
+            "description": description,
+            "privacy_mode": privacy_mode,
+            "trust_level": trust_level,
+            "proactive_mode": proactive_mode,
+            "status": "active",
+        }
+
+    def _personal_mode_payload(self) -> Dict[str, Any]:
+        memory = self._memory_payload()
+        raw_memory = memory.get("raw", {}) if isinstance(memory.get("raw"), dict) else {}
+        identity = raw_memory.get("identity", {}) if isinstance(raw_memory.get("identity"), dict) else {}
+        preferences = raw_memory.get("preferences", {}) if isinstance(raw_memory.get("preferences"), dict) else {}
+
+        def memory_value(key: str, default: str) -> str:
+            entry = identity.get(key)
+            if isinstance(entry, dict):
+                return str(entry.get("value") or default)
+            return str(entry or default)
+
+        return {
+            "enabled": bool(self._config.get("personal_mode.enabled", True)),
+            "owner_name": memory_value("name", "You"),
+            "profile_id": str(self._config.get("personal_mode.profile_id", "local-owner")),
+            "local_first": bool(self._config.get("personal_mode.local_first", True)),
+            "glass_design": bool(self._config.get("personal_mode.glass_design", True)),
+            "hidden_surfaces": list(
+                self._config.get(
+                    "personal_mode.hidden_surfaces",
+                    ["teams", "marketplace", "publishing", "multi_user"],
+                )
+                or []
+            ),
+            "preferred_apps": list(
+                self._config.get("personal_mode.preferred_apps", ["VS Code", "Browser", "Obsidian"])
+                or []
+            ),
+            "routines": list(
+                self._config.get(
+                    "personal_mode.routines",
+                    ["Morning brief", "Focus", "Evening review"],
+                )
+                or []
+            ),
+            "preferences": preferences,
+        }
+
+    def _project_awareness_payload(self) -> Dict[str, Any]:
+        projects = self._project_workspaces_payload()
+        active_project = projects.get("active")
+        resume = self._resume_payload()
+        reliability = self._reliability_payload()
+        recent_files = resume.get("recent_files", []) if isinstance(resume.get("recent_files"), list) else []
+        checks = reliability.get("checks", []) if isinstance(reliability.get("checks"), list) else []
+        health = [
+            {
+                "id": str(check.get("name") or check.get("id") or f"check-{idx}"),
+                "label": str(check.get("name") or check.get("message") or "Check"),
+                "status": str(check.get("status") or "degraded"),
+                "detail": str(check.get("message") or ""),
+            }
+            for idx, check in enumerate(checks[:4])
+            if isinstance(check, dict)
+        ]
+        todos = [
+            item
+            for item in self._cockpit_payload().get("tasks", [])
+            if isinstance(item, dict)
+        ][:4]
+        relevant = [
+            {
+                "id": str(item.get("id") or f"file-{idx}"),
+                "title": str(item.get("title") or item.get("path") or "Datei"),
+                "subtitle": str(item.get("subtitle") or item.get("source") or "Zuletzt genutzt"),
+                "status": str(item.get("status") or "recent"),
+                "source": "files",
+            }
+            for idx, item in enumerate(recent_files[:5])
+            if isinstance(item, dict)
+        ]
+        next_three = (todos + relevant)[:3]
+        if not next_three:
+            next_three = [
+                {
+                    "id": "project-activate",
+                    "title": "Aktives Projekt setzen",
+                    "subtitle": "M.I.C.A kann danach TODOs, Dateien und Status besser buendeln.",
+                    "status": "hint",
+                    "source": "project",
+                }
+            ]
+        return {
+            "active_project": active_project,
+            "relevant": relevant,
+            "todos": todos,
+            "health": health,
+            "next_three": next_three,
+        }
+
+    def _silent_brain_payload(self) -> Dict[str, Any]:
+        command_center = self._command_center_payload()
+        warnings = command_center.get("warnings", []) if isinstance(command_center.get("warnings"), list) else []
+        open_questions = command_center.get("open_questions", []) if isinstance(command_center.get("open_questions"), list) else []
+        active_tasks = command_center.get("active_tasks", []) if isinstance(command_center.get("active_tasks"), list) else []
+        project = self._project_awareness_payload()
+        critical = [
+            item for item in warnings if isinstance(item, dict) and item.get("status") in {"blocked", "error"}
+        ][:4]
+        hints = [
+            item for item in [*warnings, *open_questions, *active_tasks, *project.get("next_three", [])]
+            if isinstance(item, dict) and item not in critical
+        ][:6]
+        checks = [
+            {
+                "id": "privacy",
+                "label": "Privacy",
+                "status": str(self._privacy_payload().get("mode", "balanced")),
+                "detail": "Personal Mode local-first",
+            },
+            {
+                "id": "trust",
+                "label": "Trust",
+                "status": self._trust_level_payload()["label"],
+                "detail": self._trust_level_payload()["description"],
+            },
+            {
+                "id": "project",
+                "label": "Projekt",
+                "status": "active" if project.get("active_project") else "none",
+                "detail": (project.get("active_project") or {}).get("name", "Kein aktives Projekt"),
+            },
+        ]
+        return {
+            "generated_at": datetime.now().isoformat(),
+            "critical_count": len(critical),
+            "hint_count": len(hints),
+            "summary": f"{len(hints)} Hinweise gesammelt" if hints else "Alles ruhig",
+            "hints": hints,
+            "critical": critical,
+            "checks": checks,
+        }
+
+    def _command_palette_payload(self) -> Dict[str, Any]:
+        modes = [
+            {**self._active_mode_payload(), "id": mode, "label": label}
+            for mode, label in [
+                ("focus", "Focus"),
+                ("coding", "Coding"),
+                ("research", "Research"),
+                ("private", "Private"),
+                ("gaming", "Gaming"),
+                ("admin", "Admin"),
+            ]
+        ]
+        return {
+            "placeholder": "Frag M.I.C.A oder starte einen Modus...",
+            "examples": [
+                {"id": "focus", "label": "Fokus starten", "command": "fokus starten"},
+                {"id": "today", "label": "Heute", "command": "was steht heute an"},
+                {"id": "coding", "label": "Coding Setup", "command": "oeffne mein coding setup"},
+                {"id": "folder", "label": "Ordner zusammenfassen", "command": "fass aktuellen ordner zusammen"},
+                {"id": "health", "label": "Systemcheck", "command": "was ist kaputt im system"},
+            ],
+            "suggestions": self._quick_actions_payload().get("items", []),
+            "modes": modes,
+        }
+
+    def _artifact_panel_payload(self) -> Dict[str, Any]:
+        state = self._current_state()
+        artifacts = state.get("artifacts", [])
+        tabs = []
+        for kind, label in [("text", "Text"), ("code", "Code"), ("image", "Bild"), ("table", "Tabelle"), ("note", "Notiz"), ("progress", "Fortschritt")]:
+            tabs.append(
+                {
+                    "id": kind,
+                    "label": label,
+                    "count": len([item for item in artifacts if item.get("kind") == kind]),
+                }
+            )
+        return {
+            "open": bool(artifacts),
+            "reason": "artifact" if artifacts else "manual",
+            "items": artifacts,
+            "tabs": tabs,
+        }
+
     def _dashboard_payload(self) -> Dict[str, Any]:
         state = self._current_state()
         return {
@@ -1683,6 +1915,13 @@ class JarvisUI:
             "learning_feedback": self._feedback_payload(),
             "plugins": self._plugin_payload(),
             "os_integrations": self._os_payload(),
+            "personal_mode": self._personal_mode_payload(),
+            "active_mode": self._active_mode_payload(),
+            "trust_level": self._trust_level_payload(),
+            "silent_brain": self._silent_brain_payload(),
+            "command_palette": self._command_palette_payload(),
+            "artifact_panel": self._artifact_panel_payload(),
+            "project_awareness": self._project_awareness_payload(),
         }
 
     def _knowledge_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -1803,7 +2042,7 @@ class JarvisUI:
         perf_flags = get_performance_flags()
 
         class Handler(BaseHTTPRequestHandler):
-            server_version = "JarvisUI/1.0"
+            server_version = "MICAUI/1.0"
 
             def log_message(self, format, *args):  # noqa: A003
                 logger.debug("[UI] " + format, *args)
@@ -1911,7 +2150,7 @@ class JarvisUI:
         self._server_thread = threading.Thread(
             target=self._server.serve_forever,
             daemon=True,
-            name="JarvisUIHttpServer",
+            name="MICAUIHttpServer",
         )
         self._server_thread.start()
         port = self._server.server_address[1]
@@ -1929,6 +2168,12 @@ class JarvisUI:
             return request._send_json(200, self._cockpit_payload())  # type: ignore[attr-defined]
         if path == "/api/command-center":
             return request._send_json(200, self._command_center_payload())  # type: ignore[attr-defined]
+        if path == "/api/personal-mode":
+            return request._send_json(200, self._personal_mode_payload())  # type: ignore[attr-defined]
+        if path == "/api/silent-brain":
+            return request._send_json(200, self._silent_brain_payload())  # type: ignore[attr-defined]
+        if path == "/api/artifact-panel":
+            return request._send_json(200, self._artifact_panel_payload())  # type: ignore[attr-defined]
         if path == "/api/task-pipelines":
             return request._send_json(200, self._task_pipelines_payload())  # type: ignore[attr-defined]
         if path == "/api/session/resume":
@@ -2088,7 +2333,7 @@ class JarvisUI:
                     target=self._on_text_command,
                     args=(text,),
                     daemon=True,
-                    name="JarvisTextCommand",
+                    name="MICATextCommand",
                 ).start()
             return request._send_json(202, {"status": "queued"})  # type: ignore[attr-defined]
 
@@ -2117,7 +2362,7 @@ class JarvisUI:
                 threading.Thread(
                     target=self._on_voice_interrupt,
                     daemon=True,
-                    name="JarvisVoiceInterrupt",
+                    name="MICAVoiceInterrupt",
                 ).start()
             self._log("SYS: Voice output interrupted.")
             return request._send_json(200, {"voice": voice})  # type: ignore[attr-defined]
@@ -2168,6 +2413,103 @@ class JarvisUI:
                     "raw": changed,
                 },
             )  # type: ignore[attr-defined]
+
+        if path == "/api/personal-mode":
+            updates = payload if isinstance(payload, dict) else {}
+            allowed = {
+                "enabled",
+                "profile_id",
+                "local_first",
+                "glass_design",
+                "hidden_surfaces",
+                "preferred_apps",
+                "routines",
+                "active_mode",
+                "trust_level",
+            }
+            personal_updates = {
+                key: value for key, value in updates.items() if key in allowed
+            }
+            if personal_updates:
+                get_config().update_local_settings({"personal_mode": personal_updates})
+            return request._send_json(200, self._personal_mode_payload())  # type: ignore[attr-defined]
+
+        if path == "/api/mode":
+            mode = str(payload.get("mode") or payload.get("id") or "focus").lower().strip()
+            valid_modes = {"focus", "coding", "research", "private", "gaming", "admin"}
+            if mode not in valid_modes:
+                return request._send_json(400, {"error": "invalid mode", "modes": sorted(valid_modes)})  # type: ignore[attr-defined]
+            mode_payload = {
+                "focus": {"privacy": "local_only", "trust": 2, "proactive": "off"},
+                "coding": {"privacy": "balanced", "trust": 3, "proactive": "subtle"},
+                "research": {"privacy": "balanced", "trust": 2, "proactive": "normal"},
+                "private": {"privacy": "local_only", "trust": 1, "proactive": "off"},
+                "gaming": {"privacy": "balanced", "trust": 2, "proactive": "subtle"},
+                "admin": {"privacy": "private_with_approval", "trust": 4, "proactive": "normal"},
+            }[mode]
+            get_config().update_local_settings(
+                {
+                    "personal_mode": {
+                        "active_mode": mode,
+                        "trust_level": mode_payload["trust"],
+                    },
+                    "proactive": {"mode": mode_payload["proactive"]},
+                }
+            )
+            with contextlib.suppress(Exception):
+                from core.privacy_modes import get_privacy_mode_manager
+
+                get_privacy_mode_manager().set_mode(str(mode_payload["privacy"]))
+            return request._send_json(200, self._active_mode_payload())  # type: ignore[attr-defined]
+
+        if path == "/api/trust-level":
+            try:
+                level = int(payload.get("level", 2))
+            except (TypeError, ValueError):
+                level = 2
+            level = max(1, min(4, level))
+            get_config().update_local_settings({"personal_mode": {"trust_level": level}})
+            with contextlib.suppress(Exception):
+                from core.approval_flow import get_approval_flow
+
+                get_approval_flow().set_permission_level("safe" if level == 1 else "normal")
+                get_approval_flow().set_require_confirmation_for_medium(level >= 3)
+                get_approval_flow().set_require_confirmation_for_high(True)
+            return request._send_json(200, self._trust_level_payload())  # type: ignore[attr-defined]
+
+        if path == "/api/command-palette":
+            text = str(payload.get("text", "")).strip()
+            lowered = text.lower()
+            if lowered in {"fokus starten", "focus", "focus mode"}:
+                get_config().update_local_settings({"personal_mode": {"active_mode": "focus"}})
+            elif "coding" in lowered or "code" in lowered:
+                get_config().update_local_settings({"personal_mode": {"active_mode": "coding"}})
+            elif "private" in lowered or "privat" in lowered:
+                get_config().update_local_settings({"personal_mode": {"active_mode": "private"}})
+            elif "research" in lowered or "recherche" in lowered:
+                get_config().update_local_settings({"personal_mode": {"active_mode": "research"}})
+            elif "admin" in lowered or "system" in lowered:
+                get_config().update_local_settings({"personal_mode": {"active_mode": "admin"}})
+
+            if text and callable(self._on_text_command):
+                threading.Thread(
+                    target=self._on_text_command,
+                    args=(text,),
+                    daemon=True,
+                    name="MICACommandPalette",
+                ).start()
+            return request._send_json(
+                202,
+                {
+                    "status": "queued" if text else "empty",
+                    "command_palette": self._command_palette_payload(),
+                    "artifact_panel": self._artifact_panel_payload(),
+                },
+            )  # type: ignore[attr-defined]
+
+        if path == "/api/artifacts/clear":
+            self.clear_artifacts()
+            return request._send_json(200, self._artifact_panel_payload())  # type: ignore[attr-defined]
 
         if path == "/api/setup":
             return request._send_json(200, self._save_setup_payload(payload))  # type: ignore[attr-defined]
@@ -2432,7 +2774,7 @@ class JarvisUI:
         if QApplication is None or QWebEngineView is None:
             raise RuntimeError("Qt WebEngine is not available")
 
-        if os.environ.get("JARVIS_UI_DEV"):
+        if (os.environ.get("MICA_UI_DEV") or os.environ.get("JARVIS_UI_DEV")):
             url = "http://localhost:5173"
             self._start_vite_dev_server()
             self._log(f"SYS: Using Vite dev server at {url}")
@@ -2442,13 +2784,13 @@ class JarvisUI:
             url = self._server_url
             self._log(f"SYS: Using built UI at {url}")
 
-        self._window = _JARVISWindow(self, url)
+        self._window = _MICAWindow(self, url)
 
         # Use existing QApplication instance if available (created in main thread)
         app = QApplication.instance()
         if app is None:
             app = QApplication(sys.argv)
-            app.setApplicationName("JARVIS")
+            app.setApplicationName("M.I.C.A")
         self._app = app
 
         def show_window(_ok: bool = True) -> None:
@@ -2468,3 +2810,9 @@ class JarvisUI:
             if self._vite_process:
                 self._vite_process.terminate()
                 self._vite_process.wait(timeout=5)
+
+
+# Backward-compatible aliases for older imports and tests.
+JarvisUI = MicaUI
+_JarvisMiniHeadWindow = _MicaMiniHeadWindow
+_JARVISWindow = _MICAWindow

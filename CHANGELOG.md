@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to the Jarvis AI Assistant project will be documented in this file.
+All notable changes to the M.I.C.A AI Assistant project will be documented in this file.
 
 ## [Unreleased] - 2026-06-01
 

@@ -1,5 +1,5 @@
 """
-Centralized error handling for JARVIS AI Assistant.
+Centralized error handling for M.I.C.A AI Assistant.
 
 This module provides a unified error handling strategy with custom exception hierarchy,
 error recovery mechanisms, and user-friendly error messages.
@@ -44,8 +44,8 @@ class ErrorSeverity(Enum):
     CRITICAL = "critical"
 
 
-class JarvisError(Exception):
-    """Base exception class for all JARVIS-specific errors."""
+class MicaError(Exception):
+    """Base exception class for all M.I.C.A-specific errors."""
     
     def __init__(
         self,
@@ -55,7 +55,7 @@ class JarvisError(Exception):
         context: Optional[dict] = None,
     ):
         """
-        Initialize a JARVIS error.
+        Initialize a M.I.C.A error.
         
         Args:
             message: Error message
@@ -70,14 +70,14 @@ class JarvisError(Exception):
         self.context = context or {}
 
 
-class ConfigurationError(JarvisError):
+class ConfigurationError(MicaError):
     """Error in configuration loading or validation."""
     
     def __init__(self, message: str, context: Optional[dict] = None):
         super().__init__(message=message, severity=ErrorSeverity.HIGH, recoverable=False, context=context)
 
 
-class ActionExecutionError(JarvisError):
+class ActionExecutionError(MicaError):
     """Error during action execution."""
     
     def __init__(self, action_name: str, message: str, context: Optional[dict] = None):
@@ -87,7 +87,7 @@ class ActionExecutionError(JarvisError):
         self.action_name = action_name
 
 
-class APIError(JarvisError):
+class APIError(MicaError):
     """Error during API calls."""
     
     def __init__(self, service: str, message: str, context: Optional[dict] = None):
@@ -97,7 +97,7 @@ class APIError(JarvisError):
         self.service = service
 
 
-class ResourceError(JarvisError):
+class ResourceError(MicaError):
     """Error related to system resources (memory, disk, etc.)."""
     
     def __init__(self, resource: str, message: str, context: Optional[dict] = None):
@@ -107,9 +107,13 @@ class ResourceError(JarvisError):
         self.resource = resource
 
 
+# Backward-compatible alias for existing imports.
+JarvisError = MicaError
+
+
 class ErrorHandler:
     """
-    Centralized error handler for JARVIS.
+    Centralized error handler for M.I.C.A.
     
     Provides error logging, recovery strategies, and user-friendly error messages.
     """
@@ -175,14 +179,14 @@ class ErrorHandler:
         error_context["error_type"] = type(error).__name__
         error_context["error_message"] = str(error)
         
-        if isinstance(error, JarvisError):
+        if isinstance(error, MicaError):
             error_context["severity"] = error.severity.value
             error_context["recoverable"] = error.recoverable
             if error.context:
                 error_context.update(error.context)
             
             logger.error(
-                f"JARVIS Error [{error.severity.value}]: {error.message}",
+                f"M.I.C.A Error [{error.severity.value}]: {error.message}",
                 extra={"context": error_context}
             )
         else:

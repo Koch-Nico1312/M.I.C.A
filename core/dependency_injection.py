@@ -1,5 +1,5 @@
 """
-Dependency Injection Container for JARVIS AI Assistant.
+Dependency Injection Container for M.I.C.A AI Assistant.
 
 This module provides a simple dependency injection system to manage service lifecycles
 and provide dependencies to components that need them.
@@ -129,7 +129,7 @@ def get_container() -> ServiceContainer:
 
 def register_core_services() -> None:
     """
-    Register core JARVIS services in the dependency injection container.
+    Register core M.I.C.A services in the dependency injection container.
     
     This should be called during application initialization to set up
     the core services that are used throughout the application.

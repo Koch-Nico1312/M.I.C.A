@@ -40,7 +40,7 @@ def test_browser_agent_records_adapter_result(monkeypatch):
 
 
 def test_computer_control_cua_status_is_non_destructive(monkeypatch):
-    monkeypatch.delenv("JARVIS_CUA_DRIVER_CMD", raising=False)
+    monkeypatch.delenv("MICA_CUA_DRIVER_CMD", raising=False)
     result = json.loads(computer_control({"action": "cua_status"}))
 
     assert result["provider"] == "cua"

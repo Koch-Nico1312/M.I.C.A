@@ -101,14 +101,14 @@ def test_prepare_solo_workspace_sets_personal_defaults(tmp_path):
         browser_companion_dir=tmp_path / "companion",
     )
 
-    result = hub.action("prepare_solo_workspace", {"workspace_name": "My Jarvis"})
+    result = hub.action("prepare_solo_workspace", {"workspace_name": "My M.I.C.A"})
     snapshot = result["platform"]
     agent = next(item for item in snapshot["agents"] if item["id"] == "research-copilot")
     personal_group = next(item for item in snapshot["groups"] if item["id"] == "personal")
-    local_memory = next(item for item in snapshot["knowledge"] if item["id"] == "jarvis-memory")
+    local_memory = next(item for item in snapshot["knowledge"] if item["id"] == "mica-memory")
 
     assert result["status"] == "ok"
-    assert snapshot["solo_status"]["workspace_name"] == "My Jarvis"
+    assert snapshot["solo_status"]["workspace_name"] == "My M.I.C.A"
     assert snapshot["solo_status"]["status"] == "ready"
     assert snapshot["solo_status"]["total_count"] == 20
     assert snapshot["solo_status"]["blocking_count"] == 0
@@ -139,7 +139,7 @@ def test_solo_quickstart_runs_local_workspace_paths(tmp_path):
     result = hub.action(
         "run_solo_quickstart",
         {
-            "workspace_name": "My Jarvis",
+            "workspace_name": "My M.I.C.A",
             "query": "local tools knowledge",
             "files": ["note.md", "scan.pdf"],
         },
@@ -150,7 +150,7 @@ def test_solo_quickstart_runs_local_workspace_paths(tmp_path):
     assert result["status"] == "ok"
     assert quickstart["status"] == "ready"
     assert quickstart["solo_status"]["blocking_count"] == 0
-    assert quickstart["summary"]["title"] == "My Jarvis ist lokal bereit"
+    assert quickstart["summary"]["title"] == "My M.I.C.A ist lokal bereit"
     assert quickstart["summary"]["knowledge_results"] == len(quickstart["knowledge_search"]["results"])
     assert quickstart["summary"]["ingested_documents"] == len(quickstart["ingestion_run"]["documents"])
     assert quickstart["next_actions"]
@@ -178,7 +178,7 @@ def test_solo_audit_reports_evidence_for_all_twenty_items(tmp_path):
         sandbox_artifact_dir=tmp_path / "sandbox",
     )
 
-    hub.action("run_solo_quickstart", {"workspace_name": "My Jarvis"})
+    hub.action("run_solo_quickstart", {"workspace_name": "My M.I.C.A"})
     audit_result = hub.action("run_solo_audit", {})
     audit = audit_result["result"]
     snapshot = audit_result["platform"]
@@ -238,8 +238,8 @@ def test_platform_hub_json_store_roundtrip(tmp_path):
 
 
 def test_platform_hub_postgres_store_falls_back_to_json(monkeypatch, tmp_path):
-    monkeypatch.setenv("JARVIS_PLATFORM_STORE", "postgres")
-    monkeypatch.setenv("JARVIS_POSTGRES_URL", "postgresql://jarvis:jarvis@127.0.0.1:65432/jarvis")
+    monkeypatch.setenv("MICA_PLATFORM_STORE", "postgres")
+    monkeypatch.setenv("MICA_POSTGRES_URL", "postgresql://mica:mica@127.0.0.1:65432/mica")
 
     hub = PlatformHub(
         store_path=tmp_path / "platform.json",
@@ -281,7 +281,7 @@ def test_agent_package_export_and_import_roundtrip(tmp_path):
 
     package_path = tmp_path / "agent-packages" / f"{exported['record']['id']}.json"
     assert package_path.exists()
-    assert exported["package"]["format"] == "jarvis-agent-package/v1"
+    assert exported["package"]["format"] == "mica-agent-package/v1"
     assert exported["package"]["manifest"]["prompt"] == "Package this persona."
     assert exported["record"]["version"] == "2.1.0"
     assert imported["agent"]["id"].endswith("-import")
@@ -386,12 +386,12 @@ def test_rbac_and_tool_test_execution(tmp_path):
     )
     tested = hub.action(
         "test_tool",
-        {"id": tool["result"]["id"], "parameters": {"text": "jarvis"}},
+        {"id": tool["result"]["id"], "parameters": {"text": "mica"}},
     )
 
     assert access["result"]["allowed"] is True
     assert tested["result"]["status"] == "ready"
-    assert "JARVIS" in tested["result"]["test_result"]
+    assert "M.I.C.A" in tested["result"]["test_result"]
 
 
 def test_tool_editor_supports_filters_pipes_and_actions(tmp_path):
@@ -417,7 +417,7 @@ def test_tool_editor_supports_filters_pipes_and_actions(tmp_path):
             "name": "Normalize Text",
             "kind": "pipe",
             "code": "return parameters.get('text', '').strip().lower()",
-            "test_parameters": {"text": "  JARVIS  "},
+            "test_parameters": {"text": "  M.I.C.A  "},
         },
     )["result"]
     action_tool = hub.action(
@@ -435,7 +435,7 @@ def test_tool_editor_supports_filters_pipes_and_actions(tmp_path):
     action_test = hub.action("test_tool", {"id": action_tool["id"]})
 
     assert filter_test["result"]["last_test"]["allowed"] is True
-    assert pipe_test["result"]["last_test"]["transformed"] == "jarvis"
+    assert pipe_test["result"]["last_test"]["transformed"] == "mica"
     assert action_test["result"]["last_test"]["dry_run"] is True
     assert "Release note" in action_test["result"]["test_result"]
 
@@ -449,7 +449,7 @@ def test_marketplace_install_and_publish_write_artifacts(tmp_path):
     )
 
     hub.action("review_marketplace_item", {"id": "github-sync", "verdict": "approved"})
-    hub.action("verify_marketplace_item", {"id": "github-sync", "signature": "jarvis:community-github-sync"})
+    hub.action("verify_marketplace_item", {"id": "github-sync", "signature": "mica:community-github-sync"})
     install = hub.action("install_marketplace_item", {"id": "github-sync"})
     publish = hub.action(
         "publish_agent",
@@ -475,7 +475,7 @@ def test_marketplace_lifecycle_requires_review_and_supports_update_disable_unins
     blocked = hub.action("install_marketplace_item", {"id": "github-sync"})
     reviewed = hub.action("review_marketplace_item", {"id": "github-sync", "verdict": "approved", "notes": "checksum accepted"})
     blocked_unsigned = hub.action("install_marketplace_item", {"id": "github-sync"})
-    verified = hub.action("verify_marketplace_item", {"id": "github-sync", "signature": "jarvis:community-github-sync"})
+    verified = hub.action("verify_marketplace_item", {"id": "github-sync", "signature": "mica:community-github-sync"})
     installed = hub.action("install_marketplace_item", {"id": "github-sync"})
     installed_enabled = installed["result"]["enabled"]
     installed_artifact_exists = (tmp_path / "plugins" / "github_sync.py").exists()
@@ -513,7 +513,7 @@ def test_marketplace_registry_sync_and_verification_gate(tmp_path):
                     "kind": "tool",
                     "version": "2.0.0",
                     "checksum": "sha256:signed-tool-200",
-                    "signature": "jarvis:signed-tool-200",
+                    "signature": "mica:signed-tool-200",
                     "review_status": "approved",
                     "trust": "community",
                     "entrypoint": "signed_tool",
@@ -548,7 +548,7 @@ def test_marketplace_policy_blocks_risky_permissions_until_policy_changes(tmp_pa
                     "kind": "connector",
                     "version": "1.0.0",
                     "checksum": "sha256:secret-sync-100",
-                    "signature": "jarvis:secret-sync-100",
+                    "signature": "mica:secret-sync-100",
                     "review_status": "approved",
                     "trust": "community",
                     "publisher": "community-lab",
@@ -562,7 +562,7 @@ def test_marketplace_policy_blocks_risky_permissions_until_policy_changes(tmp_pa
     blocked = hub.action("install_marketplace_item", {"id": "secret-sync"})
     policy = hub.action(
         "save_marketplace_policy",
-        {"permission_denylist": [], "max_risk": "high", "trusted_publishers": ["jarvis", "community-lab"]},
+        {"permission_denylist": [], "max_risk": "high", "trusted_publishers": ["mica", "community-lab"]},
     )["result"]
     verified_again = hub.action("verify_marketplace_item", {"id": "secret-sync"})["result"]
     installed = hub.action("install_marketplace_item", {"id": "secret-sync"})
@@ -609,7 +609,7 @@ def test_published_agent_policy_and_deployment_readiness(tmp_path):
         {
             "agent_id": "research-copilot",
             "kind": "rest-api",
-            "policy": {"auth": "api-key", "rate_limit_per_minute": 3, "secret_refs": ["JARVIS_AGENT_TOKEN"]},
+            "policy": {"auth": "api-key", "rate_limit_per_minute": 3, "secret_refs": ["MICA_AGENT_TOKEN"]},
         },
     )["result"]
     published_auth = published["policy"]["auth"]
@@ -716,7 +716,7 @@ def test_identity_provider_scim_and_knowledge_runs(tmp_path):
             "name": "Acme OIDC",
             "type": "oidc",
             "issuer": "https://login.acme.test",
-            "client_id": "jarvis",
+            "client_id": "mica",
         },
     )
     tested = hub.action("test_identity_provider", {"id": provider["result"]["id"]})
@@ -774,7 +774,7 @@ def test_sso_login_flows_create_sessions_and_mask_tokens(tmp_path):
 
     provider = hub.action(
         "save_identity_provider",
-        {"name": "Flow OIDC", "type": "oidc", "issuer": "https://login.flow.test", "client_id": "jarvis"},
+        {"name": "Flow OIDC", "type": "oidc", "issuer": "https://login.flow.test", "client_id": "mica"},
     )["result"]
     started = hub.action("start_sso_login", {"provider_id": provider["id"], "redirect_uri": "/callback"})["result"]
     completed = hub.action(
@@ -801,15 +801,15 @@ def test_oidc_callback_validates_signed_jwks_token(tmp_path):
         published_dir=tmp_path / "published",
         browser_companion_dir=tmp_path / "companion",
     )
-    secret = "jarvis-test-oidc-secret"
+    secret = "mica-test-oidc-secret"
     provider = hub.action(
         "save_identity_provider",
         {
             "name": "Signed OIDC",
             "type": "oidc",
             "issuer": "https://login.signed.test",
-            "client_id": "jarvis",
-            "audience": "jarvis",
+            "client_id": "mica",
+            "audience": "mica",
             "jwks": {"keys": [{"kid": "local-dev", "kty": "oct", "alg": "HS256", "k": secret}]},
             "allowed_algs": ["HS256"],
         },
@@ -818,7 +818,7 @@ def test_oidc_callback_validates_signed_jwks_token(tmp_path):
     started = hub.action("start_sso_login", {"provider_id": provider["id"], "redirect_uri": "/callback"})["result"]
     claims = {
         "iss": "https://login.signed.test",
-        "aud": "jarvis",
+        "aud": "mica",
         "exp": int(time.time()) + 600,
         "iat": int(time.time()),
         "nonce": started["flow"]["nonce"],
@@ -862,8 +862,8 @@ def test_oidc_callback_validates_rs256_jwks_token(tmp_path):
                 "authorization_endpoint": "https://login.enterprise.test/oauth2/v2.0/authorize",
                 "token_endpoint": "https://login.enterprise.test/oauth2/v2.0/token",
             },
-            "client_id": "jarvis-enterprise",
-            "audience": "jarvis-enterprise",
+            "client_id": "mica-enterprise",
+            "audience": "mica-enterprise",
             "jwks": {"keys": [_rsa_public_jwk(private_key, "rsa-key-1")]},
             "allowed_algs": ["RS256"],
         },
@@ -873,7 +873,7 @@ def test_oidc_callback_validates_rs256_jwks_token(tmp_path):
         {"alg": "RS256", "kid": "rsa-key-1", "typ": "JWT"},
         {
             "iss": "https://login.enterprise.test",
-            "aud": ["jarvis-enterprise", "account"],
+            "aud": ["mica-enterprise", "account"],
             "exp": int(time.time()) + 600,
             "iat": int(time.time()),
             "nonce": started["flow"]["nonce"],
@@ -899,15 +899,15 @@ def test_oidc_callback_rejects_invalid_audience(tmp_path):
         published_dir=tmp_path / "published",
         browser_companion_dir=tmp_path / "companion",
     )
-    secret = "jarvis-test-oidc-secret"
+    secret = "mica-test-oidc-secret"
     provider = hub.action(
         "save_identity_provider",
         {
             "name": "Audience OIDC",
             "type": "oidc",
             "issuer": "https://login.audience.test",
-            "client_id": "jarvis",
-            "audience": "jarvis",
+            "client_id": "mica",
+            "audience": "mica",
             "jwks": {"keys": [{"kid": "audience-key", "kty": "oct", "alg": "HS256", "k": secret}]},
         },
     )["result"]
@@ -1208,7 +1208,7 @@ def test_platform_actions_enforce_rbac_and_record_audit_events(tmp_path):
         "save_user",
         {
             "name": "View Only",
-            "email": "view@jarvis.local",
+            "email": "view@mica.local",
             "roles": ["viewer"],
         },
     )["result"]

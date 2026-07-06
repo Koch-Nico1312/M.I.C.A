@@ -1,5 +1,5 @@
 """
-Centralized logging configuration for JARVIS AI Assistant.
+Centralized logging configuration for M.I.C.A AI Assistant.
 
 This module provides a unified logging system with:
 - Console and file handlers
@@ -28,7 +28,7 @@ def setup_logging(
     backup_count: int = 5,
 ) -> None:
     """
-    Configure the logging system for JARVIS.
+    Configure the logging system for M.I.C.A.
 
     Args:
         log_level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
@@ -69,7 +69,7 @@ def setup_logging(
     console_handler.setFormatter(formatter)
 
     # File handler for general logs
-    general_log = log_dir / "jarvis.log"
+    general_log = log_dir / "mica.log"
     file_handler = RotatingFileHandler(
         general_log,
         maxBytes=max_bytes,

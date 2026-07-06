@@ -78,7 +78,7 @@ class SmartDevice:
 class SmartHome:
     """
     Home Assistant integration for controlling smart home devices.
-    Allows Jarvis to control lights, switches, thermostats, and more via voice.
+    Allows M.I.C.A to control lights, switches, thermostats, and more via voice.
     """
 
     def __init__(self, config_path: Path = SMART_HOME_CONFIG):

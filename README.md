@@ -1,8 +1,8 @@
-# JARVIS
+# M.I.C.A
 
-JARVIS is a local-first AI assistant and personal automation workspace. It is built for a Windows-oriented desktop setup, with a Python runtime, Gemini model integration, voice interaction, tool execution, memory, approvals, workflows, local knowledge, and a React/Vite Studio UI.
+M.I.C.A is a local-first AI assistant and personal automation workspace. It is built for a Windows-oriented desktop setup, with a Python runtime, Gemini model integration, voice interaction, tool execution, memory, approvals, workflows, local knowledge, and a React/Vite Studio UI.
 
-The runtime is modular: `main.py` starts the app, `core/jarvis_live.py` runs the assistant loop, `tools/` declares callable tools, `actions/` implements those tools, and `core/` provides shared services such as configuration, model routing, safety approvals, monitoring, workflows, plugins, publishing, and the Studio platform hub.
+The runtime is modular: `main.py` starts the app, `core/jarvis_live.py` runs the M.I.C.A assistant loop, `tools/` declares callable tools, `actions/` implements those tools, and `core/` provides shared services such as configuration, model routing, safety approvals, monitoring, workflows, plugins, publishing, and the Studio platform hub.
 
 ## Current Capabilities
 
@@ -13,7 +13,7 @@ The runtime is modular: `main.py` starts the app, `core/jarvis_live.py` runs the
 - Long-term memory, conversation compression, hybrid retrieval, memory curation, backups, Obsidian support, and optional ChromaDB vector storage.
 - Local analysis for files/images/documents plus multimodal context and passive vision hooks.
 - Workflow engine, task pipeline, background tasks, automation scheduling, proactive suggestions, and daily/morning routines.
-- Platform Hub / Jarvis Studio Solo Workspace for private agents, knowledge sync, document ingestion, sandbox runs, artifacts, publishing links, companion access, evaluations, metrics, marketplace review, MCP tools, and a 20-point audit.
+- Platform Hub / M.I.C.A Studio Solo Workspace for private agents, knowledge sync, document ingestion, sandbox runs, artifacts, publishing links, companion access, evaluations, metrics, marketplace review, MCP tools, and a 20-point audit.
 - React/Vite frontend workspace under `UI/`, backed by the Python `ui_bridge.py` API surface.
 - Docker Compose, Helm manifests, Postgres migration assets, and release helper scripts for deployment-oriented workflows.
 
@@ -96,7 +96,7 @@ python setup.py
 
 ## Configuration
 
-JARVIS reads `config.yaml` plus environment variables. Use `.env` for secrets and local overrides, and use `config.yaml` for broader runtime defaults.
+M.I.C.A reads `config.yaml` plus environment variables. Use `.env` for secrets and local overrides, and use `config.yaml` for broader runtime defaults.
 
 Important settings include:
 
@@ -109,11 +109,11 @@ Important settings include:
 - `GMAIL_ENABLED`, `CALENDAR_ENABLED`, `SPOTIFY_ENABLED`
 - `OBSIDIAN_ENABLED`, `OBSIDIAN_VAULT_PATH`
 - `PERMISSION_PROFILE`, `DISABLED_ACTIONS`
-- `JARVIS_PLATFORM_STORE`, `JARVIS_POSTGRES_URL`, `JARVIS_REDIS_URL`, `JARVIS_S3_ENDPOINT`, `JARVIS_S3_BUCKET`
+- `MICA_PLATFORM_STORE`, `MICA_POSTGRES_URL`, `MICA_REDIS_URL`, `MICA_S3_ENDPOINT`, `MICA_S3_BUCKET`
 
 See `.env.example` and `config.yaml` for the active option set.
 
-## Running JARVIS
+## Running M.I.C.A
 
 Start the desktop assistant:
 
@@ -127,17 +127,17 @@ Run in CLI mode:
 .\venv\Scripts\python.exe .\main.py --cli
 ```
 
-On startup, JARVIS checks for a Gemini API key, initializes the UI mode, loads configuration, starts safety and performance systems, configures workflows, initializes local analysis and retrieval, verifies memory integrity, and then starts the live assistant runtime. Action modules, tool declarations, resource monitoring, and UI server work are lazily loaded where possible.
+On startup, M.I.C.A checks for a Gemini API key, initializes the UI mode, loads configuration, starts safety and performance systems, configures workflows, initializes local analysis and retrieval, verifies memory integrity, and then starts the live assistant runtime. Action modules, tool declarations, resource monitoring, and UI server work are lazily loaded where possible.
 
 If PyQt WebEngine cannot initialize and you want to allow browser fallback, set:
 
 ```powershell
-$env:JARVIS_ALLOW_BROWSER_FALLBACK="1"
+$env:MICA_ALLOW_BROWSER_FALLBACK="1"
 ```
 
 ## Studio and Solo Workspace
 
-Jarvis Studio is the local workspace surface exposed through `UI/` and `ui_bridge.py`. Solo mode prepares the platform features for a private, single-user setup:
+M.I.C.A Studio is the local workspace surface exposed through `UI/` and `ui_bridge.py`. Solo mode prepares the platform features for a private, single-user setup:
 
 - private local agents and personal ACLs
 - local knowledge sources, sync, hybrid search, and document ingestion
@@ -202,7 +202,7 @@ Local-first file storage is the default development path. Platform-style persist
 - `docker-compose.yml`
 - `Dockerfile`
 - `deploy/postgres/migrations/`
-- `deploy/helm/jarvis/`
+- `deploy/helm/mica/`
 
 Use these paths when validating publishing, artifact storage, platform state, or deployment readiness outside the simple local file-store mode.
 
@@ -220,8 +220,11 @@ Use these paths when validating publishing, artifact storage, platform state, or
 
 ## Local Data and Secrets
 
-Do not commit `.env`, local credentials, tokens, logs, caches, virtual environments, coverage output, generated runtime data, or private local stores. The repository includes `.gitignore` entries for common local artifacts, but review changes before committing because JARVIS touches many local integrations and data directories.
+Do not commit `.env`, local credentials, tokens, logs, caches, virtual environments, coverage output, generated runtime data, or private local stores. The repository includes `.gitignore` entries for common local artifacts, but review changes before committing because M.I.C.A touches many local integrations and data directories.
 
 ## License
 
 This project is licensed under the MIT License. See `LICENSE`.
+
+
+Compatibility note: existing legacy JARVIS_* environment variables are still read as fallbacks while new MICA_* names take precedence.

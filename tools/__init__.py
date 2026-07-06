@@ -1,5 +1,5 @@
 """
-Tools module for JARVIS AI Assistant.
+Tools module for M.I.C.A AI Assistant.
 
 This module contains tool declarations and tool-related utilities.
 """

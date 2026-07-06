@@ -12,8 +12,8 @@ class TestUIIntegration:
     @pytest.fixture
     def ui_bridge(self):
         """Create a fresh UIBridge instance for testing."""
-        from ui_bridge import JarvisUI
-        return JarvisUI()
+        from ui_bridge import MicaUI
+        return MicaUI()
 
     def test_ui_bridge_initialization(self, ui_bridge):
         """Test UI bridge initialization."""
@@ -52,29 +52,29 @@ class TestUIIntegration:
         assert mock_signal.emit.called
 
     @patch('ui_bridge.QtWidgets')
-    def test_ui_with_jarvis(self, mock_qt):
-        """Test UI integration with Jarvis core."""
-        from ui_bridge import JarvisUI
-        from main import JarvisLive
+    def test_ui_with_mica(self, mock_qt):
+        """Test UI integration with M.I.C.A core."""
+        from ui_bridge import MicaUI
+        from main import MicaLive
         
-        ui = JarvisUI()
-        jarvis = JarvisLive()
+        ui = MicaUI()
+        mica = MicaLive()
         
-        # Connect UI to Jarvis
-        ui.set_jarvis(jarvis)
+        # Connect UI to M.I.C.A
+        ui.set_mica(mica)
         
         # Send message through UI
         ui.send_message("Test message")
         
-        assert ui.jarvis is not None
+        assert ui.mica is not None
 
     @patch('ui_bridge.QtWidgets')
     def test_hud_overlay_integration(self, mock_qt):
         """Test HUD overlay integration with UI."""
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
         from core.hud_overlay import get_hud_manager
         
-        ui = JarvisUI()
+        ui = MicaUI()
         hud = get_hud_manager()
         
         # Show HUD
@@ -88,10 +88,10 @@ class TestUIIntegration:
     @patch('ui_bridge.QtWidgets')
     def test_settings_ui_integration(self, mock_qt):
         """Test settings UI integration."""
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
         from core.settings_overview import get_settings_overview
         
-        ui = JarvisUI()
+        ui = MicaUI()
         settings = get_settings_overview()
         
         # Get settings
@@ -105,10 +105,10 @@ class TestUIIntegration:
     @patch('ui_bridge.QtWidgets')
     def test_health_dashboard_integration(self, mock_qt):
         """Test health dashboard integration with UI."""
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
         from core.health_dashboard import get_health_dashboard
         
-        ui = JarvisUI()
+        ui = MicaUI()
         dashboard = get_health_dashboard()
         
         # Get health status
@@ -126,10 +126,10 @@ class TestUIPerformance:
     @patch('ui_bridge.QtWidgets')
     def test_ui_response_time(self, mock_qt):
         """Test UI response time."""
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
         
         import time
-        ui = JarvisUI()
+        ui = MicaUI()
         
         start = time.time()
         ui.send_message("Test message")
@@ -140,10 +140,10 @@ class TestUIPerformance:
     @patch('ui_bridge.QtWidgets')
     def test_ui_concurrent_updates(self, mock_qt):
         """Test handling of concurrent UI updates."""
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
         import asyncio
         
-        ui = JarvisUI()
+        ui = MicaUI()
         
         async def update_concurrent():
             tasks = [

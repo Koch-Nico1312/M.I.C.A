@@ -396,7 +396,7 @@ def format_diagnostic_report(report: dict[str, Any]) -> str:
     """
     lines = []
     lines.append("=" * 70)
-    lines.append("JARVIS DIAGNOSTIC REPORT")
+    lines.append("M.I.C.A DIAGNOSTIC REPORT")
     lines.append("=" * 70)
     lines.append(f"Generated: {report.get('generated_at', 'N/A')}")
     lines.append(f"Base Directory: {report.get('base_dir', 'N/A')}")

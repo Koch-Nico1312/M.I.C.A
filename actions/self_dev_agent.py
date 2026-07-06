@@ -1,4 +1,4 @@
-"""Controlled self-development workflow for the Jarvis repository."""
+"""Controlled self-development workflow for the M.I.C.A repository."""
 
 from __future__ import annotations
 
@@ -234,7 +234,7 @@ def self_dev_agent(parameters: dict, response=None, player=None, session_memory=
     elif action == "branch":
         result = _ensure_branch(goal or "self development", str(params.get("branch", "")))
     elif action == "plan":
-        result = _plan(goal or "Improve Jarvis", str(params.get("context", "")), use_model)
+        result = _plan(goal or "Improve M.I.C.A", str(params.get("context", "")), use_model)
     elif action == "test":
         result = _run_tests(test_command, timeout=timeout)
     elif action == "review":

@@ -60,7 +60,7 @@ class MarketplaceRegistryClient:
         url = f"{self.registry_url}{endpoint}"
         try:
             request = urllib.request.Request(url)
-            request.add_header("User-Agent", "Jarvis-MarketplaceClient/1.0")
+            request.add_header("User-Agent", "M.I.C.A-MarketplaceClient/1.0")
             with urllib.request.urlopen(request, timeout=10) as response:
                 data = response.read().decode("utf-8")
                 return json.loads(data)
@@ -75,7 +75,7 @@ class MarketplaceRegistryClient:
         url = f"{self.registry_url}{endpoint}"
         try:
             request = urllib.request.Request(url)
-            request.add_header("User-Agent", "Jarvis-MarketplaceClient/1.0")
+            request.add_header("User-Agent", "M.I.C.A-MarketplaceClient/1.0")
             with urllib.request.urlopen(request, timeout=30) as response:
                 return response.read()
         except urllib.error.URLError as exc:

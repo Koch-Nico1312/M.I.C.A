@@ -1,5 +1,5 @@
 """
-Google Calendar Integration for JARVIS
+Google Calendar Integration for M.I.C.A
 Allows managing calendar events, appointments, and schedules
 """
 
@@ -423,7 +423,7 @@ def calendar_manager(
     parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None
 ) -> str:
     """
-    Calendar management tool for JARVIS
+    Calendar management tool for M.I.C.A
 
     Actions:
     - today: List today's events

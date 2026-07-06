@@ -1,12 +1,12 @@
 """
-JarvisLive - Main JARVIS AI Assistant class.
+MicaLive - Main M.I.C.A AI Assistant class.
 
-This module contains the core JarvisLive class that manages:
+This module contains the core MicaLive class that manages:
 - Live audio sessions with Gemini API
 - Tool execution and routing
 - Audio input/output handling
 - Session management
-- Integration with various JARVIS subsystems
+- Integration with various M.I.C.A subsystems
 """
 
 import asyncio
@@ -58,7 +58,7 @@ from memory.brain import get_memory_brain
 from memory.obsidian_vault import get_obsidian_bridge
 
 if TYPE_CHECKING:
-    from ui_bridge import JarvisUI
+    from ui_bridge import MicaUI
 
 try:
     import sounddevice as sd
@@ -99,7 +99,7 @@ def _load_system_prompt() -> str:
     except Exception:
         metrics.end_operation("load_system_prompt_uncached", {"cached": False, "error": True})
         return (
-            "You are JARVIS, Tony Stark's AI assistant. "
+            "You are M.I.C.A (Modular Intern Computer Assistant), a calm, personal, local-first assistant. "
             "Be concise, direct, and always use the provided tools to complete tasks. "
             "Never simulate or guess results — always call the appropriate tool."
         )
@@ -155,7 +155,7 @@ def _load_system_prompt_cached() -> str:
                     return _system_prompt_cache["prompt"]
                 metrics.end_operation("load_system_prompt_cached", {"cached": False, "error": True})
                 return (
-                    "You are JARVIS, Tony Stark's AI assistant. "
+                    "You are M.I.C.A (Modular Intern Computer Assistant), a calm, personal, local-first assistant. "
                     "Be concise, direct, and always use the provided tools to complete tasks. "
                     "Never simulate or guess results — always call the appropriate tool."
                 )
@@ -214,24 +214,24 @@ TOOL_DECLARATIONS = []
 FEATURE_TOOL_DECLARATIONS = []
 
 
-class JarvisLive:
+class MicaLive:
     """
-    Main JARVIS AI Assistant class managing live sessions and tool execution.
+    Main M.I.C.A AI Assistant class managing live sessions and tool execution.
 
     This class handles:
     - Gemini Live API connections
     - Audio input/output streaming
     - Tool execution and routing
     - Session management and context
-    - Integration with all JARVIS subsystems
+    - Integration with all M.I.C.A subsystems
     """
 
-    def __init__(self, ui: "JarvisUI") -> None:
+    def __init__(self, ui: "MicaUI") -> None:
         """
-        Initialize JarvisLive instance.
+        Initialize MicaLive instance.
 
         Args:
-            ui: JarvisUI instance for user interface
+            ui: MicaUI instance for user interface
         """
         self.ui = ui
         self.session: Optional[Any] = None
@@ -283,7 +283,7 @@ class JarvisLive:
         self._tool_declarations = self._build_tool_declarations()
         self._auto_start_services()
 
-        logger.info("JarvisLive initialized")
+        logger.info("MicaLive initialized")
 
     def _refresh_runtime_config(self) -> None:
         """Refresh runtime configuration from config file."""
@@ -304,7 +304,7 @@ class JarvisLive:
         try:
             import google.genai.live as live_module
 
-            if getattr(live_module.ws_connect, "_jarvis_keepalive_patched", False):
+            if getattr(live_module.ws_connect, "_mica_keepalive_patched", False):
                 return
 
             ping_interval = self.config.get("audio.websocket_ping_interval", None)
@@ -327,7 +327,7 @@ class JarvisLive:
                 ping_timeout=ping_timeout,
                 close_timeout=close_timeout,
             )
-            setattr(live_module.ws_connect, "_jarvis_keepalive_patched", True)
+            setattr(live_module.ws_connect, "_mica_keepalive_patched", True)
             logger.info(
                 "Patched Gemini Live websocket keepalive "
                 f"(ping_interval={ping_interval}, ping_timeout={ping_timeout}, "
@@ -439,7 +439,7 @@ class JarvisLive:
     def _auto_start_services(self) -> None:
         """Auto-start enabled services."""
         if self.hud.initialize():
-            self.hud.set_status("JARVIS booting")
+            self.hud.set_status("M.I.C.A booting")
 
         if self.passive_vision.enabled:
             self.passive_vision.start()
@@ -780,7 +780,7 @@ class JarvisLive:
             return
         if self._get_context_signature() != self._context_signature:
             self.ui.write_log(
-                "SYS: prompt.txt or long_term.json changed. Restart JARVIS or wait for a reconnect to load the new context."
+                "SYS: prompt.txt or long_term.json changed. Restart M.I.C.A or wait for a reconnect to load the new context."
             )
             self._context_signature = self._get_context_signature()
         self._note_user_input(text)
@@ -788,14 +788,14 @@ class JarvisLive:
 
         memory_reply = self.memory_brain.handle_memory_query(text)
         if memory_reply:
-            self.session_context.record_jarvis_response(memory_reply)
-            self.ui.write_log(f"Jarvis: {memory_reply}")
+            self.session_context.record_mica_response(memory_reply)
+            self.ui.write_log(f"M.I.C.A: {memory_reply}")
             return
 
         forgotten, forget_reply = self.memory_brain.handle_forget_request(text)
         if forgotten:
-            self.session_context.record_jarvis_response(forget_reply)
-            self.ui.write_log(f"Jarvis: {forget_reply}")
+            self.session_context.record_mica_response(forget_reply)
+            self.ui.write_log(f"M.I.C.A: {forget_reply}")
             return
 
         handled, candidates = self.memory_brain.handle_direct_request(text, source="ui")
@@ -804,8 +804,8 @@ class JarvisLive:
             if candidates:
                 primary = candidates[0]
                 ack = f"Ich habe mir das gemerkt: {primary.value}."
-            self.session_context.record_jarvis_response(ack)
-            self.ui.write_log(f"Jarvis: {ack}")
+            self.session_context.record_mica_response(ack)
+            self.ui.write_log(f"M.I.C.A: {ack}")
             return
 
         asyncio.run_coroutine_threadsafe(
@@ -852,7 +852,7 @@ class JarvisLive:
 
     def speak(self, text: str) -> None:
         """
-        Send text to be spoken by JARVIS.
+        Send text to be spoken by M.I.C.A.
 
         Args:
             text: Text to speak
@@ -1336,7 +1336,7 @@ class JarvisLive:
             elif name == "system_diagnostics":
                 result = self._run_system_diagnostics(verbose=bool(args.get("verbose", False)))
 
-            elif name == "shutdown_jarvis":
+            elif name in {"shutdown_mica", "shutdown_jarvis"}:
                 self.end_obsidian_conversation("Session ended by user request")
                 self.ui.write_log("SYS: Shutdown requested.")
                 self.speak("Goodbye, sir.")
@@ -1569,8 +1569,8 @@ class JarvisLive:
 
         def callback(indata, frames, time_info, status):
             with self._speaking_lock:
-                jarvis_speaking = self._is_speaking
-            if self.voice_mode.should_capture_audio(self.ui.muted, jarvis_speaking):
+                mica_speaking = self._is_speaking
+            if self.voice_mode.should_capture_audio(self.ui.muted, mica_speaking):
                 data = indata.tobytes()
 
                 def safe_put():
@@ -1643,10 +1643,10 @@ class JarvisLive:
 
                             full_out = " ".join(out_buf).strip()
                             if full_out:
-                                self.ui.write_log(f"Jarvis: {full_out}")
+                                self.ui.write_log(f"M.I.C.A: {full_out}")
                                 self.voice_mode.record_transcript("assistant", full_out)
                                 self.track_obsidian_response(full_out)
-                                self.session_context.record_jarvis_response(full_out)
+                                self.session_context.record_mica_response(full_out)
                             out_buf = []
 
                     if response.tool_call:
@@ -1704,7 +1704,7 @@ class JarvisLive:
             stream.close()
 
     async def run(self) -> None:
-        """Main run loop for JarvisLive."""
+        """Main run loop for MicaLive."""
         self._refresh_runtime_config()
         self._patch_live_websocket_keepalive()
         client = google.genai.Client(
@@ -1727,7 +1727,7 @@ class JarvisLive:
 
                     logger.info("Connected to Gemini Live")
                     self.ui.set_state("LISTENING")
-                    self.ui.write_log("SYS: JARVIS online.")
+                    self.ui.write_log("SYS: M.I.C.A online.")
                     self._log_stream_state("connected")
 
                     tasks = {
@@ -1794,7 +1794,7 @@ class JarvisLive:
                     self.set_speaking(False)
                     self.ui.set_state("API KEY ERROR")
                     self.ui.write_log(
-                        "SYS: Gemini API key is invalid. Update config/api_keys.json or the .env file with a valid key, then restart JARVIS."
+                        "SYS: Gemini API key is invalid. Update config/api_keys.json or the .env file with a valid key, then restart M.I.C.A."
                     )
                     return
                 if self.hybrid_llm.should_use_fallback(e):
@@ -1805,3 +1805,7 @@ class JarvisLive:
             self.ui.set_state("THINKING")
             logger.info("Reconnecting in 2s...")
             await asyncio.sleep(2)
+
+
+# Backward-compatible alias for existing imports and tests.
+JarvisLive = MicaLive

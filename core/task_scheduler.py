@@ -1,5 +1,5 @@
 """
-Task Scheduler for JARVIS AI Assistant.
+Task Scheduler for M.I.C.A AI Assistant.
 
 This module provides a task scheduling system for executing actions at specific times
 or on recurring schedules.
@@ -61,7 +61,7 @@ class ScheduledTask:
 
 class TaskScheduler:
     """
-    Task scheduler for JARVIS.
+    Task scheduler for M.I.C.A.
     
     Supports:
     - One-time tasks

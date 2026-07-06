@@ -17,8 +17,8 @@ from core.platform_hub import PostgresPlatformStateStore, JsonPlatformStateStore
 def postgres_url():
     """Get Postgres connection URL from environment or use test default."""
     return os.environ.get(
-        "JARVIS_POSTGRES_URL",
-        "postgresql://postgres:postgres@localhost:5432/jarvis_test"
+        "MICA_POSTGRES_URL",
+        "postgresql://postgres:postgres@localhost:5432/mica_test"
     )
 
 

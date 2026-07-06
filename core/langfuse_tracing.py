@@ -1,6 +1,6 @@
 """Optional Langfuse tracing helpers.
 
-This module keeps Langfuse as a soft dependency: Jarvis can run normally when
+This module keeps Langfuse as a soft dependency: M.I.C.A can run normally when
 the SDK is absent or the Langfuse service is offline.
 """
 

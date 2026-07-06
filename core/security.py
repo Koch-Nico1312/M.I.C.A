@@ -1,5 +1,5 @@
 """
-Security module for JARVIS AI Assistant.
+Security module for M.I.C.A AI Assistant.
 
 This module provides:
 - API key encryption and secure storage

@@ -9,21 +9,28 @@ import type {
   MemoryPayload,
   ModelsPayload,
   ActionHistoryPayload,
+  ActiveModePayload,
   AutomationsPayload,
   ApprovalsPayload,
+  ArtifactPanelPayload,
+  CommandPalettePayload,
   DevicesPayload,
   NoteDraftPayload,
   OSIntegrationsPayload,
   PermissionsPayload,
+  PersonalModePayload,
   PluginsPayload,
   PrivacyPayload,
+  ProjectAwarenessPayload,
   ProjectWorkspacesPayload,
   ReliabilityPayload,
   PlatformPayload,
   ResumePayload,
   SessionPayload,
+  SilentBrainPayload,
   SetupPayload,
   TaskPipelinesPayload,
+  TrustLevelPayload,
   UploadDocumentsResponse,
   VoiceConversationState,
 } from "./types";
@@ -129,7 +136,7 @@ function getMockData<T>(path: string): T {
         input_mode: "open_mic",
         push_to_talk_active: true,
         wakeword_enabled: false,
-        wakeword: "jarvis",
+        wakeword: "mica",
         last_transcript: "",
         last_response: "",
         last_interrupt_at: null,
@@ -164,6 +171,8 @@ function getMockData<T>(path: string): T {
       ui: {
         default_view: "voice-chat",
         voice_first: true,
+        background_id: "lake",
+        background_url: "/backgrounds/mica-lake.jpg",
       },
       calendar: {
         enabled: false,
@@ -227,6 +236,8 @@ function getMockData<T>(path: string): T {
         ui: {
           default_view: "voice-chat",
           voice_first: true,
+          background_id: "lake",
+          background_url: "/backgrounds/mica-lake.jpg",
         },
         calendar: {
           enabled: false,
@@ -271,9 +282,9 @@ function getMockData<T>(path: string): T {
     },
     permissions: {
       tools: [
-        { id: "tool-custom-summarize", name: "summarize_text", kind: "function", status: "draft", code: "return parameters.get('text', '')[:500]", test_parameters: { text: "Jarvis Studio" }, test_result: "Not run" },
-        { id: "filter-nonempty-text", name: "nonempty_text", kind: "filter", status: "ready", code: "return bool(parameters.get('text', '').strip())", test_parameters: { text: "Jarvis" }, test_result: "Filter ready" },
-        { id: "pipe-normalize-text", name: "normalize_text", kind: "pipe", status: "ready", code: "return parameters.get('text', '').strip().lower()", test_parameters: { text: "  Jarvis Studio  " }, test_result: "Pipe ready" },
+        { id: "tool-custom-summarize", name: "summarize_text", kind: "function", status: "draft", code: "return parameters.get('text', '')[:500]", test_parameters: { text: "M.I.C.A Studio" }, test_result: "Not run" },
+        { id: "filter-nonempty-text", name: "nonempty_text", kind: "filter", status: "ready", code: "return bool(parameters.get('text', '').strip())", test_parameters: { text: "M.I.C.A" }, test_result: "Filter ready" },
+        { id: "pipe-normalize-text", name: "normalize_text", kind: "pipe", status: "ready", code: "return parameters.get('text', '').strip().lower()", test_parameters: { text: "  M.I.C.A Studio  " }, test_result: "Pipe ready" },
         { id: "action-create-note", name: "create_note_action", kind: "action", status: "ready", code: "return {'artifact_title': parameters.get('title', 'Tool Note')}", test_parameters: { title: "Tool Note" }, test_result: "Action ready" },
       ],
       disabled_actions: [],
@@ -323,6 +334,82 @@ function getMockData<T>(path: string): T {
       },
     },
     artifacts: [],
+    personal_mode: {
+      enabled: true,
+      owner_name: "You",
+      profile_id: "local-owner",
+      local_first: true,
+      glass_design: true,
+      hidden_surfaces: ["teams", "marketplace", "publishing", "multi_user"],
+      preferred_apps: ["VS Code", "Browser", "Obsidian"],
+      routines: ["Morning brief", "Focus", "Evening review"],
+      preferences: { surface: "minimal", language: "de" },
+    },
+    active_mode: {
+      id: "focus",
+      label: "Focus",
+      description: "Leise arbeiten, nur wichtige Hinweise.",
+      privacy_mode: "local_only",
+      trust_level: 2,
+      proactive_mode: "subtle",
+      status: "active",
+    },
+    trust_level: {
+      level: 2,
+      label: "Stufe 2",
+      description: "Lesen, suchen, Apps oeffnen und sortieren automatisch.",
+      permission_profile: "normal",
+      rules: [
+        { action: "Lesen und zusammenfassen", policy: "automatisch" },
+        { action: "Apps oeffnen und sortieren", policy: "automatisch" },
+        { action: "Dateien aendern", policy: "bestaetigen" },
+        { action: "Senden, loeschen, kaufen, posten", policy: "immer bestaetigen" },
+      ],
+    },
+    silent_brain: {
+      generated_at: new Date().toISOString(),
+      critical_count: 0,
+      hint_count: 3,
+      summary: "3 Hinweise gesammelt",
+      hints: [
+        { id: "mock-project", title: "Projektstatus pruefen", subtitle: "Keine Backend-Daten geladen", status: "hint", source: "project" },
+        { id: "mock-memory", title: "Memory bereit", subtitle: "Lokale Erinnerungen koennen gepflegt werden", status: "hint", source: "memory" },
+        { id: "mock-health", title: "Systemcheck offen", subtitle: "Backend verbinden fuer echte Checks", status: "hint", source: "health" },
+      ],
+      critical: [],
+      checks: [
+        { id: "backend", label: "Backend", status: "degraded", detail: "Mockdaten aktiv" },
+        { id: "privacy", label: "Privacy", status: "ok", detail: "Local-first" },
+      ],
+    },
+    command_palette: {
+      placeholder: "Frag M.I.C.A oder starte einen Modus...",
+      examples: [
+        { id: "focus", label: "Fokus starten", command: "fokus starten" },
+        { id: "today", label: "Heute", command: "was steht heute an" },
+        { id: "coding", label: "Coding Setup", command: "oeffne mein coding setup" },
+        { id: "health", label: "Systemcheck", command: "was ist kaputt im system" },
+      ],
+      suggestions: [],
+      modes: [],
+    },
+    artifact_panel: {
+      open: false,
+      reason: "manual",
+      items: [],
+      tabs: [
+        { id: "text", label: "Text", count: 0 },
+        { id: "code", label: "Code", count: 0 },
+        { id: "image", label: "Bild", count: 0 },
+      ],
+    },
+    project_awareness: {
+      active_project: null,
+      relevant: [],
+      todos: [],
+      health: [],
+      next_three: [],
+    },
   };
 
   if (path === "/api/dashboard") {
@@ -364,6 +451,12 @@ function getMockData<T>(path: string): T {
   if (path === "/api/command-center") {
     return mockDashboard.command_center as T;
   }
+  if (path === "/api/personal-mode") {
+    return mockDashboard.personal_mode as T;
+  }
+  if (path === "/api/silent-brain") {
+    return mockDashboard.silent_brain as T;
+  }
   if (path === "/api/devices") {
     return mockDashboard.devices as T;
   }
@@ -372,7 +465,7 @@ function getMockData<T>(path: string): T {
       solo: {
         enabled: true,
         owner_user: "u-admin",
-        workspace_name: "Personal Jarvis",
+        workspace_name: "Personal M.I.C.A",
         local_only: true,
         status: "ready",
         updated_at: new Date().toISOString(),
@@ -380,7 +473,7 @@ function getMockData<T>(path: string): T {
       solo_status: {
         enabled: true,
         owner_user: "u-admin",
-        workspace_name: "Personal Jarvis",
+        workspace_name: "Personal M.I.C.A",
         local_only: true,
         status: "ready",
         ready_count: 18,
@@ -412,7 +505,7 @@ function getMockData<T>(path: string): T {
         ],
       },
       users: [
-        { id: "u-admin", name: "You", email: "you@jarvis.local", roles: ["owner"], groups: ["personal"] },
+        { id: "u-admin", name: "You", email: "you@mica.local", roles: ["owner"], groups: ["personal"] },
       ],
       groups: [{ id: "personal", name: "Personal Workspace", members: ["u-admin"] }],
       roles: [{ id: "owner", permissions: ["*"] }],
@@ -454,15 +547,15 @@ function getMockData<T>(path: string): T {
               { name: "review", status: "failed", detail: "pending" },
             ],
           },
-          source_url: "https://plugins.jarvis.local/github-sync",
+          source_url: "https://plugins.mica.local/github-sync",
           description: "Keeps repositories indexed for RAG.",
           entrypoint: "github_sync",
         },
       ],
       tools: [
-        { id: "tool-custom-summarize", name: "summarize_text", kind: "function", status: "draft", code: "return parameters.get('text', '')[:500]", test_parameters: { text: "Jarvis Studio" }, test_result: "Not run" },
-        { id: "filter-nonempty-text", name: "nonempty_text", kind: "filter", status: "ready", code: "return bool(parameters.get('text', '').strip())", test_parameters: { text: "Jarvis" }, test_result: "Filter ready" },
-        { id: "pipe-normalize-text", name: "normalize_text", kind: "pipe", status: "ready", code: "return parameters.get('text', '').strip().lower()", test_parameters: { text: "  Jarvis Studio  " }, test_result: "Pipe ready" },
+        { id: "tool-custom-summarize", name: "summarize_text", kind: "function", status: "draft", code: "return parameters.get('text', '')[:500]", test_parameters: { text: "M.I.C.A Studio" }, test_result: "Not run" },
+        { id: "filter-nonempty-text", name: "nonempty_text", kind: "filter", status: "ready", code: "return bool(parameters.get('text', '').strip())", test_parameters: { text: "M.I.C.A" }, test_result: "Filter ready" },
+        { id: "pipe-normalize-text", name: "normalize_text", kind: "pipe", status: "ready", code: "return parameters.get('text', '').strip().lower()", test_parameters: { text: "  M.I.C.A Studio  " }, test_result: "Pipe ready" },
         { id: "action-create-note", name: "create_note_action", kind: "action", status: "ready", code: "return {'artifact_title': parameters.get('title', 'Tool Note')}", test_parameters: { title: "Tool Note" }, test_result: "Action ready" },
       ],
       mcp: { deferred: true, last_query: "", tools: [], loaded_tools: [], servers: [] },
@@ -617,7 +710,7 @@ function getMockData<T>(path: string): T {
         docker_compose: "docker-compose.yml",
         dockerfile: "Dockerfile",
         kubernetes: "helm-ready",
-        helm_chart: "deploy/helm/jarvis",
+        helm_chart: "deploy/helm/mica",
         postgres: "compose+helm-ready",
         postgres_schema: "deploy/postgres/migrations/001_platform_hub.sql",
         persistence: {
@@ -648,9 +741,9 @@ function getMockData<T>(path: string): T {
         storage: "persistent-volume+s3/minio-ready",
         scaling: "horizontal-ready",
         env_mapping: {
-          postgres: "JARVIS_POSTGRES_URL",
-          redis: "JARVIS_REDIS_URL",
-          s3_endpoint: "JARVIS_S3_ENDPOINT",
+          postgres: "MICA_POSTGRES_URL",
+          redis: "MICA_REDIS_URL",
+          s3_endpoint: "MICA_S3_ENDPOINT",
         },
         readiness: {
           status: "ready",
@@ -678,7 +771,7 @@ function getMockData<T>(path: string): T {
           type: "oidc",
           status: "configured",
           issuer: "https://login.example.com",
-          client_id: "jarvis",
+          client_id: "mica",
           scim_enabled: true,
           last_test: null,
         },
@@ -700,11 +793,11 @@ function getMockData<T>(path: string): T {
             mcp: "/mcp/research-copilot",
           },
           summary: {
-            title: "Personal Jarvis ist lokal bereit",
+            title: "Personal M.I.C.A ist lokal bereit",
             agent_output: "Research Copilot is ready with local tools, knowledge, sandbox, and publishing.",
             knowledge_results: 2,
             ingested_documents: 2,
-            sandbox_stdout: "Solo Jarvis quickstart ready",
+            sandbox_stdout: "Solo M.I.C.A quickstart ready",
             workflow_status: "waiting_for_human",
             artifact_id: "artifact-solo-quickstart",
           },
@@ -718,7 +811,7 @@ function getMockData<T>(path: string): T {
         {
           id: "solo-audit-demo",
           status: "ready",
-          workspace_name: "Personal Jarvis",
+          workspace_name: "Personal M.I.C.A",
           ready_count: 19,
           optional_count: 1,
           blocking_count: 0,
@@ -853,8 +946,10 @@ export interface TerminalActionResponse {
   platform?: PlatformPayload;
 }
 
-export const jarvisApi = {
+export const micaApi = {
   getDashboard: () => requestJson<DashboardResponse>("/api/dashboard"),
+  getPersonalMode: () => requestJson<PersonalModePayload>("/api/personal-mode"),
+  getSilentBrain: () => requestJson<SilentBrainPayload>("/api/silent-brain"),
   getCommandCenter: () => requestJson<CommandCenterPayload>("/api/command-center"),
   getTaskPipelines: () => requestJson<TaskPipelinesPayload>("/api/task-pipelines"),
   getKnowledgeGraph: () => requestJson<KnowledgeGraphPayload>("/api/knowledge/graph"),
@@ -887,6 +982,31 @@ export const jarvisApi = {
     requestJson("/api/command", {
       method: "POST",
       body: JSON.stringify({ text }),
+    }),
+  runCommandPalette: (text: string) =>
+    requestJson<{ status: string; command_palette?: CommandPalettePayload; artifact_panel?: ArtifactPanelPayload }>("/api/command-palette", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
+  savePersonalMode: (payload: Partial<PersonalModePayload>) =>
+    requestJson<PersonalModePayload>("/api/personal-mode", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  setMode: (mode: string) =>
+    requestJson<ActiveModePayload>("/api/mode", {
+      method: "POST",
+      body: JSON.stringify({ mode }),
+    }),
+  setTrustLevel: (level: number) =>
+    requestJson<TrustLevelPayload>("/api/trust-level", {
+      method: "POST",
+      body: JSON.stringify({ level }),
+    }),
+  clearArtifacts: () =>
+    requestJson<ArtifactPanelPayload>("/api/artifacts/clear", {
+      method: "POST",
+      body: JSON.stringify({}),
     }),
   setMute: (muted: boolean) =>
     requestJson("/api/mute", {

@@ -1,4 +1,4 @@
-"""Small knowledge graph projection for local Jarvis sources."""
+"""Small knowledge graph projection for local M.I.C.A sources."""
 
 from __future__ import annotations
 

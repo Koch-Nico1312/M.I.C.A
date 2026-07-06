@@ -1,5 +1,5 @@
 """
-Session Context Manager for JARVIS
+Session Context Manager for M.I.C.A
 Maintains conversation context across reconnections and persists chat history.
 """
 
@@ -192,7 +192,7 @@ class SessionContextManager:
             compressor.store_conversation(
                 session["id"],
                 messages,
-                tags=["jarvis", "session", "transcript"],
+                tags=["mica", "session", "transcript"],
             )
         except Exception as exc:
             logger.debug("[Session] Conversation compression unavailable: %s", exc)
@@ -220,7 +220,7 @@ class SessionContextManager:
 
         last_message = messages[-1]
         content = str(last_message.get("content", "")).strip()
-        return content[:140] if content else "Jarvis session"
+        return content[:140] if content else "M.I.C.A session"
 
     def _append_message(self, role: str, text: str, extra: Optional[Dict[str, Any]] = None) -> None:
         text = str(text or "").strip()
@@ -245,7 +245,7 @@ class SessionContextManager:
             if role == "user" and session.get("title") in {"Voice session", "", None}:
                 session["title"] = text[:80] or "Voice session"
             elif role == "assistant" and not session.get("title"):
-                session["title"] = "Jarvis conversation"
+                session["title"] = "M.I.C.A conversation"
 
             self._messages.append(message)
             if role == "tool":
@@ -274,9 +274,13 @@ class SessionContextManager:
         """Record a user message."""
         self._append_message("user", text)
 
-    def record_jarvis_response(self, text: str) -> None:
-        """Record a JARVIS response."""
+    def record_mica_response(self, text: str) -> None:
+        """Record a M.I.C.A response."""
         self._append_message("assistant", text)
+
+    def record_jarvis_response(self, text: str) -> None:
+        """Compatibility alias for older integrations."""
+        self.record_mica_response(text)
 
     def record_tool_execution(self, tool_name: str, args: dict, result: str) -> None:
         """Record a tool execution result."""
@@ -381,7 +385,7 @@ class SessionContextManager:
                     elif role == "tool":
                         label = "Tool"
                     else:
-                        label = "JARVIS"
+                        label = "M.I.C.A"
                     content = str(msg.get("content", ""))[:250]
                     lines.append(f"  {label}: {content}")
                 lines.append("")
@@ -435,7 +439,7 @@ class SessionContextManager:
             return {
                 "has_context": True,
                 "session_id": session.get("id"),
-                "summary": summary or "Jarvis session",
+                "summary": summary or "M.I.C.A session",
                 "last_activity": deepcopy(last_activity),
                 "open_ends": list(session.get("open_ends", []))[:10],
                 "recent_files": list(session.get("recent_files", []))[:10],

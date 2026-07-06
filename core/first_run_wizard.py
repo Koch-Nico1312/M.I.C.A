@@ -27,7 +27,7 @@ def ensure_gemini_api_key(use_gui: bool = True) -> bool:
     if has_valid_gemini_key():
         return True
 
-    if use_gui and not os.environ.get("JARVIS_NO_QT"):
+    if use_gui and not (os.environ.get("MICA_NO_QT") or os.environ.get("MICA_NO_QT")):
         key = _prompt_with_qt()
     else:
         key = _prompt_in_terminal()
@@ -61,11 +61,11 @@ def _prompt_with_qt() -> Optional[str]:
     owns_app = False
     if app is None:
         app = QApplication(sys.argv)
-        app.setApplicationName("JARVIS")
+        app.setApplicationName("M.I.C.A")
         owns_app = True
 
     dialog = QDialog()
-    dialog.setWindowTitle("JARVIS Erststart")
+    dialog.setWindowTitle("M.I.C.A Erststart")
     dialog.setMinimumWidth(460)
     dialog.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
 
@@ -73,7 +73,7 @@ def _prompt_with_qt() -> Optional[str]:
     title = QLabel("Gemini API-Key erforderlich")
     title.setStyleSheet("font-size: 18px; font-weight: 600;")
     body = QLabel(
-        "Beim ersten Start braucht JARVIS einen Gemini API-Key. "
+        "Beim ersten Start braucht M.I.C.A einen Gemini API-Key. "
         "Der Key wird lokal in config/api_keys.json gespeichert."
     )
     body.setWordWrap(True)
@@ -122,7 +122,7 @@ def _prompt_with_qt() -> Optional[str]:
 
 
 def _prompt_in_terminal() -> Optional[str]:
-    print("JARVIS Erststart: Gemini API-Key erforderlich.")
+    print("M.I.C.A Erststart: Gemini API-Key erforderlich.")
     try:
         key = getpass.getpass("Gemini API-Key: ").strip()
     except (EOFError, KeyboardInterrupt):

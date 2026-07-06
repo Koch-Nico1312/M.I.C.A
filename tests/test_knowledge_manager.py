@@ -180,8 +180,8 @@ def test_write_suggested_notes_creates_obsidian_notes_and_graph():
     assert "[[Docker]] -> [[Podman]]" in bridge.notes["Knowledge/Graph.md"]
 
 
-def test_jarvis_knowledge_search_handler_uses_obsidian_and_documents_by_default():
-    from core.jarvis_live import JarvisLive
+def test_mica_knowledge_search_handler_uses_obsidian_and_documents_by_default():
+    from core.mica_live import MicaLive
 
     class FakeKnowledgeManager:
         adapters = []
@@ -197,18 +197,18 @@ def test_jarvis_knowledge_search_handler_uses_obsidian_and_documents_by_default(
             ]
 
     fake_manager = FakeKnowledgeManager()
-    jarvis = JarvisLive.__new__(JarvisLive)
-    jarvis.knowledge_manager = fake_manager
+    mica = MicaLive.__new__(MicaLive)
+    mica.knowledge_manager = fake_manager
 
-    output = jarvis._handle_knowledge_search({"action": "search", "query": "docker"})
+    output = mica._handle_knowledge_search({"action": "search", "query": "docker"})
 
     assert fake_manager.search_calls == [("docker", 5, ["obsidian", "documents"])]
     assert "[obsidian] Docker Note" in output
     assert "[documents] containers.md" in output
 
 
-def test_jarvis_knowledge_context_handler_uses_unified_context():
-    from core.jarvis_live import JarvisLive
+def test_mica_knowledge_context_handler_uses_unified_context():
+    from core.mica_live import MicaLive
 
     class FakeKnowledgeManager:
         adapters = []
@@ -220,18 +220,18 @@ def test_jarvis_knowledge_context_handler_uses_unified_context():
                 text="[1] documents: Python\nContext text",
             )
 
-    jarvis = JarvisLive.__new__(JarvisLive)
-    jarvis.knowledge_manager = FakeKnowledgeManager()
+    mica = MicaLive.__new__(MicaLive)
+    mica.knowledge_manager = FakeKnowledgeManager()
 
-    output = jarvis._handle_knowledge_search(
+    output = mica._handle_knowledge_search(
         {"action": "context", "query": "python", "sources": ["documents"], "max_chars": 200}
     )
 
     assert output == "[1] documents: Python\nContext text"
 
 
-def test_jarvis_knowledge_suggest_notes_handler_returns_suggestions():
-    from core.jarvis_live import JarvisLive
+def test_mica_knowledge_suggest_notes_handler_returns_suggestions():
+    from core.mica_live import MicaLive
 
     class FakeKnowledgeManager:
         def suggest_notes(self, query, *, limit, sources):
@@ -244,10 +244,10 @@ def test_jarvis_knowledge_suggest_notes_handler_returns_suggestions():
                 ]
             ).suggest_notes(query, limit=limit, sources=sources)
 
-    jarvis = JarvisLive.__new__(JarvisLive)
-    jarvis.knowledge_manager = FakeKnowledgeManager()
+    mica = MicaLive.__new__(MicaLive)
+    mica.knowledge_manager = FakeKnowledgeManager()
 
-    output = jarvis._handle_knowledge_search(
+    output = mica._handle_knowledge_search(
         {"action": "suggest_notes", "query": "docker", "sources": ["documents"]}
     )
 
@@ -255,24 +255,24 @@ def test_jarvis_knowledge_suggest_notes_handler_returns_suggestions():
     assert '"title": "Docker"' in output
 
 
-def test_jarvis_knowledge_write_notes_handler_writes_notes():
-    from core.jarvis_live import JarvisLive
+def test_mica_knowledge_write_notes_handler_writes_notes():
+    from core.mica_live import MicaLive
 
     class FakeKnowledgeManager:
         def write_suggested_notes(self, query, *, limit, sources):
             return {"query": query, "suggested": 1, "written": ["Knowledge/Auto/Docker.md"]}
 
-    jarvis = JarvisLive.__new__(JarvisLive)
-    jarvis.knowledge_manager = FakeKnowledgeManager()
+    mica = MicaLive.__new__(MicaLive)
+    mica.knowledge_manager = FakeKnowledgeManager()
 
-    output = jarvis._handle_knowledge_search({"action": "write_notes", "query": "docker"})
+    output = mica._handle_knowledge_search({"action": "write_notes", "query": "docker"})
 
     assert '"written": [' in output
     assert "Knowledge/Auto/Docker.md" in output
 
 
-def test_jarvis_knowledge_graph_handler_returns_edges():
-    from core.jarvis_live import JarvisLive
+def test_mica_knowledge_graph_handler_returns_edges():
+    from core.mica_live import MicaLive
 
     manager = KnowledgeManager(
         adapters=[
@@ -285,10 +285,10 @@ def test_jarvis_knowledge_graph_handler_returns_edges():
             )
         ]
     )
-    jarvis = JarvisLive.__new__(JarvisLive)
-    jarvis.knowledge_manager = manager
+    mica = MicaLive.__new__(MicaLive)
+    mica.knowledge_manager = manager
 
-    output = jarvis._handle_knowledge_search({"action": "graph", "query": "containers"})
+    output = mica._handle_knowledge_search({"action": "graph", "query": "containers"})
 
     assert "[[Docker]] -> [[Linux]]" in output
 

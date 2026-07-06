@@ -1,5 +1,5 @@
 """
-Tool declarations for JARVIS AI Assistant.
+Tool declarations for M.I.C.A AI Assistant.
 
 This module contains all tool declarations used by the AI system.
 Tools are separated into core tools (TOOL_DECLARATIONS) and feature tools (FEATURE_TOOL_DECLARATIONS).
@@ -371,7 +371,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
     {
         "name": "self_dev_agent",
         "description": (
-            "Runs controlled self-development cycles for the Jarvis repository. "
+            "Runs controlled self-development cycles for the M.I.C.A repository. "
             "Use for repo status, branch creation, test runs, diff review, and applying provided unified diffs. "
             "Never merges automatically."
         ),
@@ -411,7 +411,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         "description": (
             "Uses optional advanced knowledge integrations. MarkItDown converts PDFs, Office files, "
             "HTML, and audio into Markdown for ingestion; LlamaIndex can build/query an advanced "
-            "RAG index without replacing the default Jarvis retrieval stack."
+            "RAG index without replacing the default M.I.C.A retrieval stack."
         ),
         "parameters": {
             "type": "OBJECT",
@@ -428,7 +428,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
     {
         "name": "crew_orchestrator",
         "description": (
-            "Creates and manages CrewAI-inspired Jarvis-native crews with roles, tasks, "
+            "Creates and manages CrewAI-inspired M.I.C.A-native crews with roles, tasks, "
             "dependencies, checkpoints, and human-in-the-loop approval gates."
         ),
         "parameters": {
@@ -454,7 +454,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         "name": "browser_agent",
         "description": (
             "Runs a multi-step natural-language browser task with Browser Use. "
-            "Use this when Jarvis should reason through a website, complete a web workflow, "
+            "Use this when M.I.C.A should reason through a website, complete a web workflow, "
             "and save an action-history trace instead of calling low-level browser_control steps."
         ),
         "parameters": {
@@ -477,7 +477,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         "name": "tool_forge",
         "description": (
             "Controlled Tool-Maker/Forge system. Use this when the user asks for a capability "
-            "Jarvis does not have yet. It first creates a plan and plugin specification, then only "
+            "M.I.C.A does not have yet. It first creates a plan and plugin specification, then only "
             "writes code into plugins/generated/<tool_name>/ after plan approval, validates the "
             "manifest, permissions, syntax, tests, and importability, and activates the plugin only "
             "after a second approval. It can also propose personality soul.md changes as reviewable diffs."
@@ -698,11 +698,11 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
-        "name": "shutdown_jarvis",
+        "name": "shutdown_mica",
         "description": (
             "Shuts down the assistant completely. "
             "Call this when the user expresses intent to end the conversation, "
-            "close the assistant, say goodbye, or stop Jarvis. "
+            "close the assistant, say goodbye, or stop M.I.C.A. "
             "The user can say this in ANY language."
         ),
         "parameters": {
@@ -1005,8 +1005,8 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
     {
         "name": "memory_brain",
         "description": (
-            "Queries, summarizes, or forgets entries from JARVIS long-term memory. "
-            "Use this when the user asks what JARVIS remembers, wants a summary of stored facts, "
+            "Queries, summarizes, or forgets entries from M.I.C.A long-term memory. "
+            "Use this when the user asks what M.I.C.A remembers, wants a summary of stored facts, "
             "or asks to delete a memory."
         ),
         "parameters": {
@@ -1103,7 +1103,7 @@ FEATURE_TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         "name": "knowledge_search",
         "description": (
             "Unified local knowledge search across Obsidian personal notes and indexed "
-            "documents. Use this when the user asks Jarvis to search what it knows, "
+            "documents. Use this when the user asks M.I.C.A to search what it knows, "
             "find local knowledge, or gather context from notes and documents together."
         ),
         "parameters": {
@@ -1202,7 +1202,7 @@ FEATURE_TOOL_DECLARATIONS: List[Dict[str, Any]] = [
     {
         "name": "system_diagnostics",
         "description": (
-            "Runs an installation and runtime health check for JARVIS and reports whether "
+            "Runs an installation and runtime health check for M.I.C.A and reports whether "
             "the environment is ready."
         ),
         "parameters": {

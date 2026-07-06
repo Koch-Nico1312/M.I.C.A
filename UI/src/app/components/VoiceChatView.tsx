@@ -71,10 +71,10 @@ export function VoiceChatView({
   const wakewordEnabled = Boolean(voice?.wakeword_enabled);
 
   const visibleMessages = messages.slice(-18);
-  const latestJarvisMessage =
+  const latestMicaMessage =
     [...messages].reverse().find((message) => message.role === "assistant")?.content ?? "";
   const lastTranscript = voice?.last_transcript || "";
-  const lastResponse = voice?.last_response || latestJarvisMessage;
+  const lastResponse = voice?.last_response || latestMicaMessage;
 
   useEffect(() => {
     return () => {
@@ -97,7 +97,7 @@ export function VoiceChatView({
   const startBrowserTranscription = (mode: "open_mic" | "push_to_talk" = "open_mic") => {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     if (!Recognition) {
-      setSpeechHint("Browser-STT ist in diesem Browser nicht verfügbar. Jarvis bleibt im Open-Mic-Modus.");
+      setSpeechHint("Browser-STT ist in diesem Browser nicht verfügbar. M.I.C.A bleibt im Open-Mic-Modus.");
       return;
     }
 
@@ -122,7 +122,7 @@ export function VoiceChatView({
       if (finalTranscript && finalTranscript !== sentTranscriptRef.current) {
         sentTranscriptRef.current = finalTranscript;
         onSendCommand(finalTranscript).catch(() => {
-          setSpeechHint("Transkript erkannt, aber Senden an Jarvis ist fehlgeschlagen.");
+          setSpeechHint("Transkript erkannt, aber Senden an M.I.C.A ist fehlgeschlagen.");
         });
       }
     };
@@ -210,7 +210,7 @@ export function VoiceChatView({
             ) : (
               <>
                 <Bot className="h-3.5 w-3.5" />
-                Jarvis
+                M.I.C.A
               </>
             )}
           </div>
@@ -241,7 +241,7 @@ export function VoiceChatView({
                 Voice
               </div>
               <p className="mt-2 max-w-xl text-sm leading-6 text-slate-300">
-                Open Mic ist der Standard. Starte den Listener, wenn du direkt mit Jarvis sprechen willst.
+                Open Mic ist der Standard. Starte den Listener, wenn du direkt mit M.I.C.A sprechen willst.
               </p>
             </div>
 
@@ -349,9 +349,9 @@ export function VoiceChatView({
               </div>
               <p className="mt-2 min-h-12 text-sm leading-6 text-slate-100">
                 {wakewordEnabled
-                  ? `Wakeword: ${voice?.wakeword ?? "jarvis"}`
+                  ? `Wakeword: ${voice?.wakeword ?? "mica"}`
                   : speaking
-                    ? "Jarvis spricht gerade und kann gestoppt werden."
+                    ? "M.I.C.A spricht gerade und kann gestoppt werden."
                     : lastResponse || "Kontextsensitiv, kurz und direkt."}
               </p>
             </div>
@@ -360,7 +360,7 @@ export function VoiceChatView({
           </ResizablePanel>
           <ResizableHandle
             withHandle
-            className="jarvis-resize-handle hidden md:flex"
+            className="mica-resize-handle hidden md:flex"
           />
 
           <ResizablePanel id="voice-transcript" order={2} defaultSize={55} minSize={28}>
@@ -383,7 +383,7 @@ export function VoiceChatView({
             <div className="space-y-3 pr-1">
               {visibleMessages.length === 0 ? (
                 <div className="rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-slate-400">
-                  Sobald JARVIS oder du sprechen, erscheint hier das Transcript.
+                  Sobald M.I.C.A oder du sprechen, erscheint hier das Transcript.
                 </div>
               ) : (
                 visibleMessages.map(transcriptMessage)
@@ -401,7 +401,7 @@ export function VoiceChatView({
             <Textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              placeholder="Optionaler Textbefehl an JARVIS ..."
+              placeholder="Optionaler Textbefehl an M.I.C.A ..."
               className="min-h-[64px] rounded-2xl border-white/10 bg-white/5 px-4 py-3 text-slate-100 placeholder:text-slate-500 focus-visible:ring-cyan-400/40"
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {

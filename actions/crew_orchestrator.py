@@ -1,4 +1,4 @@
-"""Jarvis-native crew and flow orchestration."""
+"""M.I.C.A-native crew and flow orchestration."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from agent.multi_agent_orchestrator import get_orchestrator
 TOOL_DECLARATION = {
     "name": "crew_orchestrator",
     "description": (
-        "Creates and manages CrewAI-inspired Jarvis-native crews with roles, tasks, "
+        "Creates and manages CrewAI-inspired M.I.C.A-native crews with roles, tasks, "
         "dependencies, checkpointing, and human-in-the-loop gates."
     ),
     "parameters": {

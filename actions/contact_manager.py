@@ -13,7 +13,7 @@ CONTACTS_PATH = project_path("data", "contacts.json")
 
 TOOL_DECLARATION = {
     "name": "contact_manager",
-    "description": "Manages the local Jarvis contact book: list, search, create, update, and delete contacts.",
+    "description": "Manages the local M.I.C.A contact book: list, search, create, update, and delete contacts.",
     "parameters": {
         "type": "OBJECT",
         "properties": {

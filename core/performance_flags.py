@@ -1,5 +1,5 @@
 """
-Performance Feature Flags for JARVIS AI Assistant
+Performance Feature Flags for M.I.C.A AI Assistant
 ==================================================
 Manages feature flags for gradual rollout of performance optimizations.
 """

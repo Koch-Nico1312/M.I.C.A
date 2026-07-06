@@ -1,5 +1,5 @@
 """
-Memory Manager for JARVIS AI Assistant
+Memory Manager for M.I.C.A AI Assistant
 =======================================
 Manages memory footprint with limits and garbage collection.
 """

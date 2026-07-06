@@ -134,7 +134,7 @@ class PassiveVision:
 
     def _capture_screen(self) -> Optional[np.ndarray]:
         """Capture screen screenshot"""
-        if os.getenv("JARVIS_COMPUTER_BACKEND", "").lower().strip() == "cua":
+        if (os.getenv("MICA_COMPUTER_BACKEND") or os.getenv("JARVIS_COMPUTER_BACKEND", "")).lower().strip() == "cua":
             cua_image = self._capture_screen_with_cua()
             if cua_image is not None:
                 return cua_image
@@ -248,7 +248,7 @@ class PassiveVision:
                         )
 
                     print(
-                        f"[PassiveVision] 📸 Captured (batch: {perf_flags.is_enabled('batch_screen_processing')})"
+                        f"[PassiveVision] Captured (batch: {perf_flags.is_enabled('batch_screen_processing')})"
                     )
 
                 metrics.end_operation(
@@ -260,7 +260,7 @@ class PassiveVision:
                 time.sleep(self.interval)
 
             except Exception as e:
-                print(f"[PassiveVision] ❌ Loop error: {e}")
+                print(f"[PassiveVision] Loop error: {e}")
                 time.sleep(self.interval)
 
     def _batch_process_screens(self, image: np.ndarray):
@@ -358,10 +358,10 @@ class PassiveVision:
                 )
             
             metrics.end_operation("process_batch", {"batch_size": len(batch), "success": True})
-            print(f"[PassiveVision] 📦 Processed batch of {len(batch)} screens")
+            print(f"[PassiveVision] Processed batch of {len(batch)} screens")
             
         except Exception as e:
-            print(f"[PassiveVision] ❌ Batch processing error: {e}")
+            print(f"[PassiveVision] Batch processing error: {e}")
             # Fallback to sequential processing
             for image in batch:
                 try:
@@ -374,7 +374,7 @@ class PassiveVision:
                         metadata={"resolution": image.shape[:2], "batch_processed": False},
                     )
                 except Exception as inner_e:
-                    print(f"[PassiveVision] ❌ Individual screen error: {inner_e}")
+                    print(f"[PassiveVision] Individual screen error: {inner_e}")
             
             metrics.end_operation("process_batch", {"batch_size": len(batch), "success": False, "fallback": True})
 
@@ -395,9 +395,9 @@ class PassiveVision:
         if perf_flags.is_enabled("batch_screen_processing"):
             self._processing_thread = threading.Thread(target=self._batch_processing_loop, daemon=True)
             self._processing_thread.start()
-            print("[PassiveVision] ▶️ Started monitoring with batch processing")
+            print("[PassiveVision] Started monitoring with batch processing")
         else:
-            print("[PassiveVision] ▶️ Started monitoring")
+            print("[PassiveVision] Started monitoring")
         
         return True
 
@@ -412,7 +412,7 @@ class PassiveVision:
                 # Small sleep to prevent busy waiting
                 time.sleep(0.1)
             except Exception as e:
-                print(f"[PassiveVision] ❌ Batch processing loop error: {e}")
+                print(f"[PassiveVision] Batch processing loop error: {e}")
                 time.sleep(1)
 
     def stop(self):

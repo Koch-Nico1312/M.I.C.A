@@ -80,15 +80,15 @@ class TestHealthIntegration:
         
         assert alerts is not None
 
-    def test_health_with_jarvis(self):
-        """Test health check integration with Jarvis."""
-        from main import JarvisLive
+    def test_health_with_mica(self):
+        """Test health check integration with M.I.C.A."""
+        from main import MicaLive
         from core.healthcheck import build_runtime_report
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         report = build_runtime_report()
         
-        # Jarvis should be able to report its health
+        # M.I.C.A should be able to report its health
         assert report is not None
 
     def test_health_with_dependencies(self):

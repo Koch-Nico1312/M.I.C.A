@@ -1,4 +1,4 @@
-"""Optional Agent-Reach CLI wrapper for JARVIS."""
+"""Optional Agent-Reach CLI wrapper for M.I.C.A."""
 
 from __future__ import annotations
 
@@ -125,8 +125,8 @@ def agent_reach(parameters: dict, player=None, speak=None, **kwargs) -> str:
 
     if action == "install_preview":
         return (
-            "Agent-Reach is intentionally not vendored into Jarvis. "
-            "Preview installation outside Jarvis with: `agent-reach install --dry-run` "
+            "Agent-Reach is intentionally not vendored into M.I.C.A. "
+            "Preview installation outside M.I.C.A with: `agent-reach install --dry-run` "
             "or use the upstream safe install guide before enabling login-state platforms."
         )
 

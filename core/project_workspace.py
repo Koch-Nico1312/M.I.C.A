@@ -1,4 +1,4 @@
-"""Project workspace registry for scoped Jarvis context."""
+"""Project workspace registry for scoped M.I.C.A context."""
 
 from __future__ import annotations
 

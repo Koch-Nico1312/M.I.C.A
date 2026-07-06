@@ -61,14 +61,14 @@ def tool_provider(parameters: dict, response=None, player=None, session_memory=N
         except Exception as exc:
             payload = {"ok": False, "provider": "composio", "action": "status", "error": str(exc)}
     elif action == "list_tools":
-        user_id = str(params.get("user_id") or "jarvis-user")
+        user_id = str(params.get("user_id") or "mica-user")
         toolkits = params.get("toolkits") or []
         if isinstance(toolkits, str):
             toolkits = [part.strip().upper() for part in toolkits.split(",") if part.strip()]
         payload = provider.list_tools(user_id=user_id, toolkits=toolkits).to_dict()
     elif action == "execute_tool":
         payload = provider.execute_tool(
-            user_id=str(params.get("user_id") or "jarvis-user"),
+            user_id=str(params.get("user_id") or "mica-user"),
             slug=str(params.get("slug", "")),
             arguments=dict(params.get("arguments") or {}),
         ).to_dict()
@@ -79,4 +79,3 @@ def tool_provider(parameters: dict, response=None, player=None, session_memory=N
     if player:
         player.write_log(f"[tool-provider] {action}: {'ok' if payload.get('ok') else 'failed'}")
     return json.dumps(payload, indent=2, ensure_ascii=False)
-

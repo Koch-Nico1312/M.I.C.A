@@ -14,7 +14,7 @@ TOOL_DECLARATION = {
     "name": "browser_agent",
     "description": (
         "Runs a natural-language web task with Browser Use and stores the result plus trace "
-        "artifact in Jarvis action history. Use for multi-step browser tasks where selectors "
+        "artifact in M.I.C.A action history. Use for multi-step browser tasks where selectors "
         "are unknown or the web page needs agentic navigation."
     ),
     "parameters": {

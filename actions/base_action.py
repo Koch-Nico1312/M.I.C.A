@@ -1,5 +1,5 @@
 """
-Base action interface for JARVIS AI Assistant.
+Base action interface for M.I.C.A AI Assistant.
 
 This module provides a standardized interface that all actions should implement.
 This ensures consistency across actions and makes testing and maintenance easier.
@@ -56,7 +56,7 @@ class ActionMetadata:
 
 class BaseAction(ABC):
     """
-    Base class for all JARVIS actions.
+    Base class for all M.I.C.A actions.
     
     All actions should inherit from this class and implement the required methods.
     This provides a consistent interface for action execution, validation, and lifecycle management.

@@ -182,27 +182,27 @@ class TestMonitoringAlerts:
             assert report['status'] in ['healthy', 'degraded']
 
 
-class TestMonitoringIntegrationWithJarvis:
-    """Test monitoring integration with Jarvis core."""
+class TestMonitoringIntegrationWithMica:
+    """Test monitoring integration with M.I.C.A core."""
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_jarvis_with_monitoring(self, mock_loader, mock_memory, mock_config):
-        """Test Jarvis with monitoring enabled."""
-        from main import JarvisLive
+    def test_mica_with_monitoring(self, mock_loader, mock_memory, mock_config):
+        """Test M.I.C.A with monitoring enabled."""
+        from main import MicaLive
         from core.performance_tracker import get_performance_tracker
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         tracker = get_performance_tracker()
         
-        # Track Jarvis operations
-        op_id = tracker.start_operation("jarvis_response")
-        jarvis.process_input("Hello Jarvis")
+        # Track M.I.C.A operations
+        op_id = tracker.start_operation("mica_response")
+        mica.process_input("Hello M.I.C.A")
         tracker.end_operation(op_id)
         
         # Get metrics

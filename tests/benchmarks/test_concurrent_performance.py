@@ -248,31 +248,31 @@ class TestConcurrentBackupOperations:
         assert result is not None
 
 
-class TestConcurrentJarvisRequests:
-    """Performance benchmarks for concurrent Jarvis requests."""
+class TestConcurrentMicaRequests:
+    """Performance benchmarks for concurrent M.I.C.A requests."""
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
-    def test_concurrent_jarvis_requests_performance(self, mock_loader, mock_memory, mock_config, benchmark):
-        """Benchmark concurrent Jarvis requests."""
-        from main import JarvisLive
+    def test_concurrent_mica_requests_performance(self, mock_loader, mock_memory, mock_config, benchmark):
+        """Benchmark concurrent M.I.C.A requests."""
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
-        async def concurrent_jarvis_requests():
+        async def concurrent_mica_requests():
             tasks = [
-                jarvis.process_input_async(f"Query {i}")
+                mica.process_input_async(f"Query {i}")
                 for i in range(10)
             ]
             results = await asyncio.gather(*tasks)
             return results
         
-        result = benchmark(asyncio.run, concurrent_jarvis_requests())
+        result = benchmark(asyncio.run, concurrent_mica_requests())
         assert result is not None
 
 

@@ -1,5 +1,5 @@
 """
-Dynamic Plugin System for JARVIS
+Dynamic Plugin System for M.I.C.A
 Allows tools to be loaded dynamically from the plugins/ directory
 """
 
@@ -245,7 +245,7 @@ class PluginManager:
     ) -> Path:
         """Create a template plugin file"""
         template = f'''"""
-{name} Plugin for JARVIS
+{name} Plugin for M.I.C.A
 """
 
 TOOL_DECLARATION = {{

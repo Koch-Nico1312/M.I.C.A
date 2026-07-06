@@ -1,5 +1,5 @@
 """
-Startup module for JARVIS AI Assistant.
+Startup module for M.I.C.A AI Assistant.
 
 This module handles application initialization and startup logic.
 """

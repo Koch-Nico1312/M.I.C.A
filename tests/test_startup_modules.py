@@ -177,6 +177,6 @@ class TestAppInitializer:
         """When Qt is explicitly disabled, the hint should say how to re-enable it."""
         import ui_bridge
 
-        monkeypatch.setenv("JARVIS_NO_QT", "1")
+        monkeypatch.setenv("MICA_NO_QT", "1")
 
-        assert "Unset JARVIS_NO_QT" in ui_bridge.get_qt_webengine_recovery_hint()
+        assert "Unset MICA_NO_QT" in ui_bridge.get_qt_webengine_recovery_hint()

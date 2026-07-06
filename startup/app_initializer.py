@@ -1,5 +1,5 @@
 """
-Application initializer for JARVIS AI Assistant.
+Application initializer for M.I.C.A AI Assistant.
 
 This module handles the application startup logic, including UI initialization
 and mode selection (GUI vs CLI).
@@ -36,24 +36,24 @@ def create_ui_bridge(use_gui: bool = False) -> Any:
         use_gui: If True, use GUI mode with Qt. If False, use CLI mode.
         
     Returns:
-        UI bridge instance (JarvisUI or CLIUIBridge)
+        UI bridge instance (MicaUI or CLIUIBridge)
     """
     if use_gui:
         print("=" * 60)
-        print("JARVIS AI Assistant - GUI Mode")
+        print("M.I.C.A AI Assistant - GUI Mode")
         print("=" * 60)
-        print("Starting JARVIS with Qt window...")
+        print("Starting M.I.C.A with Qt window...")
         print()
         
         # Import the heavy Qt/WebEngine bridge only when GUI mode is actually used.
-        from ui_bridge import JarvisUI
+        from ui_bridge import MicaUI
 
-        ui = JarvisUI(str(BASE_DIR / "face.png"))
+        ui = MicaUI(str(BASE_DIR / "face.png"))
     else:
         print("=" * 60)
-        print("JARVIS AI Assistant - CLI Mode")
+        print("M.I.C.A AI Assistant - CLI Mode")
         print("=" * 60)
-        print("Starting JARVIS in text-only mode...")
+        print("Starting M.I.C.A in text-only mode...")
         print()
         
         # Create minimal CLI UI bridge
@@ -64,7 +64,7 @@ def create_ui_bridge(use_gui: bool = False) -> Any:
 
 def initialize_application(use_gui: bool | None = None) -> tuple[bool, Any]:
     """
-    Initialize the JARVIS application.
+    Initialize the M.I.C.A application.
 
     Args:
         use_gui: If provided, forces GUI or CLI mode. If None, defaults to GUI unless --cli is present.
@@ -84,7 +84,7 @@ def initialize_application(use_gui: bool | None = None) -> tuple[bool, Any]:
 class CLIUIBridge:
     """
     Minimal UI bridge for CLI mode without Qt/GUI components.
-    Provides a simple text-based interface for JARVIS in CLI mode.
+    Provides a simple text-based interface for M.I.C.A in CLI mode.
     """
     
     def __init__(self):
@@ -121,7 +121,7 @@ class CLIUIBridge:
         self._on_text_command = cb
     
     def set_state(self, state: str):
-        """Set the current state of JARVIS."""
+        """Set the current state of M.I.C.A."""
         self._state = state
         print(f"[CLI] State: {state}")
     

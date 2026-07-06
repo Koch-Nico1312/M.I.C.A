@@ -14,21 +14,21 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_memory(self, mock_loader, mock_memory, mock_config):
         """Test LLM integration with memory system."""
-        from main import JarvisLive
+        from main import MicaLive
         from memory.memory_manager import MemoryManager
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         memory = MemoryManager()
         
         # Store memory
         memory.update_memory("user_preferences", {"theme": "dark"})
         
         # Process query that uses memory
-        response = jarvis.process_input("What are my preferences?")
+        response = mica.process_input("What are my preferences?")
         
         assert response is not None
 
@@ -37,14 +37,14 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_tools(self, mock_loader, mock_memory, mock_config):
         """Test LLM integration with tool execution."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.tool_executor import ToolExecutor
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         executor = ToolExecutor()
         
         # Register test tool
@@ -59,7 +59,7 @@ class TestLLMIntegration:
         )
         
         # Process query that requires tool
-        response = jarvis.process_input("Use test_tool with parameter 'hello'")
+        response = mica.process_input("Use test_tool with parameter 'hello'")
         
         assert response is not None
 
@@ -68,7 +68,7 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_multimodal(self, mock_loader, mock_memory, mock_config):
         """Test LLM integration with multimodal input."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.multimodal_context import MultimodalContext
         import numpy as np
         
@@ -76,7 +76,7 @@ class TestLLMIntegration:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         context = MultimodalContext()
         
         # Add multimodal context
@@ -85,7 +85,7 @@ class TestLLMIntegration:
         context.add_image(mock_image, description="Screenshot")
         
         # Process multimodal query
-        response = jarvis.process_input("What's in this image?", context=context)
+        response = mica.process_input("What's in this image?", context=context)
         
         assert response is not None
 
@@ -94,20 +94,20 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_fallback(self, mock_loader, mock_memory, mock_config):
         """Test LLM integration with fallback mechanism."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.llm_fallback import LLMFallback
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         fallback = LLMFallback()
         fallback.enable_auto_fallback = True
         
         # Simulate primary failure
         with patch.object(fallback, '_generate_primary', side_effect=Exception("Primary failed")):
-            response = jarvis.process_input("Test query")
+            response = mica.process_input("Test query")
         
         # Should use fallback
         assert response is not None
@@ -117,14 +117,14 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_streaming(self, mock_loader, mock_memory, mock_config):
         """Test LLM streaming response."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.response_streamer import ResponseStreamer
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         streamer = ResponseStreamer()
         
         # Stream response
@@ -139,14 +139,14 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_caching(self, mock_loader, mock_memory, mock_config):
         """Test LLM response caching."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.api_cache import APICache
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         cache = APICache()
         
         # Cache response
@@ -163,7 +163,7 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_system_prompt(self, mock_loader, mock_memory, mock_config):
         """Test LLM with custom system prompt."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.paths import project_path
         from pathlib import Path
         
@@ -171,7 +171,7 @@ class TestLLMIntegration:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         # Load system prompt
         prompt_path = project_path("core", "prompt.txt")
@@ -184,14 +184,14 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_conversation_history(self, mock_loader, mock_memory, mock_config):
         """Test LLM with conversation history."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.session_manager import SessionManager
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         session = SessionManager()
         
         # Create session with history
@@ -210,17 +210,17 @@ class TestLLMIntegration:
     @patch('main.get_action_loader')
     def test_llm_with_temperature(self, mock_loader, mock_memory, mock_config):
         """Test LLM with temperature parameter."""
-        from main import JarvisLive
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
-        jarvis.temperature = 0.7
+        mica = MicaLive()
+        mica.temperature = 0.7
         
         # Process query with temperature
-        response = jarvis.process_input("Generate a creative response")
+        response = mica.process_input("Generate a creative response")
         
         assert response is not None
 
@@ -233,32 +233,32 @@ class TestLLMErrorHandling:
     @patch('main.get_action_loader')
     def test_llm_api_error(self, mock_loader, mock_memory, mock_config):
         """Test handling of LLM API errors."""
-        from main import JarvisLive
+        from main import MicaLive
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         
         # Simulate API error
-        with patch.object(jarvis, '_generate_response', side_effect=Exception("API error")):
+        with patch.object(mica, '_generate_response', side_effect=Exception("API error")):
             with pytest.raises(Exception):
-                jarvis.process_input("Test query")
+                mica.process_input("Test query")
 
     @patch('main.get_config')
     @patch('main.get_memory_manager')
     @patch('main.get_action_loader')
     def test_tool_execution_error(self, mock_loader, mock_memory, mock_config):
         """Test handling of tool execution errors."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.tool_executor import ToolExecutor
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         executor = ToolExecutor()
         
         # Register failing tool
@@ -268,7 +268,7 @@ class TestLLMErrorHandling:
         executor.register_tool("failing_tool", failing_tool, "Failing tool", {})
         
         # Process query that uses failing tool
-        response = jarvis.process_input("Use failing_tool")
+        response = mica.process_input("Use failing_tool")
         
         # Should handle error gracefully
         assert response is not None or response is None

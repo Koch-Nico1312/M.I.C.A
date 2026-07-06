@@ -87,7 +87,7 @@ _IMG_MAX_H = 360
 _JPEG_Q = 60
 
 _SYSTEM_PROMPT = (
-    "You are JARVIS, an advanced AI assistant. "
+    "You are M.I.C.A (Modular Intern Computer Assistant), an advanced personal AI assistant. "
     "Analyze the provided image with precision and intelligence. "
     "Be concise and direct — maximum two sentences unless the user's question "
     "requires more detail. "
@@ -342,7 +342,7 @@ class _VisionSession:
                     if transcript and self._player:
                         full = re.sub(r"\s+", " ", " ".join(transcript)).strip()
                         if full:
-                            self._player.write_log(f"Jarvis: {full}")
+                            self._player.write_log(f"M.I.C.A: {full}")
                             print(f"[Vision] 💬 {full}")
                     transcript = []
 

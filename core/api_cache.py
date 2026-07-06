@@ -1,5 +1,5 @@
 """
-API Response Cache for JARVIS AI Assistant
+API Response Cache for M.I.C.A AI Assistant
 ==========================================
 Caches Gemini API responses to reduce redundant calls.
 """

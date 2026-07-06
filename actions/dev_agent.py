@@ -8,7 +8,7 @@ from pathlib import Path
 from core.model_runner import get_routed_model
 
 
-PROJECTS_DIR = Path.home() / "Desktop" / "JarvisProjects"
+PROJECTS_DIR = Path.home() / "Desktop" / "MicaProjects"
 MAX_FIX_ATTEMPTS = 5
 MODEL_PLANNER = "tool_planning"
 MODEL_WRITER = "code_edit"
@@ -477,7 +477,7 @@ def _build_project(
             speak(msg)
         return msg
 
-    proj_name = project_name or plan.get("project_name", "jarvis_project")
+    proj_name = project_name or plan.get("project_name", "mica_project")
     proj_name = re.sub(r"[^\w\-]", "_", proj_name)
     project_dir = PROJECTS_DIR / proj_name
     project_dir.mkdir(parents=True, exist_ok=True)

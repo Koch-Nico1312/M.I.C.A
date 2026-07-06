@@ -1,5 +1,5 @@
 """
-Caching system for JARVIS AI Assistant.
+Caching system for M.I.C.A AI Assistant.
 
 This module provides:
 - SQLite-based caching backend
@@ -53,7 +53,7 @@ class CacheManager:
             cache_dir = project_path("data", "cache")
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.db_path = self.cache_dir / "jarvis_cache.db"
+        self.db_path = self.cache_dir / "mica_cache.db"
         self.default_ttl = default_ttl_hours * 3600  # Convert to seconds
 
         from config.config_loader import get_config

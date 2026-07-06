@@ -1,7 +1,7 @@
-"""Optional knowledge and orchestration integrations for Jarvis.
+"""Optional knowledge and orchestration integrations for M.I.C.A.
 
 These adapters keep heavyweight third-party SDKs behind lazy imports so the
-default local-first Jarvis runtime remains usable without extra packages.
+default local-first M.I.C.A runtime remains usable without extra packages.
 """
 
 from __future__ import annotations

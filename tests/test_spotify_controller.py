@@ -24,7 +24,7 @@ class FakeSpotifyClient:
         self.playlist = {
             "uri": "spotify:playlist:playlist123",
             "name": "Focus Mix",
-            "owner": {"display_name": "Jarvis"},
+            "owner": {"display_name": "M.I.C.A"},
         }
         self.artist = {
             "uri": "spotify:artist:artist123",

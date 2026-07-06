@@ -1,4 +1,4 @@
-# JARVIS Configuration File
+# M.I.C.A Configuration File
 # This file contains application settings that can be modified without changing code
 
 # Model Settings
@@ -9,7 +9,7 @@ models:
   voice_name: "Charon"
   context_window: 1000000  # Maximum context window in tokens (1M for gemini-2.5)
 
-# Optional centralized model routing. If omitted, Jarvis falls back to the
+# Optional centralized model routing. If omitted, M.I.C.A falls back to the
 # legacy models.text / models.vision values above.
 model_router:
   cost_mode: "balanced"              # economy | balanced
@@ -81,10 +81,10 @@ integrations:
     cua_driver_cmd: ""               # JSON stdin/stdout bridge command
   mem0:
     enabled: false
-    user_id: "jarvis-user"
+    user_id: "mica-user"
   composio:
     enabled: false
-    default_user_id: "jarvis-user"
+    default_user_id: "mica-user"
   openhands:
     enabled: false
     projects_path: "./"
@@ -183,7 +183,7 @@ session:
 # Obsidian Vault Integration
 obsidian:
   enabled: true
-  vault_path: "~/Obsidian/Jarvis"
+  vault_path: "~/Obsidian/MICA"
 
 # System Settings
 system:

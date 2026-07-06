@@ -1,4 +1,4 @@
-"""Controlled tool forging and personality proposal workflows for Jarvis."""
+"""Controlled tool forging and personality proposal workflows for M.I.C.A."""
 
 from __future__ import annotations
 
@@ -60,7 +60,7 @@ class ForgeValidation:
 
 
 class ToolForge:
-    """Plans, creates, validates, and activates generated Jarvis plugins."""
+    """Plans, creates, validates, and activates generated M.I.C.A plugins."""
 
     def __init__(self, root: Path | None = None):
         self.root = (root or ROOT).resolve()
@@ -139,7 +139,7 @@ class ToolForge:
             "entrypoint": "plugin.py",
             "permissions": list(plan.get("permissions", [])),
             "enabled": False,
-            "generated_by": "jarvis_tool_forge",
+            "generated_by": "mica_tool_forge",
             "plan_id": plan_id,
             "created_at": datetime.now().isoformat(),
         }
@@ -212,7 +212,7 @@ class ToolForge:
             add("syntax_tests", False, str(exc))
 
         try:
-            spec = importlib.util.spec_from_file_location(f"jarvis_forge_{name}", plugin_path)
+            spec = importlib.util.spec_from_file_location(f"mica_forge_{name}", plugin_path)
             if spec is None or spec.loader is None:
                 raise ImportError("Could not build import spec.")
             module = importlib.util.module_from_spec(spec)
@@ -256,7 +256,7 @@ class ToolForge:
             "note": (
                 "Registered in the current plugin manager."
                 if registered
-                else "Plugin enabled; reload Jarvis or reload plugins for the tool to appear."
+                else "Plugin enabled; reload M.I.C.A or reload plugins for the tool to appear."
             ),
         }
 
@@ -349,7 +349,7 @@ class ToolForge:
 
     def _default_plugin_code(self, name: str, description: str) -> str:
         safe_description = description.replace('"""', '\\"\\"\\"')
-        return f'''"""Generated Jarvis plugin: {name}."""
+        return f'''"""Generated M.I.C.A plugin: {name}."""
 
 TOOL_DECLARATION = {{
     "name": "{name}",
@@ -382,7 +382,7 @@ def {name}(parameters: dict, **_kwargs) -> str:
             from core.model_runner import get_routed_model
 
             model = get_routed_model(intent="code_edit", use_cache=False)
-            prompt = f"""Write a complete Jarvis plugin.py file.
+            prompt = f"""Write a complete M.I.C.A plugin.py file.
 
 Tool name: {name}
 Description: {description}
@@ -409,7 +409,7 @@ Rules:
             from core.model_runner import get_routed_model
 
             model = get_routed_model(intent="code_edit", use_cache=False)
-            prompt = f"""Write a complete pytest file for a generated Jarvis plugin.
+            prompt = f"""Write a complete pytest file for a generated M.I.C.A plugin.
 
 Tool name: {name}
 Description: {description}
@@ -446,8 +446,8 @@ def test_generated_plugin_imports_and_runs():
         soul_path = self.personality_dir / "soul.md"
         if not soul_path.exists():
             soul_path.write_text(
-                "# Jarvis Soul\n\n"
-                "Jarvis should be concise, useful, calm, and aligned with the user's preferences.\n",
+                "# M.I.C.A Soul\n\n"
+                "M.I.C.A should be concise, useful, calm, and aligned with the user's preferences.\n",
                 encoding="utf-8",
             )
         return soul_path

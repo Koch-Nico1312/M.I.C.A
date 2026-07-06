@@ -16,7 +16,7 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_morning_routine_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete morning routine scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.morning_routine import MorningRoutine
         from core.daily_briefing import DailyBriefing
         
@@ -24,7 +24,7 @@ class TestEndToEndScenarios:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         routine = MorningRoutine()
         briefing = DailyBriefing()
         
@@ -39,7 +39,7 @@ class TestEndToEndScenarios:
         routine.start_routine()
         
         # 3. Process user request
-        response = jarvis.process_input("Good morning Jarvis")
+        response = mica.process_input("Good morning M.I.C.A")
         
         assert daily_briefing is not None
         assert response is not None
@@ -49,7 +49,7 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_work_session_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete work session scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.workflow_engine import WorkflowEngine
         from core.vscode_bridge import get_vscode_bridge
         
@@ -57,7 +57,7 @@ class TestEndToEndScenarios:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         engine = WorkflowEngine()
         vscode = get_vscode_bridge()
         
@@ -79,7 +79,7 @@ class TestEndToEndScenarios:
         workflow_id = engine.submit_workflow(workflow)
         
         # 3. Process user request
-        response = jarvis.process_input("Start my work session")
+        response = mica.process_input("Start my work session")
         
         assert workflow is not None
         assert response is not None
@@ -89,7 +89,7 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_research_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete research scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.semantic_search import SemanticSearch
         from actions.web_search import web_search_action
         
@@ -97,7 +97,7 @@ class TestEndToEndScenarios:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         search = SemanticSearch()
         
         # 1. Web search
@@ -111,7 +111,7 @@ class TestEndToEndScenarios:
         search.add_text("Python machine learning research")
         
         # 3. Process user request
-        response = jarvis.process_input("Research Python machine learning")
+        response = mica.process_input("Research Python machine learning")
         
         assert web_results is not None
         assert response is not None
@@ -121,14 +121,14 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_smart_home_automation_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete smart home automation scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.smart_home import SmartHome
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         smart_home = SmartHome()
         
         # 1. Discover devices
@@ -160,7 +160,7 @@ class TestEndToEndScenarios:
             smart_home.create_automation(automation)
         
         # 3. Process user request
-        response = jarvis.process_input("Set up movie night mode")
+        response = mica.process_input("Set up movie night mode")
         
         assert devices is not None
         assert response is not None
@@ -170,14 +170,14 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_cross_device_handoff_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete cross-device handoff scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.cross_device import CrossDevice
         
         mock_config.return_value = Mock()
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         cross_device = CrossDevice()
         
         # 1. Register devices
@@ -192,7 +192,7 @@ class TestEndToEndScenarios:
         cross_device.handoff_session(session_id, desktop_id, mobile_id)
         
         # 4. Process user request
-        response = jarvis.process_input("Continue this task on my phone")
+        response = mica.process_input("Continue this task on my phone")
         
         assert session_id is not None
         assert response is not None
@@ -202,7 +202,7 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_backup_and_recovery_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete backup and recovery scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from memory.memory_backup import get_backup_manager
         from memory.memory_manager import MemoryManager
         
@@ -210,7 +210,7 @@ class TestEndToEndScenarios:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         backup_manager = get_backup_manager()
         memory = MemoryManager()
         
@@ -233,7 +233,7 @@ class TestEndToEndScenarios:
             recovered = backup_manager.restore_backup(backup_id)
             
             # 4. Process user request
-            response = jarvis.process_input("Restore my data from backup")
+            response = mica.process_input("Restore my data from backup")
             
             assert backup_id is not None
             assert recovered == backup_data
@@ -244,7 +244,7 @@ class TestEndToEndScenarios:
     @patch('main.get_action_loader')
     def test_multimodal_interaction_scenario(self, mock_loader, mock_memory, mock_config):
         """Test complete multimodal interaction scenario."""
-        from main import JarvisLive
+        from main import MicaLive
         from core.multimodal_context import MultimodalContext
         from core.passive_vision import PassiveVision
         import numpy as np
@@ -253,7 +253,7 @@ class TestEndToEndScenarios:
         mock_memory.return_value = Mock()
         mock_loader.return_value = Mock()
         
-        jarvis = JarvisLive()
+        mica = MicaLive()
         context = MultimodalContext()
         vision = PassiveVision()
         
@@ -268,7 +268,7 @@ class TestEndToEndScenarios:
         combined = context.get_context()
         
         # 4. Process user request
-        response = jarvis.process_input("What's in this screenshot?")
+        response = mica.process_input("What's in this screenshot?")
         
         assert combined is not None
         assert response is not None

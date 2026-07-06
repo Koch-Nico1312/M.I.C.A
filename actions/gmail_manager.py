@@ -1,5 +1,5 @@
 """
-Gmail API Integration for JARVIS
+Gmail API Integration for M.I.C.A
 Allows reading, writing, and summarizing emails
 """
 
@@ -385,7 +385,7 @@ def gmail_manager(
     parameters: dict, response=None, player=None, speak: Callable = None, session_memory=None
 ) -> str:
     """
-    Gmail management tool for JARVIS
+    Gmail management tool for M.I.C.A
 
     Actions:
     - list: List emails

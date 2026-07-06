@@ -160,7 +160,7 @@ class TestCrossDeviceIntegration:
         
         # Create session on desktop
         session_id = cross_device.create_session(desktop_id)
-        cross_device.add_message_to_session(session_id, "user", "Hello Jarvis")
+        cross_device.add_message_to_session(session_id, "user", "Hello M.I.C.A")
         
         # Handoff to mobile
         handoff_result = cross_device.handoff_session(session_id, desktop_id, mobile_id)

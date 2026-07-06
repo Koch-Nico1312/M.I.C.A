@@ -1,5 +1,5 @@
 """
-Performance Metrics Collector for JARVIS AI Assistant
+Performance Metrics Collector for M.I.C.A AI Assistant
 ======================================================
 Collects and tracks performance metrics before/after optimizations.
 """

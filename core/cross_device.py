@@ -162,12 +162,12 @@ class CrossDeviceHandover:
 
         if platform in ["both", "telegram"] and self.telegram_enabled and self.telegram_bot:
             telegram_success = await self.telegram_bot.send_message(
-                f"📋 *JARVIS Summary*\n\n{summary}"
+                f"📋 *M.I.C.A Summary*\n\n{summary}"
             )
             success = success or telegram_success
 
         if platform in ["both", "discord"] and self.discord_enabled and self.discord_bot:
-            discord_success = await self.discord_bot.send_message(f"📋 JARVIS Summary\n\n{summary}")
+            discord_success = await self.discord_bot.send_message(f"📋 M.I.C.A Summary\n\n{summary}")
             success = success or discord_success
 
         return success

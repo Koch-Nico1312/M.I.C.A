@@ -1,5 +1,5 @@
 """
-File Watcher for JARVIS AI Assistant.
+File Watcher for M.I.C.A AI Assistant.
 
 This module provides file system monitoring capabilities to trigger actions
 when files are created, modified, or deleted.
@@ -200,7 +200,7 @@ class WatchedPath:
 
 class FileWatcher:
     """
-    File system watcher for JARVIS.
+    File system watcher for M.I.C.A.
     
     Monitors directories for file changes and triggers callbacks.
     Supports both polling (legacy) and event-based (watchdog) monitoring.

@@ -1,5 +1,5 @@
 """
-Response Streamer for JARVIS AI Assistant
+Response Streamer for M.I.C.A AI Assistant
 =========================================
 Provides streaming response generation for reduced perceived latency.
 """

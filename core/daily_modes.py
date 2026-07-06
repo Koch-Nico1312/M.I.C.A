@@ -1,4 +1,4 @@
-"""Daily-driver mode presets for Jarvis."""
+"""Daily-driver mode presets for M.I.C.A."""
 
 from __future__ import annotations
 
