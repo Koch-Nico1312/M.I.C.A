@@ -28,6 +28,9 @@ class PipelineStep:
     title: str
     status: str = "pending"
     depends_on: list[str] = field(default_factory=list)
+    role: str = "general"
+    expected_output: str = ""
+    requires_human_input: bool = False
     verification: list[VerificationRecord] = field(default_factory=list)
 
 
@@ -40,6 +43,8 @@ class TaskPipeline:
     updated_at: str
     steps: list[PipelineStep]
     requires_approval: bool = False
+    process: str = "sequential"
+    checkpoints: list[VerificationRecord] = field(default_factory=list)
 
 
 def _now() -> str:
@@ -72,10 +77,14 @@ class TaskPipelineManager:
                     id=f"step-{index + 1}",
                     title=title,
                     depends_on=[f"step-{index}"] if index else [],
+                    role=self._role_for_step(title),
+                    expected_output=self._expected_output_for_step(title),
+                    requires_human_input=index == len(step_titles[:8]) - 1 and self._looks_risky(goal),
                 )
                 for index, title in enumerate(step_titles[:8])
             ],
             requires_approval=self._looks_risky(goal),
+            checkpoints=[VerificationRecord(timestamp=now, status="created", note="Pipeline created.")],
         )
         with self._lock:
             self._pipelines[pipeline.id] = pipeline
@@ -107,6 +116,9 @@ class TaskPipelineManager:
                 VerificationRecord(timestamp=_now(), status="passed", note=note or "Step marked complete.")
             )
             pipeline.status = "completed" if not self._next_ready_step(pipeline) else "running"
+            pipeline.checkpoints.append(
+                VerificationRecord(timestamp=_now(), status=pipeline.status, note=f"Advanced {next_step.id}.")
+            )
             pipeline.updated_at = _now()
             self._save()
             return self._to_dict(pipeline)
@@ -125,6 +137,9 @@ class TaskPipelineManager:
             elif status == "blocked":
                 step.status = "blocked"
                 pipeline.status = "blocked"
+            pipeline.checkpoints.append(
+                VerificationRecord(timestamp=_now(), status=status, note=f"Verified {step_id}: {note}")
+            )
             pipeline.updated_at = _now()
             self._save()
             return self._to_dict(pipeline)
@@ -162,6 +177,28 @@ class TaskPipelineManager:
         ]
 
     @staticmethod
+    def _role_for_step(title: str) -> str:
+        raw = title.lower()
+        if any(token in raw for token in ("plan", "zerlegen", "kontext")):
+            return "planner"
+        if any(token in raw for token in ("verifiz", "review", "pruef", "prüf")):
+            return "reviewer"
+        if any(token in raw for token in ("code", "implement", "datei", "file")):
+            return "specialist"
+        return "executor"
+
+    @staticmethod
+    def _expected_output_for_step(title: str) -> str:
+        role = TaskPipelineManager._role_for_step(title)
+        outputs = {
+            "planner": "A concise plan with dependencies and risk notes.",
+            "reviewer": "Verification notes, failures, and readiness signal.",
+            "specialist": "A concrete implementation artifact or change summary.",
+            "executor": "A completed step result with evidence.",
+        }
+        return outputs[role]
+
+    @staticmethod
     def _looks_risky(goal: str) -> bool:
         raw = goal.lower()
         return any(marker in raw for marker in ("delete", "loesche", "remove", "send", "purchase", "admin"))
@@ -184,6 +221,9 @@ class TaskPipelineManager:
                         title=step["title"],
                         status=step.get("status", "pending"),
                         depends_on=list(step.get("depends_on", [])),
+                        role=step.get("role", "general"),
+                        expected_output=step.get("expected_output", ""),
+                        requires_human_input=bool(step.get("requires_human_input", False)),
                         verification=[
                             VerificationRecord(**record)
                             for record in step.get("verification", [])
@@ -200,6 +240,12 @@ class TaskPipelineManager:
                     updated_at=item.get("updated_at", _now()),
                     steps=steps,
                     requires_approval=bool(item.get("requires_approval", False)),
+                    process=item.get("process", "sequential"),
+                    checkpoints=[
+                        VerificationRecord(**record)
+                        for record in item.get("checkpoints", [])
+                        if isinstance(record, dict)
+                    ],
                 )
                 self._pipelines[pipeline.id] = pipeline
         except Exception:

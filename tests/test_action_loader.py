@@ -136,17 +136,9 @@ class TestActionLoaderIntegration:
         # Check that known actions are present
         action_names = [decl['name'] for decl in declarations]
         
-        # Some expected actions (may not all be present depending on configuration)
-        expected_actions = [
-            'web_search',
-            'weather_report',
-            'open_app',
-            'file_controller'
-        ]
-        
-        # At least some should be present
-        present_count = sum(1 for action in expected_actions if action in action_names)
-        assert present_count > 0
+        # Core integrations should be present in the tool surface.
+        assert "crawl_url" in action_names
+        assert "agent_reach" in action_names
 
 
 if __name__ == '__main__':

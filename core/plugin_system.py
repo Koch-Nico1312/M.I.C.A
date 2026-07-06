@@ -79,6 +79,9 @@ class PluginManager:
                 manifest = self.load_manifest(plugin_path)
                 if not manifest:
                     return None
+                if not bool(manifest.get("enabled", True)):
+                    print(f"[Plugin] SKIP: {manifest.get('id', plugin_path.name)} is disabled")
+                    return None
                 plugin_path = plugin_path / str(manifest["entrypoint"])
 
             # Import the module

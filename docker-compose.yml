@@ -25,11 +25,15 @@ services:
       - JARVIS_S3_ENDPOINT=${JARVIS_S3_ENDPOINT:-http://minio:9000}
       - JARVIS_S3_BUCKET=${JARVIS_S3_BUCKET:-jarvis-artifacts}
       - JARVIS_STORAGE_BACKEND=${JARVIS_STORAGE_BACKEND:-local+s3}
+      - LANGFUSE_ENABLED=${LANGFUSE_ENABLED:-false}
+      - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
+      - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
+      - LANGFUSE_HOST=${LANGFUSE_HOST:-http://host.docker.internal:3000}
       # Add your API keys here or use .env file
       # - GEMINI_API_KEY=your_api_key_here
-    devices:
-      # Add audio device access if needed (Linux only)
-      # - /dev/snd:/dev/snd
+    # Add audio device access if needed (Linux only)
+    # devices:
+    #   - /dev/snd:/dev/snd
     ports:
       - "8080:8080"
     networks:

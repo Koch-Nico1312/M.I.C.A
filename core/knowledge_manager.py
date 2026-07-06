@@ -556,6 +556,42 @@ class MemoryKnowledgeAdapter:
         return {"indexed": False, "source": self.name, "reason": "read_only_source"}
 
 
+class LlamaIndexKnowledgeAdapter:
+    """Optional advanced RAG adapter backed by LlamaIndex."""
+
+    name = "advanced_index"
+
+    def search(self, query: str, limit: int) -> list[KnowledgeResult]:
+        if not query:
+            return []
+        from core.advanced_knowledge_integrations import get_llama_index_adapter
+
+        result = get_llama_index_adapter().query(query)
+        if not result.ok:
+            logger.debug("LlamaIndex query unavailable: %s", result.error)
+            return []
+        return [
+            KnowledgeResult(
+                title="LlamaIndex response",
+                content=str(result.result or ""),
+                source=self.name,
+                uri=str(result.metadata.get("persist_dir", "")),
+                score=1.0,
+                metadata=result.to_dict(),
+            )
+        ][:limit]
+
+    def index(self, source: KnowledgeSource) -> dict[str, Any]:
+        if source.kind not in {"advanced_index", "llama_index", "directory", "file"}:
+            return {"indexed": False, "source": self.name, "reason": "unsupported_source_kind"}
+        from core.advanced_knowledge_integrations import get_llama_index_adapter
+
+        persist_dir = source.metadata.get("persist_dir")
+        result = get_llama_index_adapter().index_path(source.uri, persist_dir=persist_dir)
+        payload = result.to_dict()
+        return {"indexed": result.ok, "source": self.name, **payload}
+
+
 class KnowledgeManager:
     """Unified API for indexing and retrieving local knowledge."""
 
@@ -572,6 +608,7 @@ class KnowledgeManager:
         return [
             ObsidianKnowledgeAdapter(),
             SemanticSearchAdapter(),
+            LlamaIndexKnowledgeAdapter(),
             KiwixWikipediaAdapter(),
             MemoryKnowledgeAdapter(),
         ]

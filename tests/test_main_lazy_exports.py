@@ -24,3 +24,10 @@ def test_action_loader_ignores_dunder_action_names():
     loader = ActionLoader()
 
     assert loader.load_action("__path__") is None
+
+
+def test_main_exports_new_integration_actions():
+    import main
+
+    assert callable(main.crawl_url)
+    assert callable(main.agent_reach)

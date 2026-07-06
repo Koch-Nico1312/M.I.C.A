@@ -8,6 +8,7 @@ Background OCR/Vision stream for short-term visual memory
 import asyncio
 import hashlib
 import json
+import os
 import queue
 import threading
 import time
@@ -17,6 +18,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from core.metrics_collector import get_metrics_collector
+from core.external_agent_integrations import CUAComputerBackend
 from core.paths import resolve_relative_path
 from core.performance_flags import get_performance_flags
 
@@ -132,6 +134,11 @@ class PassiveVision:
 
     def _capture_screen(self) -> Optional[np.ndarray]:
         """Capture screen screenshot"""
+        if os.getenv("JARVIS_COMPUTER_BACKEND", "").lower().strip() == "cua":
+            cua_image = self._capture_screen_with_cua()
+            if cua_image is not None:
+                return cua_image
+
         if not self.sct:
             return None
 
@@ -144,6 +151,24 @@ class PassiveVision:
         except Exception as e:
             print(f"[PassiveVision] ❌ Capture error: {e}")
             return None
+
+    def _capture_screen_with_cua(self) -> Optional[np.ndarray]:
+        """Capture screen through a configured CUA bridge command when available."""
+        try:
+            path = self.storage_path / "latest_cua_screenshot.png"
+            result = CUAComputerBackend().execute("screenshot", {"path": str(path)}, timeout=30)
+            if not result.ok:
+                print(f"[PassiveVision] ⚠️ CUA screenshot unavailable: {result.error}")
+                return None
+            artifact_path = path
+            if isinstance(result.result, dict) and result.result.get("path"):
+                artifact_path = Path(str(result.result["path"]))
+            if artifact_path.exists():
+                img = cv2.imread(str(artifact_path))
+                return img
+        except Exception as e:
+            print(f"[PassiveVision] ⚠️ CUA capture error: {e}")
+        return None
 
     def _perform_ocr(self, image: np.ndarray) -> str:
         """Perform OCR on image"""

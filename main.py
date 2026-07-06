@@ -63,11 +63,13 @@ def _get_action_module(action_name: str):
             return _action_modules_cache[action_name]
         
         action_map = {
+            "agent_reach": "actions.agent_reach",
             "browser_control": "actions.browser_control",
             "calendar_manager": "actions.calendar_manager",
             "code_helper": "actions.code_helper",
             "computer_control": "actions.computer_control",
             "computer_settings": "actions.computer_settings",
+            "crawl_url": "actions.web_crawl",
             "desktop_control": "actions.desktop",
             "dev_agent": "actions.dev_agent",
             "daily_mode": "actions.daily_mode",
@@ -83,6 +85,7 @@ def _get_action_module(action_name: str):
             "self_dev_agent": "actions.self_dev_agent",
             "send_message": "actions.send_message",
             "spotify_controller": "actions.spotify_controller",
+            "tool_forge": "actions.tool_forge",
             "weather_report": "actions.weather_report",
             "web_search": "actions.web_search",
             "youtube_video": "actions.youtube_video",
@@ -102,6 +105,8 @@ def __getattr__(name: str):
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     aliases = {
+        "agent_reach": ("agent_reach", "agent_reach"),
+        "crawl_url": ("crawl_url", "crawl_url"),
         "weather_action": ("weather_report", "weather_action"),
         "web_search_action": ("web_search", "web_search"),
         "screen_process": ("screen_process", "screen_process"),

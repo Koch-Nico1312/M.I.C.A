@@ -9,8 +9,10 @@ import json
 import sys
 import threading
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
@@ -57,6 +59,56 @@ class AgentResult:
     result: Optional[str] = None
     error: Optional[str] = None
     execution_time: float = 0.0
+
+
+@dataclass
+class CrewRole:
+    """CrewAI-inspired role definition for a Jarvis-native crew."""
+
+    name: str
+    agent_type: AgentType
+    goal: str
+    backstory: str = ""
+    allow_delegation: bool = False
+
+
+@dataclass
+class CrewTask:
+    """Crew task with role assignment, dependencies, and approval gates."""
+
+    id: str
+    description: str
+    role: str
+    expected_output: str = ""
+    depends_on: list[str] = field(default_factory=list)
+    requires_human_input: bool = False
+    status: str = "pending"
+    result: str = ""
+
+
+@dataclass
+class CrewCheckpoint:
+    """Durable crew checkpoint for pause/resume and audit."""
+
+    timestamp: str
+    status: str
+    note: str
+    tasks: list[dict[str, Any]]
+
+
+@dataclass
+class CrewFlow:
+    """Jarvis-native crew/flow record inspired by CrewAI patterns."""
+
+    id: str
+    goal: str
+    roles: list[CrewRole]
+    tasks: list[CrewTask]
+    process: str = "sequential"
+    status: str = "ready"
+    checkpoints: list[CrewCheckpoint] = field(default_factory=list)
+    created_at: str = field(default_factory=lambda: datetime.now().isoformat())
+    updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
 
 class SubAgent:
@@ -116,6 +168,7 @@ class MultiAgentOrchestrator:
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self.active_tasks: Dict[str, AgentTask] = {}
         self.completed_results: Dict[str, AgentResult] = {}
+        self.crews: Dict[str, CrewFlow] = {}
         self.task_counter = 0
 
     def _generate_task_id(self) -> str:
@@ -165,6 +218,224 @@ class MultiAgentOrchestrator:
         # Default to general agent
         else:
             return AgentType.GENERAL
+
+    def create_crew(
+        self,
+        goal: str,
+        *,
+        roles: list[dict[str, Any]] | None = None,
+        tasks: list[dict[str, Any]] | None = None,
+        process: str = "sequential",
+    ) -> CrewFlow:
+        """Create a CrewAI-inspired Jarvis-native crew flow."""
+        goal = str(goal or "").strip()
+        if not goal:
+            raise ValueError("goal is required")
+
+        role_defs = self._build_crew_roles(goal, roles)
+        task_defs = self._build_crew_tasks(goal, role_defs, tasks)
+        flow = CrewFlow(
+            id=f"crew-{uuid.uuid4().hex[:8]}",
+            goal=goal,
+            roles=role_defs,
+            tasks=task_defs,
+            process=process if process in {"sequential", "hierarchical"} else "sequential",
+        )
+        flow.checkpoints.append(self._checkpoint(flow, "created", "Crew flow created."))
+        self.crews[flow.id] = flow
+        return flow
+
+    def run_crew(self, crew_id: str, *, stop_before_human_input: bool = True) -> CrewFlow:
+        """Run ready crew tasks and checkpoint progress."""
+        flow = self._require_crew(crew_id)
+        flow.status = "running"
+        for task in flow.tasks:
+            if task.status != "pending":
+                continue
+            if not self._crew_dependencies_done(flow, task):
+                continue
+            if task.requires_human_input and stop_before_human_input:
+                task.status = "waiting_for_human"
+                flow.status = "waiting_for_human"
+                flow.checkpoints.append(
+                    self._checkpoint(flow, "waiting_for_human", f"Task requires human input: {task.id}")
+                )
+                flow.updated_at = datetime.now().isoformat()
+                return flow
+
+            role = self._role_for_task(flow, task)
+            delegated = AgentTask(
+                task_id=task.id,
+                agent_type=role.agent_type,
+                goal=f"{task.description}\nExpected output: {task.expected_output}".strip(),
+                context=f"Crew goal: {flow.goal}\nRole: {role.name}\nBackstory: {role.backstory}",
+            )
+            result = self.execute_task_sync(delegated)
+            task.status = "completed" if result.success else "failed"
+            task.result = result.result or result.error or ""
+            flow.checkpoints.append(
+                self._checkpoint(flow, task.status, f"Task {task.id}: {task.status}")
+            )
+            if not result.success:
+                flow.status = "blocked"
+                flow.updated_at = datetime.now().isoformat()
+                return flow
+
+        flow.status = "completed" if all(task.status == "completed" for task in flow.tasks) else "running"
+        flow.updated_at = datetime.now().isoformat()
+        flow.checkpoints.append(self._checkpoint(flow, flow.status, "Crew run advanced."))
+        return flow
+
+    def approve_crew_task(self, crew_id: str, task_id: str, note: str = "") -> CrewFlow:
+        """Release a human-input gate for a crew task."""
+        flow = self._require_crew(crew_id)
+        task = next((item for item in flow.tasks if item.id == task_id), None)
+        if not task:
+            raise ValueError("unknown crew task")
+        if task.status == "waiting_for_human":
+            task.status = "pending"
+            task.requires_human_input = False
+            flow.status = "ready"
+            flow.checkpoints.append(self._checkpoint(flow, "approved", note or f"Approved {task_id}"))
+            flow.updated_at = datetime.now().isoformat()
+        return flow
+
+    def get_crew(self, crew_id: str) -> dict[str, Any]:
+        return self._crew_to_dict(self._require_crew(crew_id))
+
+    def _build_crew_roles(self, goal: str, roles: list[dict[str, Any]] | None) -> list[CrewRole]:
+        if roles:
+            built = []
+            for role in roles:
+                agent_type = str(role.get("agent_type") or role.get("type") or "general")
+                try:
+                    typed = AgentType(agent_type)
+                except ValueError:
+                    typed = self._determine_agent_type(str(role.get("goal") or goal))
+                built.append(
+                    CrewRole(
+                        name=str(role.get("name") or typed.value),
+                        agent_type=typed,
+                        goal=str(role.get("goal") or goal),
+                        backstory=str(role.get("backstory") or ""),
+                        allow_delegation=bool(role.get("allow_delegation", False)),
+                    )
+                )
+            return built
+        return [
+            CrewRole("Planner", AgentType.GENERAL, "Break the goal into safe, checkable work."),
+            CrewRole("Specialist", self._determine_agent_type(goal), "Execute the core task."),
+            CrewRole("Reviewer", AgentType.CODE_EXPERT, "Check outputs and risks before completion."),
+        ]
+
+    def _build_crew_tasks(
+        self,
+        goal: str,
+        roles: list[CrewRole],
+        tasks: list[dict[str, Any]] | None,
+    ) -> list[CrewTask]:
+        if tasks:
+            return [
+                CrewTask(
+                    id=str(task.get("id") or f"crew-task-{index + 1}"),
+                    description=str(task.get("description") or task.get("goal") or ""),
+                    role=str(task.get("role") or roles[min(index, len(roles) - 1)].name),
+                    expected_output=str(task.get("expected_output") or ""),
+                    depends_on=list(task.get("depends_on") or ([] if index == 0 else [f"crew-task-{index}"])),
+                    requires_human_input=bool(task.get("requires_human_input", False)),
+                )
+                for index, task in enumerate(tasks)
+                if str(task.get("description") or task.get("goal") or "").strip()
+            ]
+        return [
+            CrewTask("crew-task-1", f"Plan: {goal}", roles[0].name, "A concise task plan."),
+            CrewTask(
+                "crew-task-2",
+                f"Execute: {goal}",
+                roles[1].name,
+                "A concrete result for the user goal.",
+                depends_on=["crew-task-1"],
+            ),
+            CrewTask(
+                "crew-task-3",
+                f"Review: {goal}",
+                roles[2].name,
+                "Risks, verification notes, and final readiness.",
+                depends_on=["crew-task-2"],
+                requires_human_input=True,
+            ),
+        ]
+
+    def _role_for_task(self, flow: CrewFlow, task: CrewTask) -> CrewRole:
+        return next((role for role in flow.roles if role.name == task.role), flow.roles[0])
+
+    def _crew_dependencies_done(self, flow: CrewFlow, task: CrewTask) -> bool:
+        done = {item.id for item in flow.tasks if item.status == "completed"}
+        return all(dep in done for dep in task.depends_on)
+
+    def _checkpoint(self, flow: CrewFlow, status: str, note: str) -> CrewCheckpoint:
+        return CrewCheckpoint(
+            timestamp=datetime.now().isoformat(),
+            status=status,
+            note=note,
+            tasks=[
+                {
+                    "id": task.id,
+                    "role": task.role,
+                    "status": task.status,
+                    "requires_human_input": task.requires_human_input,
+                }
+                for task in flow.tasks
+            ],
+        )
+
+    def _require_crew(self, crew_id: str) -> CrewFlow:
+        flow = self.crews.get(crew_id)
+        if not flow:
+            raise ValueError("unknown crew")
+        return flow
+
+    def _crew_to_dict(self, flow: CrewFlow) -> dict[str, Any]:
+        return {
+            "id": flow.id,
+            "goal": flow.goal,
+            "process": flow.process,
+            "status": flow.status,
+            "created_at": flow.created_at,
+            "updated_at": flow.updated_at,
+            "roles": [
+                {
+                    "name": role.name,
+                    "agent_type": role.agent_type.value,
+                    "goal": role.goal,
+                    "backstory": role.backstory,
+                    "allow_delegation": role.allow_delegation,
+                }
+                for role in flow.roles
+            ],
+            "tasks": [
+                {
+                    "id": task.id,
+                    "description": task.description,
+                    "role": task.role,
+                    "expected_output": task.expected_output,
+                    "depends_on": task.depends_on,
+                    "requires_human_input": task.requires_human_input,
+                    "status": task.status,
+                    "result": task.result,
+                }
+                for task in flow.tasks
+            ],
+            "checkpoints": [
+                {
+                    "timestamp": checkpoint.timestamp,
+                    "status": checkpoint.status,
+                    "note": checkpoint.note,
+                    "tasks": checkpoint.tasks,
+                }
+                for checkpoint in flow.checkpoints
+            ],
+        }
 
     def delegate_task(self, goal: str, context: str = "", priority: int = 5) -> str:
         """
@@ -365,5 +636,9 @@ __all__ = [
     "AgentTask",
     "AgentResult",
     "AgentType",
+    "CrewRole",
+    "CrewTask",
+    "CrewFlow",
+    "CrewCheckpoint",
     "get_orchestrator",
 ]

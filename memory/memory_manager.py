@@ -5,6 +5,8 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
+from core.external_agent_integrations import get_mem0_bridge
+
 
 def get_base_dir() -> Path:
     if getattr(sys, "frozen", False):
@@ -203,8 +205,32 @@ def update_memory(memory_update: dict, memory_path: Path | None = None) -> dict:
     memory = load_memory(memory_path=memory_path)
     if _recursive_update(memory, memory_update):
         save_memory(memory, memory_path=memory_path)
+        _sync_update_to_mem0(memory_update)
         print(f"[Memory] Saved: {list(memory_update.keys())}")
     return memory
+
+
+def _sync_update_to_mem0(memory_update: dict) -> None:
+    try:
+        bridge = get_mem0_bridge()
+        lines: list[str] = []
+        for category, items in memory_update.items():
+            if not isinstance(items, dict):
+                continue
+            for key, entry in items.items():
+                value = entry.get("value") if isinstance(entry, dict) else entry
+                if value:
+                    lines.append(f"{category}/{key}: {value}")
+        if lines:
+            bridge.add("\n".join(lines), metadata={"source": "jarvis_long_term_json"})
+    except Exception as exc:
+        print(f"[Memory] Mem0 sync skipped: {exc}")
+
+
+def search_mem0_memory(query: str, limit: int = 5) -> dict[str, Any]:
+    """Search optional Mem0 retrieval layer without touching local JSON fallback."""
+    result = get_mem0_bridge().search(query, limit=limit)
+    return result.to_dict()
 
 
 def format_memory_for_prompt(memory: dict | None) -> str:

@@ -1011,10 +1011,12 @@ class JarvisLive:
 
         # Import tool functions dynamically to avoid circular imports
         from main import (
+            agent_reach,
             browser_control,
             code_helper,
             computer_control,
             computer_settings,
+            crawl_url,
             desktop_control,
             dev_agent,
             daily_mode,
@@ -1029,6 +1031,7 @@ class JarvisLive:
             screen_process,
             self_dev_agent,
             send_message,
+            tool_forge,
             weather_action,
             web_search_action,
             youtube_video,
@@ -1182,6 +1185,12 @@ class JarvisLive:
                 )
                 result = r or "Done."
 
+            elif name == "tool_forge":
+                r = await loop.run_in_executor(
+                    None, lambda: tool_forge(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
             elif name == "daily_mode":
                 r = await loop.run_in_executor(
                     None, lambda: daily_mode(parameters=args, player=self.ui, speak=self.speak)
@@ -1207,6 +1216,18 @@ class JarvisLive:
             elif name == "web_search":
                 r = await loop.run_in_executor(
                     None, lambda: web_search_action(parameters=args, player=self.ui)
+                )
+                result = r or "Done."
+
+            elif name == "crawl_url":
+                r = await loop.run_in_executor(
+                    None, lambda: crawl_url(parameters=args, player=self.ui)
+                )
+                result = r or "Done."
+
+            elif name == "agent_reach":
+                r = await loop.run_in_executor(
+                    None, lambda: agent_reach(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 

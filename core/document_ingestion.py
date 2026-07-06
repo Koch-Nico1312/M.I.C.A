@@ -13,6 +13,20 @@ from typing import Any
 
 
 SUPPORTED_TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".json", ".py", ".ts", ".tsx", ".html", ".css"}
+MARKITDOWN_EXTENSIONS = {
+    ".pdf",
+    ".doc",
+    ".docx",
+    ".ppt",
+    ".pptx",
+    ".xls",
+    ".xlsx",
+    ".wav",
+    ".mp3",
+    ".m4a",
+    ".html",
+    ".htm",
+}
 
 
 @dataclass
@@ -55,6 +69,17 @@ def detect_type(path: Path) -> str:
 
 def extract_text(path: Path, max_chars: int = 120_000) -> tuple[str, list[str]]:
     errors: list[str] = []
+    if path.suffix.lower() in MARKITDOWN_EXTENSIONS:
+        try:
+            from core.advanced_knowledge_integrations import get_markitdown_adapter
+
+            result = get_markitdown_adapter().convert_file(path, max_chars=max_chars)
+            if result.ok:
+                return str(result.result or "")[:max_chars], errors
+            errors.append(result.error)
+        except Exception as exc:
+            errors.append(f"MarkItDown conversion failed: {exc}")
+
     if path.suffix.lower() in SUPPORTED_TEXT_EXTENSIONS:
         try:
             return path.read_text(encoding="utf-8", errors="ignore")[:max_chars], errors
@@ -108,7 +133,11 @@ def build_ingestion_record(
         checksum=checksum,
         status=status,
         chunks=len(chunks),
-        metadata={"text_preview": text[:240], "duplicate": duplicate},
+        metadata={
+            "text_preview": text[:240],
+            "duplicate": duplicate,
+            "advanced_converter": "markitdown" if path.suffix.lower() in MARKITDOWN_EXTENSIONS else "",
+        },
         errors=errors,
     )
     return asdict(record), [asdict(chunk) for chunk in chunks]

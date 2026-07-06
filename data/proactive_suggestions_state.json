@@ -1,8 +1,13 @@
 {
   "cooldowns": {
-    "repetitive:youtube_video": {
-      "key": "repetitive:youtube_video",
-      "expires_at": "2026-06-30T15:12:58.175854",
+    "repetitive:browser_control": {
+      "key": "repetitive:browser_control",
+      "expires_at": "2026-07-06T14:39:24.551928",
+      "reason": "suggestion cooldown"
+    },
+    "repetitive:code_helper": {
+      "key": "repetitive:code_helper",
+      "expires_at": "2026-07-06T14:45:24.562496",
       "reason": "suggestion cooldown"
     }
   },

@@ -287,6 +287,8 @@ class ApprovalFlow:
     RISK_CLASSIFICATION = {
         # LOW RISK - Read-only, queries, searches
         "web_search": RiskLevel.LOW,
+        "crawl_url": RiskLevel.LOW,
+        "agent_reach": RiskLevel.LOW,
         "weather_report": RiskLevel.LOW,
         "screen_process": RiskLevel.LOW,
         "youtube_video": RiskLevel.LOW,
@@ -303,6 +305,7 @@ class ApprovalFlow:
         "dev_agent": RiskLevel.MEDIUM,
         "daily_mode": RiskLevel.MEDIUM,
         "self_dev_agent": RiskLevel.HIGH,
+        "tool_forge": RiskLevel.HIGH,
         "spotify_controller": RiskLevel.MEDIUM,
         "desktop_control": RiskLevel.MEDIUM,
         "file_processor": RiskLevel.MEDIUM,
@@ -374,6 +377,18 @@ class ApprovalFlow:
                 "create_folder",
                 "organize_desktop",
             }:
+                return RiskLevel.MEDIUM
+
+        if tool_lower == "tool_forge":
+            if action_lower in {"status", "plan", "validate", "personality_propose"}:
+                return RiskLevel.LOW
+            if action_lower in {"forge", "activate", "personality_apply"}:
+                return RiskLevel.HIGH
+
+        if tool_lower == "agent_reach":
+            if action_lower in {"doctor", "status", "install_preview"}:
+                return RiskLevel.LOW
+            if action_lower == "run":
                 return RiskLevel.MEDIUM
 
         # Check tool-level classification

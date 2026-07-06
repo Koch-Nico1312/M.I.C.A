@@ -197,3 +197,20 @@ def test_normal_mode_allows_safe_actions():
     )
 
     assert is_allowed is True
+
+
+def test_tool_forge_plan_is_allowed_but_activation_requires_approval():
+    """Forge planning is readable; code creation and activation remain gated."""
+    flow = ApprovalFlow()
+    flow.set_permission_level(PermissionLevel.NORMAL.value)
+
+    is_allowed, _ = flow.check_and_request_approval(
+        tool_name="tool_forge", action="plan", parameters={"description": "Build a helper"}
+    )
+    assert is_allowed is True
+
+    is_allowed, message = flow.check_and_request_approval(
+        tool_name="tool_forge", action="activate", parameters={"tool_name": "helper"}
+    )
+    assert is_allowed is False
+    assert "approval" in message.lower() or "confirmation" in message.lower()

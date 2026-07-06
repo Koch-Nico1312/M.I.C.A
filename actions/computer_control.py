@@ -1,6 +1,7 @@
 # computer_control.py
 import io
 import json
+import os
 import random
 import re
 import string
@@ -10,6 +11,7 @@ import time
 from pathlib import Path
 
 from core.model_runner import ModelCall, get_model_runner
+from core.external_agent_integrations import CUAComputerBackend
 
 try:
     import pyautogui
@@ -48,6 +50,19 @@ def _load_config() -> dict:
 
 def _get_os() -> str:
     return _load_config().get("os_system", "windows").lower()
+
+
+def _computer_backend() -> str:
+    return os.getenv("JARVIS_COMPUTER_BACKEND", "").lower().strip()
+
+
+def _run_cua_action(action: str, params: dict) -> str:
+    backend = CUAComputerBackend()
+    if action == "cua_status":
+        return json.dumps({"provider": "cua", **backend.status()}, ensure_ascii=False)
+    actual_action = action.removeprefix("cua_")
+    result = backend.execute(actual_action, params, timeout=int(params.get("timeout", 60) or 60))
+    return json.dumps(result.to_dict(), indent=2, ensure_ascii=False)
 
 
 _SAFE_SCREENSHOT_ROOTS = (Path.home(),)
@@ -434,6 +449,9 @@ def computer_control(
 
     if not action:
         return "No action specified for computer_control."
+
+    if action.startswith("cua_") or _computer_backend() == "cua":
+        return _run_cua_action(action, params)
 
     if player:
         player.write_log(f"[Computer] {action}")

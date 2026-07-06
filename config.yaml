@@ -70,6 +70,34 @@ passive_vision:
   memory_minutes: 10    # How long to keep visual memory
   storage_path: "./data/vision_memory"
 
+# Optional external agent integrations. All are disabled/lazy by default and
+# require their SDKs or bridge commands to be installed separately.
+integrations:
+  browser_use:
+    enabled: false
+    model: "openai/gpt-5.5"
+  computer_use:
+    backend: "pyautogui"             # pyautogui | cua
+    cua_driver_cmd: ""               # JSON stdin/stdout bridge command
+  mem0:
+    enabled: false
+    user_id: "jarvis-user"
+  composio:
+    enabled: false
+    default_user_id: "jarvis-user"
+  openhands:
+    enabled: false
+    projects_path: "./"
+  markitdown:
+    enabled: false
+    max_chars: 120000
+  llama_index:
+    enabled: false
+    persist_dir: "./data/llama_index"
+  crew_flows:
+    enabled: true
+    default_process: "sequential"
+
 # Semantic Search (RAG)
 rag:
   enabled: true

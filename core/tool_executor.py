@@ -18,6 +18,7 @@ from core.logger import get_logger
 from core.action_history import ActionStatus, get_action_history
 from core.approval_flow import get_approval_flow
 from core.metrics_collector import get_metrics_collector
+from core.langfuse_tracing import trace_tool_execution
 from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor
 
@@ -115,19 +116,24 @@ class ToolExecutor:
             }
 
         try:
-            if name in self.tool_registry:
-                # Execute registered tool
-                func = self.tool_registry[name]
-                if asyncio.iscoroutinefunction(func):
-                    result = await func(args, player, speak)
+            with trace_tool_execution(name, args) as langfuse_span:
+                if name in self.tool_registry:
+                    # Execute registered tool
+                    func = self.tool_registry[name]
+                    if asyncio.iscoroutinefunction(func):
+                        result = await func(args, player, speak)
+                    else:
+                        loop = asyncio.get_event_loop()
+                        result = await loop.run_in_executor(None, func, args, player, speak)
                 else:
-                    loop = asyncio.get_event_loop()
-                    result = await loop.run_in_executor(None, func, args, player, speak)
-            else:
-                result = f"Unknown tool: {name}"
-                success = False
-                error = result
-                logger.warning(f"Attempted to execute unknown tool: {name}")
+                    result = f"Unknown tool: {name}"
+                    success = False
+                    error = result
+                    logger.warning(f"Attempted to execute unknown tool: {name}")
+                langfuse_span.update(
+                    output=str(result)[:8000],
+                    metadata={"success": success, "error": error},
+                )
 
         except Exception as e:
             success = False

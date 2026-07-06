@@ -46,6 +46,71 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "crawl_url",
+        "description": (
+            "Crawls a webpage with Crawl4AI and returns clean LLM-ready Markdown. "
+            "Use when the user wants to read, extract, summarize, or ingest a specific URL."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "url": {"type": "STRING", "description": "Full URL to crawl"},
+                "query": {
+                    "type": "STRING",
+                    "description": "Optional focus query for Crawl4AI content filtering",
+                },
+                "max_chars": {
+                    "type": "INTEGER",
+                    "description": "Maximum Markdown characters to return",
+                },
+                "cache_mode": {
+                    "type": "STRING",
+                    "description": "enabled | bypass (default: enabled)",
+                },
+                "headless": {
+                    "type": "BOOLEAN",
+                    "description": "Run browser headlessly (default: true)",
+                },
+                "save": {
+                    "type": "BOOLEAN",
+                    "description": "Save artifact under data/web_crawls (default: true)",
+                },
+                "index": {
+                    "type": "BOOLEAN",
+                    "description": "Index into semantic search if RAG is enabled",
+                },
+            },
+            "required": ["url"],
+        },
+    },
+    {
+        "name": "agent_reach",
+        "description": (
+            "Runs optional Agent-Reach CLI diagnostics and safe read/search commands. "
+            "Use doctor/status to check installed internet capability routes; login-state platforms require explicit opt-in."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": "doctor | status | run | install_preview",
+                },
+                "args": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Arguments for action=run, e.g. ['github', 'owner/repo']",
+                },
+                "timeout": {"type": "INTEGER", "description": "Command timeout in seconds"},
+                "allow_login_state": {
+                    "type": "BOOLEAN",
+                    "description": "Allow platforms that may reuse browser login state/cookies",
+                },
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "weather_report",
         "description": "Gives the weather report to user",
         "parameters": {
@@ -315,7 +380,7 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
             "properties": {
                 "action": {
                     "type": "STRING",
-                    "description": "status | branch | plan | test | review | patch | cycle",
+                    "description": "status | branch | plan | test | review | patch | cycle | openhands_status | openhands_control",
                 },
                 "goal": {"type": "STRING", "description": "Development goal or improvement request"},
                 "branch": {"type": "STRING", "description": "Optional codex/* branch name"},
@@ -337,6 +402,166 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
                     "type": "BOOLEAN",
                     "description": "Create a codex/self-dev branch during cycle action",
                 },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "advanced_knowledge",
+        "description": (
+            "Uses optional advanced knowledge integrations. MarkItDown converts PDFs, Office files, "
+            "HTML, and audio into Markdown for ingestion; LlamaIndex can build/query an advanced "
+            "RAG index without replacing the default Jarvis retrieval stack."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "status | convert | index | query"},
+                "path": {"type": "STRING", "description": "File or directory path for convert/index"},
+                "query": {"type": "STRING", "description": "Query text for LlamaIndex"},
+                "persist_dir": {"type": "STRING", "description": "Optional LlamaIndex persistence directory"},
+                "max_chars": {"type": "INTEGER", "description": "Maximum Markdown characters for convert"},
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "crew_orchestrator",
+        "description": (
+            "Creates and manages CrewAI-inspired Jarvis-native crews with roles, tasks, "
+            "dependencies, checkpoints, and human-in-the-loop approval gates."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "create | run | status | approve"},
+                "goal": {"type": "STRING", "description": "Crew goal for create"},
+                "crew_id": {"type": "STRING", "description": "Crew id for run/status/approve"},
+                "task_id": {"type": "STRING", "description": "Task id for approve"},
+                "roles": {"type": "ARRAY", "items": {"type": "OBJECT"}, "description": "Optional role definitions"},
+                "tasks": {"type": "ARRAY", "items": {"type": "OBJECT"}, "description": "Optional task definitions"},
+                "process": {"type": "STRING", "description": "sequential | hierarchical"},
+                "note": {"type": "STRING", "description": "Approval/checkpoint note"},
+                "stop_before_human_input": {
+                    "type": "BOOLEAN",
+                    "description": "Pause before human-gated tasks during run",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "browser_agent",
+        "description": (
+            "Runs a multi-step natural-language browser task with Browser Use. "
+            "Use this when Jarvis should reason through a website, complete a web workflow, "
+            "and save an action-history trace instead of calling low-level browser_control steps."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task": {"type": "STRING", "description": "Natural-language web task"},
+                "model": {"type": "STRING", "description": "Optional Browser Use model id"},
+                "headless": {"type": "BOOLEAN", "description": "Run without a visible browser"},
+                "allowed_domains": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Optional domain allow-list, e.g. ['*.github.com']",
+                },
+                "max_steps": {"type": "INTEGER", "description": "Optional maximum agent steps"},
+            },
+            "required": ["task"],
+        },
+    },
+    {
+        "name": "tool_forge",
+        "description": (
+            "Controlled Tool-Maker/Forge system. Use this when the user asks for a capability "
+            "Jarvis does not have yet. It first creates a plan and plugin specification, then only "
+            "writes code into plugins/generated/<tool_name>/ after plan approval, validates the "
+            "manifest, permissions, syntax, tests, and importability, and activates the plugin only "
+            "after a second approval. It can also propose personality soul.md changes as reviewable diffs."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "plan | forge | validate | activate | status | "
+                        "personality_propose | personality_apply"
+                    ),
+                },
+                "description": {
+                    "type": "STRING",
+                    "description": "Capability to build when action=plan.",
+                },
+                "tool_name": {
+                    "type": "STRING",
+                    "description": "Short snake_case tool name for plan, validate, or activate.",
+                },
+                "permissions": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Requested permission strings, e.g. text:read or network:http.",
+                },
+                "plan_id": {"type": "STRING", "description": "Plan id returned by action=plan."},
+                "approved_plan": {
+                    "type": "BOOLEAN",
+                    "description": "Must be true before code is generated into quarantine.",
+                },
+                "activation_approved": {
+                    "type": "BOOLEAN",
+                    "description": "Must be true before a validated quarantined plugin is enabled.",
+                },
+                "plugin_code": {
+                    "type": "STRING",
+                    "description": "Optional complete plugin.py code. If omitted, a safe scaffold is used.",
+                },
+                "test_code": {"type": "STRING", "description": "Optional plugin test code."},
+                "use_model": {
+                    "type": "BOOLEAN",
+                    "description": "Allow the routed code_edit model to draft plugin code and tests.",
+                },
+                "request": {
+                    "type": "STRING",
+                    "description": "Personality change request for personality_propose.",
+                },
+                "proposed_content": {
+                    "type": "STRING",
+                    "description": "Optional complete proposed soul.md content.",
+                },
+                "proposal_id": {
+                    "type": "STRING",
+                    "description": "Proposal id returned by personality_propose.",
+                },
+                "approved": {
+                    "type": "BOOLEAN",
+                    "description": "Must be true before a personality proposal is applied.",
+                },
+            },
+            "required": ["action"],
+        },
+    },
+    {
+        "name": "tool_provider",
+        "description": (
+            "Loads authenticated external tools through Composio. Use status/list_tools to inspect "
+            "toolkits such as GitHub, Gmail, Notion, Slack, Linear, or Calendar; execute_tool only "
+            "when a specific provider tool slug and arguments are known."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "status | list_tools | execute_tool"},
+                "user_id": {"type": "STRING", "description": "Stable Composio user id"},
+                "toolkits": {
+                    "type": "ARRAY",
+                    "items": {"type": "STRING"},
+                    "description": "Composio toolkit names, e.g. ['GITHUB', 'GMAIL']",
+                },
+                "slug": {"type": "STRING", "description": "Composio tool slug for execute_tool"},
+                "arguments": {"type": "OBJECT", "description": "Arguments for execute_tool"},
             },
             "required": ["action"],
         },

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from core.paths import project_path, resolve_project_root
+from core.external_agent_integrations import openhands_status
 
 
 ROOT = resolve_project_root()
@@ -198,6 +199,28 @@ def _cycle(goal: str, test_command: str, timeout: int, create_branch: bool, bran
     return payload
 
 
+def _openhands_control(goal: str, test_command: str, timeout: int) -> dict[str, Any]:
+    """Prepare an OpenHands-compatible engineering control report."""
+    status = openhands_status().to_dict()
+    tests = _run_tests(test_command, timeout=timeout)
+    review = _review(context=goal, use_model=False)
+    payload = {
+        "goal": goal,
+        "openhands": status,
+        "tests": tests,
+        "review": review,
+        "approval_required": True,
+        "next_step": (
+            "Start OpenHands/agent-canvas manually or via an approved command, then use this "
+            "report as the bounded task context."
+        ),
+        "merge_state": "ready" if tests["ok"] else "blocked",
+    }
+    report = _write_report("openhands", payload)
+    payload["report_path"] = str(report)
+    return payload
+
+
 def self_dev_agent(parameters: dict, response=None, player=None, session_memory=None, speak=None) -> str:
     params = parameters or {}
     action = str(params.get("action", "status")).lower().strip()
@@ -226,6 +249,10 @@ def self_dev_agent(parameters: dict, response=None, player=None, session_memory=
             bool(params.get("create_branch", True)),
             str(params.get("branch", "")),
         )
+    elif action == "openhands_status":
+        result = openhands_status().to_dict()
+    elif action == "openhands_control":
+        result = _openhands_control(goal or "OpenHands engineering task", test_command, timeout)
     else:
         result = {"error": f"Unknown self_dev_agent action: {action}"}
 

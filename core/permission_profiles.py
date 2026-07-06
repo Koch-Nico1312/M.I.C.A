@@ -65,6 +65,22 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"search", "web", "information"},
     ),
+    "crawl_url": ToolMetadata(
+        name="crawl_url",
+        description="Crawls webpages into clean Markdown for reading or RAG ingestion",
+        risk_level="low",
+        requires_confirmation=False,
+        reversible=False,
+        tags={"crawl4ai", "web", "rag", "information"},
+    ),
+    "agent_reach": ToolMetadata(
+        name="agent_reach",
+        description="Runs optional Agent-Reach CLI diagnostics and allowlisted read/search commands",
+        risk_level="medium",
+        requires_confirmation=True,
+        reversible=False,
+        tags={"agent-reach", "cli", "web", "external"},
+    ),
     "weather_report": ToolMetadata(
         name="weather_report",
         description="Provides weather information",
@@ -152,6 +168,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         requires_confirmation=True,
         reversible=True,
         tags={"development", "git", "testing", "self-dev"},
+    ),
+    "tool_forge": ToolMetadata(
+        name="tool_forge",
+        description="Controlled generated-plugin forge with plan, validation, activation, and personality diff gates",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"development", "plugins", "self-dev", "personality"},
     ),
     "daily_mode": ToolMetadata(
         name="daily_mode",

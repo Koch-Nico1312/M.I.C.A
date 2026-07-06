@@ -6,6 +6,7 @@ requests==2.34.2
 beautifulsoup4==4.14.3
 duckduckgo-search==8.1.1
 playwright==1.60.0
+crawl4ai>=0.9.0
 pyautogui==0.9.54
 pyperclip==1.11.0
 pygetwindow==0.0.9
@@ -57,3 +58,4 @@ watchfiles==1.2.0
 watchdog>=4.0.0
 zstandard>=0.22.0
 redis==8.0.0  # Optional for vector cache
+langfuse>=3.0.0  # Optional tracing/observability when LANGFUSE_ENABLED=true
