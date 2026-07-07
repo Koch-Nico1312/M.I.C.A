@@ -153,16 +153,26 @@ class _MicaMiniHeadWindow(QMainWindow):
         root.setStyleSheet(
             """
             QWidget#miniRoot {
-                background: rgba(4, 12, 14, 226);
-                border: 2px solid rgba(93, 210, 255, 180);
+                background: qradialgradient(cx: 0.5, cy: 0.42, radius: 0.72,
+                    fx: 0.38, fy: 0.2,
+                    stop: 0 rgba(34, 84, 103, 238),
+                    stop: 0.58 rgba(7, 18, 29, 248),
+                    stop: 1 rgba(3, 10, 17, 250));
+                border: 2px solid rgba(155, 220, 255, 210);
                 border-radius: 55px;
             }
-            QLabel#miniFace {
-                color: #dff8ff;
-                font-size: 34px;
+            QLabel#miniEyes {
+                color: #bdf4ff;
+                font-size: 24px;
                 font-weight: 700;
-                letter-spacing: 6px;
-                padding-left: 5px;
+                letter-spacing: 9px;
+                padding-left: 8px;
+            }
+            QLabel#miniFace {
+                color: #65dfff;
+                font-size: 18px;
+                font-weight: 700;
+                letter-spacing: 2px;
             }
             QLabel#miniCaption {
                 color: rgba(207, 250, 254, 170);
@@ -172,15 +182,19 @@ class _MicaMiniHeadWindow(QMainWindow):
             """
         )
         layout = QVBoxLayout(root)
-        layout.setContentsMargins(12, 16, 12, 12)
-        layout.setSpacing(2)
-        face = QLabel("● ●", root)
+        layout.setContentsMargins(12, 18, 12, 12)
+        layout.setSpacing(0)
+        eyes = QLabel("◉ ◉", root)
+        eyes.setObjectName("miniEyes")
+        eyes.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
+        face = QLabel("⌣", root)
         face.setObjectName("miniFace")
         face.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
         caption = QLabel("M.I.C.A", root)
         caption.setObjectName("miniCaption")
         caption.setAlignment(Qt.AlignmentFlag.AlignCenter if Qt is not None else 0)
         layout.addStretch(1)
+        layout.addWidget(eyes)
         layout.addWidget(face)
         layout.addWidget(caption)
         layout.addStretch(1)
@@ -608,6 +622,8 @@ class MicaUI:
                 "voice_first": bool(self._config.get("ui.voice_first", True)),
                 "background_id": self._config.get("ui.background_id", "lake"),
                 "background_url": self._config.get("ui.background_url", "/backgrounds/mica-lake.jpg"),
+                "voice_volume": int(self._config.get("ui.voice_volume", 82) or 82),
+                "theme": str(self._config.get("ui.theme", "dark") or "dark"),
             },
             "calendar": {
                 "enabled": bool(self._config.get("calendar.enabled", True)),

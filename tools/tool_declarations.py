@@ -369,6 +369,40 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "pi_coding_agent",
+        "description": (
+            "Delegates coding tasks to the Pi coding agent inside the configured Docker sandbox. "
+            "Use for code edits, project implementation, refactors, tests, and repo inspection when "
+            "MICA_PI_ENABLED is true. Only paths under MICA_PI_WORKSPACE_ROOT are allowed."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "task": {
+                    "type": "STRING",
+                    "description": "The coding task Pi should perform.",
+                },
+                "project_path": {
+                    "type": "STRING",
+                    "description": "Project path relative to MICA_PI_WORKSPACE_ROOT. Do not pass Windows host paths.",
+                },
+                "mode": {
+                    "type": "STRING",
+                    "description": "json | print. Defaults to json.",
+                },
+                "timeout": {
+                    "type": "INTEGER",
+                    "description": "Execution timeout in seconds. Defaults to MICA_PI_TIMEOUT_SECONDS.",
+                },
+                "allow_tests": {
+                    "type": "BOOLEAN",
+                    "description": "Allow Pi to run focused tests/checks. Defaults to true.",
+                },
+            },
+            "required": ["task"],
+        },
+    },
+    {
         "name": "self_dev_agent",
         "description": (
             "Runs controlled self-development cycles for the M.I.C.A repository. "

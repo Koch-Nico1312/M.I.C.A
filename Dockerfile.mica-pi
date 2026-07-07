@@ -1,0 +1,57 @@
+# M.I.C.A + Pi coding-agent sandbox image.
+FROM node:22-bookworm-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONUTF8=1 \
+    PIP_NO_CACHE_DIR=1 \
+    MICA_PI_WORKSPACE_ROOT=/workspace/projects \
+    PI_CODING_AGENT_DIR=/home/mica/.pi/agent \
+    PI_TELEMETRY=0 \
+    PATH=/opt/venv/bin:$PATH
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    ca-certificates \
+    curl \
+    ffmpeg \
+    git \
+    libasound-dev \
+    libglib2.0-0 \
+    libportaudio2 \
+    libportaudiocpp0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    portaudio19-dev \
+    python3 \
+    python3-dev \
+    python3-pyaudio \
+    python3-venv \
+    tini \
+    && python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --upgrade pip setuptools wheel \
+    && npm install -g --ignore-scripts @earendil-works/pi-coding-agent \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /root/.cache /root/.npm
+
+COPY requirements.mica-pi.txt .
+RUN pip install --no-cache-dir -r requirements.mica-pi.txt
+
+RUN groupadd --system mica \
+    && useradd --system --create-home --gid mica --home-dir /home/mica mica \
+    && mkdir -p /app/data /app/logs /workspace/projects /home/mica/.pi/agent /home/mica/.cache /home/mica/.config \
+    && chown -R mica:mica /app /workspace /home/mica
+
+COPY --chown=mica:mica . .
+
+USER mica
+
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import main; print('OK')" || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "main.py", "--cli"]

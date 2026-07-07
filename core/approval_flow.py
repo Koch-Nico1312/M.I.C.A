@@ -303,6 +303,7 @@ class ApprovalFlow:
         "file_controller": RiskLevel.MEDIUM,  # except delete action
         "code_helper": RiskLevel.MEDIUM,
         "dev_agent": RiskLevel.MEDIUM,
+        "pi_coding_agent": RiskLevel.HIGH,
         "daily_mode": RiskLevel.MEDIUM,
         "self_dev_agent": RiskLevel.HIGH,
         "tool_forge": RiskLevel.HIGH,

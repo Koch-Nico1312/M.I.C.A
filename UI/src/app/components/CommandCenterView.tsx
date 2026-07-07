@@ -238,11 +238,11 @@ export function CommandCenterView({
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-white">
                 <ListTodo className="h-4 w-4 text-cyan-200" />
-                Aktive Tasks und Rueckfragen
+                Aktive Tasks und Rückfragen
               </div>
               <div className="space-y-2">
                 {[...activeTasks, ...openQuestions].slice(0, 5).map((item) => <CompactItem key={item.id} item={item} />)}
-                {!activeTasks.length && !openQuestions.length ? <EmptyState label="Keine offenen Tasks oder Rueckfragen" /> : null}
+                {!activeTasks.length && !openQuestions.length ? <EmptyState label="Keine offenen Tasks oder Rückfragen" /> : null}
               </div>
             </div>
 
@@ -267,7 +267,7 @@ export function CommandCenterView({
                           size="icon"
                           onClick={() => advancePipeline(pipeline.id)}
                           className="h-9 w-9 rounded-xl bg-emerald-300 text-slate-950 hover:bg-emerald-200"
-                          title="Naechsten Schritt abschliessen"
+                          title="Nächsten Schritt abschließen"
                         >
                           <CheckCircle2 className="h-4 w-4" />
                         </Button>
@@ -462,7 +462,7 @@ export function CommandCenterView({
         <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
           <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">
             <FileClock className="h-4 w-4 text-cyan-200" />
-            Tagesueberblick
+            Tagesüberblick
           </div>
           <div className="space-y-2">
             {dayOverview?.next_best_step ? (

@@ -1,0 +1,56 @@
+services:
+  mica-pi:
+    build:
+      context: .
+      dockerfile: Dockerfile.mica-pi
+    container_name: mica-pi-sandbox
+    command: ["python", "mica_pi_server.py"]
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 3g
+    cpus: 2.0
+    env_file:
+      - .env
+    environment:
+      MICA_PI_ENABLED: "true"
+      MICA_PI_WORKSPACE_ROOT: /workspace/projects
+      MICA_PI_TIMEOUT_SECONDS: ${MICA_PI_TIMEOUT_SECONDS:-900}
+      PERMISSION_PROFILE: ${PERMISSION_PROFILE:-normal}
+      HUD_ENABLED: "false"
+      PASSIVE_VISION_ENABLED: "false"
+      MICA_COMPUTER_BACKEND: disabled
+      MICA_ALLOW_BROWSER_FALLBACK: "0"
+      PI_CODING_AGENT_DIR: /home/mica/.pi/agent
+      PI_TELEMETRY: "0"
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ${MICA_PI_HOST_WORKSPACE:-./data/pi_workspace}:/workspace/projects
+      - pi_agent_home:/home/mica/.pi
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=512m
+      - /home/mica/.cache:rw,nosuid,nodev,size=256m
+      - /home/mica/.config:rw,nosuid,nodev,size=64m
+    ports:
+      - "127.0.0.1:8080:8080"
+    networks:
+      - mica-pi-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import main; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  mica-pi-network:
+    driver: bridge
+
+volumes:
+  pi_agent_home:
+    driver: local

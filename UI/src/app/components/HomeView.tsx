@@ -151,7 +151,7 @@ export function HomeView({
           <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5">
             <div className="mb-4 flex items-center gap-2 text-sm font-medium text-white">
               <RotateCcw className="h-4 w-4 text-cyan-200" />
-              Mach weiter, wo wir aufgehoert haben
+              Mach weiter, wo wir aufgehört haben
             </div>
             <div className="space-y-3">
               <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
@@ -159,7 +159,7 @@ export function HomeView({
                   {currentSession?.title ?? resume?.last_activity?.title ?? "Keine offene Sitzung"}
                 </div>
                 <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-400">
-                  {resume?.summary || currentSession?.summary || currentSession?.preview || "Bereit fuer den naechsten Schritt."}
+                  {resume?.summary || currentSession?.summary || currentSession?.preview || "Bereit für den nächsten Schritt."}
                 </p>
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
@@ -201,10 +201,10 @@ export function HomeView({
             emptyLabel="Keine Aufgaben"
           />
           <CockpitPanel
-            title="Letzte Aktivitaeten"
+            title="Letzte Aktivitäten"
             icon={CheckCircle2}
             items={activityItems}
-            emptyLabel="Noch keine Aktivitaet"
+            emptyLabel="Noch keine Aktivität"
           />
           <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
             <div className="mb-3 flex items-center gap-2 text-sm font-medium text-white">

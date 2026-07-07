@@ -173,6 +173,8 @@ function getMockData<T>(path: string): T {
         voice_first: true,
         background_id: "lake",
         background_url: "/backgrounds/mica-lake.jpg",
+        voice_volume: 82,
+        theme: "dark",
       },
       calendar: {
         enabled: false,
@@ -238,6 +240,8 @@ function getMockData<T>(path: string): T {
           voice_first: true,
           background_id: "lake",
           background_url: "/backgrounds/mica-lake.jpg",
+          voice_volume: 82,
+          theme: "dark",
         },
         calendar: {
           enabled: false,
@@ -304,7 +308,7 @@ function getMockData<T>(path: string): T {
         { id: "backend", label: "Backend", value: "Mock", status: "degraded", detail: "Backend nicht erreichbar" },
         { id: "ui", label: "UI", value: "Ready", status: "ok", detail: "Fallback-Daten aktiv" },
         { id: "knowledge", label: "Knowledge", value: "0 Quellen", status: "degraded", detail: "Keine lokalen Treffer geladen" },
-        { id: "tools", label: "Tools", value: "4 aktiv", status: "ok", detail: "Mock-Tools verfuegbar" },
+        { id: "tools", label: "Tools", value: "4 aktiv", status: "ok", detail: "Mock-Tools verfügbar" },
       ],
       active_tasks: [],
       open_questions: [],
@@ -357,13 +361,13 @@ function getMockData<T>(path: string): T {
     trust_level: {
       level: 2,
       label: "Stufe 2",
-      description: "Lesen, suchen, Apps oeffnen und sortieren automatisch.",
+      description: "Lesen, suchen, Apps öffnen und sortieren automatisch.",
       permission_profile: "normal",
       rules: [
         { action: "Lesen und zusammenfassen", policy: "automatisch" },
-        { action: "Apps oeffnen und sortieren", policy: "automatisch" },
-        { action: "Dateien aendern", policy: "bestaetigen" },
-        { action: "Senden, loeschen, kaufen, posten", policy: "immer bestaetigen" },
+        { action: "Apps öffnen und sortieren", policy: "automatisch" },
+        { action: "Dateien ändern", policy: "bestätigen" },
+        { action: "Senden, löschen, kaufen, posten", policy: "immer bestätigen" },
       ],
     },
     silent_brain: {
@@ -372,9 +376,9 @@ function getMockData<T>(path: string): T {
       hint_count: 3,
       summary: "3 Hinweise gesammelt",
       hints: [
-        { id: "mock-project", title: "Projektstatus pruefen", subtitle: "Keine Backend-Daten geladen", status: "hint", source: "project" },
-        { id: "mock-memory", title: "Memory bereit", subtitle: "Lokale Erinnerungen koennen gepflegt werden", status: "hint", source: "memory" },
-        { id: "mock-health", title: "Systemcheck offen", subtitle: "Backend verbinden fuer echte Checks", status: "hint", source: "health" },
+        { id: "mock-project", title: "Projektstatus prüfen", subtitle: "Keine Backend-Daten geladen", status: "hint", source: "project" },
+        { id: "mock-memory", title: "Memory bereit", subtitle: "Lokale Erinnerungen können gepflegt werden", status: "hint", source: "memory" },
+        { id: "mock-health", title: "Systemcheck offen", subtitle: "Backend verbinden für echte Checks", status: "hint", source: "health" },
       ],
       critical: [],
       checks: [
@@ -387,7 +391,7 @@ function getMockData<T>(path: string): T {
       examples: [
         { id: "focus", label: "Fokus starten", command: "fokus starten" },
         { id: "today", label: "Heute", command: "was steht heute an" },
-        { id: "coding", label: "Coding Setup", command: "oeffne mein coding setup" },
+        { id: "coding", label: "Coding Setup", command: "öffne mein coding setup" },
         { id: "health", label: "Systemcheck", command: "was ist kaputt im system" },
       ],
       suggestions: [],
@@ -802,8 +806,8 @@ function getMockData<T>(path: string): T {
             artifact_id: "artifact-solo-quickstart",
           },
           next_actions: [
-            { label: "Agent im lokalen Web-App-Fenster oeffnen", href: "/apps/research-copilot", kind: "link" },
-            { label: "Knowledge-Treffer pruefen", target: "knowledge", kind: "tab" },
+            { label: "Agent im lokalen Web-App-Fenster öffnen", href: "/apps/research-copilot", kind: "link" },
+            { label: "Knowledge-Treffer prüfen", target: "knowledge", kind: "tab" },
           ],
         },
       ],
@@ -818,9 +822,9 @@ function getMockData<T>(path: string): T {
           total_count: 20,
           created_at: new Date().toISOString(),
           items: [
-            { id: "agent_builder", label: "Agent/Persona Builder", status: "ready", evidence: ["research-copilot:private"], recommendation: "Bereit fuer lokale Nutzung.", verified: true },
-            { id: "knowledge_sync", label: "Knowledge Sync", status: "ready", evidence: ["local-documents:watching"], recommendation: "Bereit fuer lokale Nutzung.", verified: true },
-            { id: "identity", label: "SSO/OIDC/LDAP/SCIM optional", status: "optional", evidence: ["solo_mode=true"], recommendation: "Optional fuer deinen Einzelplatzbetrieb.", verified: true },
+            { id: "agent_builder", label: "Agent/Persona Builder", status: "ready", evidence: ["research-copilot:private"], recommendation: "Bereit für lokale Nutzung.", verified: true },
+            { id: "knowledge_sync", label: "Knowledge Sync", status: "ready", evidence: ["local-documents:watching"], recommendation: "Bereit für lokale Nutzung.", verified: true },
+            { id: "identity", label: "SSO/OIDC/LDAP/SCIM optional", status: "optional", evidence: ["solo_mode=true"], recommendation: "Optional für deinen Einzelplatzbetrieb.", verified: true },
           ],
         },
       ],

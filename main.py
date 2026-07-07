@@ -72,6 +72,7 @@ def _get_action_module(action_name: str):
             "crawl_url": "actions.web_crawl",
             "desktop_control": "actions.desktop",
             "dev_agent": "actions.dev_agent",
+            "pi_coding_agent": "actions.pi_coding_agent",
             "daily_mode": "actions.daily_mode",
             "file_controller": "actions.file_controller",
             "file_processor": "actions.file_processor",

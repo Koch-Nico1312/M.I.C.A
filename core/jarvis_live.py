@@ -10,6 +10,7 @@ This module contains the core MicaLive class that manages:
 """
 
 import asyncio
+from array import array
 import contextlib
 import functools
 import json
@@ -77,6 +78,24 @@ DEFAULT_RECEIVE_SAMPLE_RATE = 24000
 DEFAULT_CHUNK_SIZE = 1024
 
 _CTRL_RE = re.compile(r"<ctrl\d+>", re.IGNORECASE)
+
+
+def _scale_pcm16(chunk: bytes, volume: float) -> bytes:
+    """Scale little-endian signed 16-bit PCM audio without external dependencies."""
+    if volume >= 0.995:
+        return chunk
+    if volume <= 0:
+        return b"\x00" * len(chunk)
+
+    samples = array("h")
+    samples.frombytes(chunk)
+    if sys.byteorder != "little":
+        samples.byteswap()
+    for index, sample in enumerate(samples):
+        samples[index] = int(max(-32768, min(32767, sample * volume)))
+    if sys.byteorder != "little":
+        samples.byteswap()
+    return samples.tobytes()
 
 
 def _load_system_prompt() -> str:
@@ -1026,6 +1045,7 @@ class MicaLive:
             game_updater,
             gmail_manager,
             open_app,
+            pi_coding_agent,
             reminder,
             roblox_controller,
             screen_process,
@@ -1176,6 +1196,12 @@ class MicaLive:
             elif name == "dev_agent":
                 r = await loop.run_in_executor(
                     None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "pi_coding_agent":
+                r = await loop.run_in_executor(
+                    None, lambda: pi_coding_agent(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 
@@ -1694,6 +1720,9 @@ class MicaLive:
                         self._turn_done_event.clear()
                     continue
                 self.set_speaking(True)
+                volume = max(0.0, min(1.0, float(self.config.get("ui.voice_volume", 82) or 82) / 100.0))
+                if volume < 0.995:
+                    chunk = _scale_pcm16(chunk, volume)
                 await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
             logger.error(f"Audio player error: {e}")

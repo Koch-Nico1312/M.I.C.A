@@ -3,10 +3,9 @@ import type { ComponentType, CSSProperties, FormEvent, PointerEvent as ReactPoin
 import {
   Activity,
   Bell,
-  Bot,
-  Brain,
   ChevronDown,
-  CircleDot,
+  ChevronLeft,
+  ChevronRight,
   Code2,
   Command,
   Copy,
@@ -21,11 +20,8 @@ import {
   Maximize2,
   MessageSquareText,
   Mic,
-  Minimize2,
+  Moon,
   MoreHorizontal,
-  PanelRightClose,
-  Pause,
-  PlayCircle,
   Radio,
   Save,
   Search,
@@ -36,14 +32,8 @@ import {
   Sparkles,
   Square,
   Volume2,
-  X,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
-import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "./components/ui/resizable";
 import { CommandCenterView } from "./components/CommandCenterView";
 import { HomeView } from "./components/HomeView";
 import { VoiceChatView } from "./components/VoiceChatView";
@@ -106,6 +96,22 @@ const viewRegistry: ViewDefinition[] = [
 ];
 
 const DASHBOARD_REFRESH_MS = 2000;
+
+const modeOptions = [
+  { id: "focus", label: "Fokus" },
+  { id: "coding", label: "Code" },
+  { id: "research", label: "Recherche" },
+  { id: "private", label: "Privat" },
+  { id: "gaming", label: "Gaming" },
+  { id: "admin", label: "Admin" },
+];
+
+const privacyOptions = [
+  { id: "local_only", label: "Nur lokal" },
+  { id: "balanced", label: "Ausgewogen" },
+  { id: "cloud_allowed", label: "Cloud erlaubt" },
+  { id: "private_with_approval", label: "Privat mit Freigabe" },
+];
 
 class ViewErrorBoundary extends Component<
   { viewKey: string; children: ReactNode },
@@ -536,20 +542,21 @@ function ReferenceArtifactPanel({
   artifacts,
   artifactTab,
   onArtifactTab,
-  onViewMenu,
-  isViewMenuOpen,
-  onArtifactsView,
-  onViewChange,
+  onFullscreen,
+  onShare,
+  onSave,
 }: {
   artifacts: ArtifactPanelItem[];
   artifactTab: string;
   onArtifactTab: (tab: string) => void;
-  onViewMenu: () => void;
-  isViewMenuOpen: boolean;
-  onArtifactsView: () => void;
-  onViewChange: (view: string) => void;
+  onFullscreen: () => void;
+  onShare: () => void;
+  onSave: () => void;
 }) {
   const codeArtifact = artifacts.find((artifact) => artifact.kind === "code");
+  const textArtifact = artifacts.find((artifact) => artifact.kind === "text");
+  const imageArtifact = artifacts.find((artifact) => artifact.kind === "image" || artifact.mime_type?.startsWith("image/"));
+  const imageSource = imageArtifact?.url ?? imageArtifact?.path;
   const content =
     codeArtifact?.content ??
     `import datetime
@@ -594,61 +601,55 @@ class MICACore:
             <div className="text-base font-medium text-white">{codeArtifact?.title ?? "mica_core.py"}</div>
             <div className="mt-1 text-xs text-slate-300/70">core &gt; {codeArtifact?.title ?? "mica_core.py"}</div>
           </div>
-          <div className="flex gap-3 text-white/80">
+          <button type="button" onClick={() => navigator.clipboard?.writeText(content)} className="reference-icon-action" title="Kopieren">
             <Copy className="h-5 w-5" />
-            <MoreHorizontal className="h-5 w-5" />
-          </div>
+          </button>
         </div>
-        <pre className="reference-code-body">
-          {lines.map((line, index) => (
-            <span key={`${index}-${line}`} className="reference-code-line">
-              <span className="reference-line-number">{index + 1}</span>
-              <code>{line || " "}</code>
-            </span>
-          ))}
-        </pre>
+        {artifactTab === "code" ? (
+          <pre className="reference-code-body">
+            {lines.map((line, index) => (
+              <span key={`${index}-${line}`} className="reference-code-line">
+                <span className="reference-line-number">{index + 1}</span>
+                <code>{line || " "}</code>
+              </span>
+            ))}
+          </pre>
+        ) : null}
+        {artifactTab === "text" ? (
+          <div className="reference-text-body">
+            {textArtifact?.content || "Noch kein Text-Artefakt vorhanden. Neue Antworten und Notizen erscheinen hier, sobald M.I.C.A Text erzeugt."}
+          </div>
+        ) : null}
+        {artifactTab === "image" ? (
+          <div className="reference-image-body">
+            {imageSource ? (
+              <img src={imageSource} alt="M.I.C.A Bildartefakt" />
+            ) : (
+              <span>Neue Bilder erscheinen hier, sobald M.I.C.A ein Bild erzeugt oder öffnet.</span>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="reference-output">
         <div className="reference-output-title">
           <span className="flex items-center gap-2"><Sparkles className="h-4 w-4" />Ausgabe</span>
-          <span className="flex items-center gap-2 text-xs text-slate-300/70"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />Ausgefuehrt: Heute, 09:41</span>
+          <span className="flex items-center gap-2 text-xs text-slate-300/70"><span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />Ausgeführt: Heute, 09:41</span>
         </div>
         <pre>{`Briefing geladen
 • 5 Aufgaben geplant
-• 2 Tasks ueberfaellig
+• 2 Tasks überfällig
 • Projektstatus: Gut`}</pre>
       </div>
 
       <div className="reference-artifact-actions">
-        <button type="button" className="reference-save-button"><Save className="h-4 w-4" />Speichern</button>
+        <button type="button" onClick={onSave} className="reference-save-button"><Save className="h-4 w-4" />Speichern</button>
         <div className="ml-auto flex items-center gap-5 text-white/80">
-          <Share2 className="h-5 w-5" />
+          <button type="button" onClick={onShare} className="reference-icon-action" title="Teilen"><Share2 className="h-5 w-5" /></button>
           <span className="h-7 w-px bg-white/20" />
-          <Maximize2 className="h-5 w-5" />
+          <button type="button" onClick={onFullscreen} className="reference-icon-action" title="Vollbild"><Maximize2 className="h-5 w-5" /></button>
         </div>
       </div>
-
-      {isViewMenuOpen ? (
-        <div className="reference-view-menu">
-          <button type="button" onClick={onArtifactsView} className="liquid-menu-row">
-            <Sparkles className="h-4 w-4 text-cyan-100" />
-            Artifacts
-          </button>
-          {viewRegistry.map((view) => {
-            const Icon = view.icon;
-            return (
-              <button key={view.id} type="button" onClick={() => onViewChange(view.id)} className="liquid-menu-row">
-                <Icon className="h-4 w-4 text-cyan-100" />
-                {view.label}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-      <button type="button" onClick={onViewMenu} className="reference-panel-peek" aria-label="Ansichten öffnen">
-        <ChevronDown className="h-5 w-5 -rotate-90" />
-      </button>
     </aside>
   );
 }
@@ -674,17 +675,17 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<number | null>(null);
   const [isPanelFullscreen, setIsPanelFullscreen] = useState(false);
-  const [isPanelHidden, setIsPanelHidden] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
-  const [isViewMenuOpen, setIsViewMenuOpen] = useState(false);
+  const [openTopMenu, setOpenTopMenu] = useState<"mode" | "privacy" | "hints" | "volume" | null>(null);
   const [isCompanionMode, setIsCompanionMode] = useState(false);
   const [companionPosition, setCompanionPosition] = useState({ x: 24, y: 24 });
   const [commandInput, setCommandInput] = useState("");
   const [isCommandSending, setIsCommandSending] = useState(false);
-  const [isArtifactPanelOpen, setIsArtifactPanelOpen] = useState(true);
+  const [isArtifactPanelOpen, setIsArtifactPanelOpen] = useState(false);
   const [artifactTab, setArtifactTab] = useState("code");
+  const [voiceVolume, setVoiceVolume] = useState(82);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [, setCustomBackgroundVersion] = useState(0);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const appliedVoiceDefault = useRef(false);
@@ -706,7 +707,6 @@ export default function App() {
       startTransition(() => {
         setDashboard(next);
         setLoadError(null);
-        setLastUpdated(Date.now());
         setSelectedChatId((prev) => {
           const ids = new Set<string>();
           if (next.current_session?.id) ids.add(next.current_session.id);
@@ -770,10 +770,30 @@ export default function App() {
     if (!hasNewArtifact) return;
 
     setActiveView(null);
-    setIsPanelHidden(false);
     setIsArtifactPanelOpen(true);
-    setIsViewMenuOpen(false);
+    setOpenTopMenu(null);
   }, [dashboard]);
+
+  useEffect(() => {
+    const nextVolume = Number(dashboard?.settings?.ui?.voice_volume);
+    if (Number.isFinite(nextVolume)) {
+      setVoiceVolume(Math.max(0, Math.min(100, Math.round(nextVolume))));
+    }
+    const nextTheme = dashboard?.settings?.ui?.theme === "light" ? "light" : "dark";
+    setTheme(nextTheme);
+  }, [dashboard?.settings?.ui?.theme, dashboard?.settings?.ui?.voice_volume]);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+  }, [theme]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsPanelFullscreen(Boolean(document.fullscreenElement));
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -782,7 +802,7 @@ export default function App() {
         commandInputRef.current?.focus();
       }
       if (event.key === "Escape") {
-        setIsViewMenuOpen(false);
+        setOpenTopMenu(null);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -837,14 +857,66 @@ export default function App() {
 
   const handleViewChange = (view: string) => {
     setActiveView(getValidViewId(view));
-    setIsPanelHidden(false);
-    setIsViewMenuOpen(false);
+    setOpenTopMenu(null);
   };
 
-  const handleArtifactsView = () => {
-    setActiveView(null);
-    setIsPanelHidden(false);
-    setIsViewMenuOpen(false);
+  const handleModeSelect = async (mode: string) => {
+    await micaApi.setMode(mode);
+    setOpenTopMenu(null);
+    await refreshDashboard(true);
+  };
+
+  const handlePrivacySelect = async (mode: string) => {
+    await micaApi.setPrivacyMode({ mode });
+    setOpenTopMenu(null);
+    await refreshDashboard(true);
+  };
+
+  const handleThemeToggle = async () => {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    await micaApi.saveSettings({ ui: { theme: nextTheme } });
+    await refreshDashboard(true);
+  };
+
+  const handleVoiceVolumeCommit = async (value: number) => {
+    const nextVolume = Math.max(0, Math.min(100, Math.round(value)));
+    setVoiceVolume(nextVolume);
+    await micaApi.saveSettings({ ui: { voice_volume: nextVolume } });
+    await refreshDashboard(true);
+  };
+
+  const handleFullscreen = async () => {
+    const element = document.querySelector(".reference-window") as HTMLElement | null;
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      setIsPanelFullscreen(false);
+      return;
+    }
+    await element?.requestFullscreen?.();
+    setIsPanelFullscreen(true);
+  };
+
+  const handleSaveVisibleArtifact = () => {
+    const artifact = filteredArtifacts[0] ?? artifacts[0];
+    const content = artifact?.content || artifact?.url || artifact?.path || "M.I.C.A";
+    const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${artifact?.title || "mica-artifact"}.txt`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleShare = async () => {
+    const artifact = filteredArtifacts[0] ?? artifacts[0];
+    const text = artifact?.content || artifact?.url || artifact?.title || "M.I.C.A";
+    if (navigator.share) {
+      await navigator.share({ title: artifact?.title || "M.I.C.A", text });
+      return;
+    }
+    await navigator.clipboard?.writeText(text);
   };
 
   const handleSendCommand = async (text: string) => {
@@ -904,11 +976,6 @@ export default function App() {
     await refreshDashboard(true);
   };
 
-  const currentView = useMemo<ViewDefinition | null>(
-    () => viewRegistry.find((view) => view.id === activeView) ?? null,
-    [activeView],
-  );
-  const CurrentViewIcon = currentView?.icon ?? Sparkles;
   const resources = dashboard?.resources ?? null;
   const state = dashboard?.state ?? null;
   const isMuted = Boolean(state?.muted);
@@ -1041,60 +1108,89 @@ export default function App() {
     );
   }
 
-  const personalMode = dashboard?.personal_mode;
   const activeMode = dashboard?.active_mode;
-  const trustLevel = dashboard?.trust_level;
   const silentBrain = dashboard?.silent_brain;
+  const currentPrivacy = dashboard?.privacy?.mode ?? activeMode?.privacy_mode ?? "balanced";
   const artifacts = dashboard?.artifact_panel?.items ?? dashboard?.artifacts ?? [];
-  const artifactTabs = dashboard?.artifact_panel?.tabs ?? [];
   const filteredArtifacts =
     artifactTab === "all" ? artifacts : artifacts.filter((artifact) => artifact.kind === artifactTab);
   const commandExamples = dashboard?.command_palette?.examples ?? [
     { id: "focus", label: "Fokus starten", command: "fokus starten" },
     { id: "today", label: "Heute", command: "was steht heute an" },
-    { id: "coding", label: "Coding Setup", command: "oeffne mein coding setup" },
+    { id: "coding", label: "Coding Setup", command: "öffne mein coding setup" },
     { id: "health", label: "Systemcheck", command: "was ist kaputt im system" },
   ];
 
   return (
-    <div className="reference-shell min-h-screen overflow-hidden p-3 text-slate-100">
+    <div className={`reference-shell reference-shell-${theme} min-h-screen overflow-hidden p-3 text-slate-100`}>
       <div className="reference-wallpaper pointer-events-none fixed inset-0" style={wallpaperStyle} />
-      <main className="reference-window relative z-10 mx-auto h-[calc(100vh-1.5rem)] min-h-[760px] max-w-[1720px] overflow-hidden">
+      <main className={`reference-window relative z-10 mx-auto h-[calc(100vh-1.5rem)] min-h-[760px] max-w-[1720px] overflow-hidden ${isPanelFullscreen ? "reference-window-fullscreen" : ""}`}>
         <header className="reference-topbar">
-          <div className="reference-traffic">
-            <span className="bg-[#ff5f57]" />
-            <span className="bg-[#ffbd2e]" />
-            <span className="bg-[#28c840]" />
-          </div>
           <div className="reference-brand">M.I.C.A</div>
 
           <div className="reference-top-pills">
-            <button type="button" className="reference-top-pill">
-              <span className="reference-target-dot"><Radio className="h-4 w-4" /></span>
-              Focus
+            <button type="button" onClick={() => setOpenTopMenu(openTopMenu === "mode" ? null : "mode")} className="reference-top-pill">
+              <Radio className="h-4 w-4 text-white/85" />
+              {activeMode?.label ?? "Fokus"}
               <ChevronDown className="h-4 w-4 text-white/70" />
             </button>
-            <button type="button" className="reference-top-pill">
+            <button type="button" onClick={() => setOpenTopMenu(openTopMenu === "privacy" ? null : "privacy")} className="reference-top-pill">
               <Shield className="h-4 w-4 text-white/85" />
-              Local Privacy
+              {privacyOptions.find((option) => option.id === currentPrivacy)?.label ?? "Local Privacy"}
               <ChevronDown className="h-4 w-4 text-white/70" />
             </button>
-            <button type="button" className="reference-top-pill">
+            <button type="button" onClick={() => setOpenTopMenu(openTopMenu === "hints" ? null : "hints")} className="reference-top-pill">
               <Bell className="h-4 w-4 text-white/85" />
-              {silentBrain?.hint_count ? `${silentBrain.hint_count} Hinweise` : "3 Hinweise"}
-              <span className="h-2.5 w-2.5 rounded-full bg-[#53c7ff]" />
+              {silentBrain?.hint_count ? `${silentBrain.hint_count} Hinweise` : "0 Hinweise"}
             </button>
+            {openTopMenu === "mode" ? (
+              <div className="reference-top-menu">
+                {modeOptions.map((option) => (
+                  <button key={option.id} type="button" onClick={() => handleModeSelect(option.id)} className="liquid-menu-row">
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {openTopMenu === "privacy" ? (
+              <div className="reference-top-menu reference-top-menu-privacy">
+                {privacyOptions.map((option) => (
+                  <button key={option.id} type="button" onClick={() => handlePrivacySelect(option.id)} className="liquid-menu-row">
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {openTopMenu === "hints" ? (
+              <div className="reference-top-menu reference-top-menu-hints">
+                <HintStrip dashboard={dashboard} />
+              </div>
+            ) : null}
           </div>
 
           <div className="reference-window-actions">
             <Button
               size="icon"
-              title={isMuted ? "Voice aktivieren" : "Voice stummschalten"}
-              onClick={() => handleToggleMute(!isMuted)}
+              title="M.I.C.A Lautstärke"
+              onClick={() => setOpenTopMenu(openTopMenu === "volume" ? null : "volume")}
               className="reference-round-action"
             >
               <Volume2 className="h-5 w-5" />
             </Button>
+            {openTopMenu === "volume" ? (
+              <div className="reference-volume-popover">
+                <span>{voiceVolume}%</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={voiceVolume}
+                  onChange={(event) => setVoiceVolume(Number(event.target.value))}
+                  onPointerUp={(event) => handleVoiceVolumeCommit(Number(event.currentTarget.value))}
+                  onKeyUp={(event) => handleVoiceVolumeCommit(Number(event.currentTarget.value))}
+                />
+              </div>
+            ) : null}
             <Button
               size="icon"
               title="Settings"
@@ -1105,16 +1201,16 @@ export default function App() {
             </Button>
             <Button
               size="icon"
-              title="Mini-Modus"
-              onClick={() => setIsCompanionMode(true)}
-              className="reference-user-orb"
+              title={theme === "dark" ? "Light Mode" : "Dark Mode"}
+              onClick={handleThemeToggle}
+              className="reference-round-action"
             >
-              <span />
+              {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </Button>
           </div>
         </header>
 
-        <div className="reference-main-grid">
+        <div className={`reference-main-grid ${isArtifactPanelOpen ? "reference-main-grid-open" : "reference-main-grid-closed"}`}>
           <section className="reference-stage">
             <div className="reference-centerpiece">
               <MicaHead speaking={isSpeaking} mode={faceMode} />
@@ -1136,11 +1232,11 @@ export default function App() {
             </button>
 
             <div className="reference-bottom-tools">
-              <Button size="icon" className="reference-small-control" title="Voice">
+              <Button size="icon" onClick={() => setOpenTopMenu(openTopMenu === "volume" ? null : "volume")} className="reference-small-control" title="M.I.C.A Lautstärke">
                 <Volume2 className="h-4 w-4" />
               </Button>
-              <Button size="icon" className="reference-small-control" title="Helligkeit">
-                <Sun className="h-4 w-4" />
+              <Button size="icon" onClick={handleThemeToggle} className="reference-small-control" title={theme === "dark" ? "Light Mode" : "Dark Mode"}>
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </Button>
             </div>
 
@@ -1158,15 +1254,24 @@ export default function App() {
             </div>
           </section>
 
-          <ReferenceArtifactPanel
-            artifacts={artifacts}
-            artifactTab={artifactTab}
-            onArtifactTab={setArtifactTab}
-            onViewMenu={() => setIsViewMenuOpen((open) => !open)}
-            isViewMenuOpen={isViewMenuOpen}
-            onArtifactsView={handleArtifactsView}
-            onViewChange={handleViewChange}
-          />
+          {isArtifactPanelOpen ? (
+            <ReferenceArtifactPanel
+              artifacts={artifacts}
+              artifactTab={artifactTab}
+              onArtifactTab={setArtifactTab}
+              onFullscreen={handleFullscreen}
+              onShare={handleShare}
+              onSave={handleSaveVisibleArtifact}
+            />
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setIsArtifactPanelOpen((open) => !open)}
+            className="reference-sidebar-toggle"
+            aria-label={isArtifactPanelOpen ? "Seitenleiste einklappen" : "Seitenleiste ausklappen"}
+          >
+            {isArtifactPanelOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+          </button>
         </div>
       </main>
 

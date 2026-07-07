@@ -45,6 +45,7 @@ class ActionLoader:
             "file_controller": "actions.file_controller",
             "code_helper": "actions.code_helper",
             "dev_agent": "actions.dev_agent",
+            "pi_coding_agent": "actions.pi_coding_agent",
             "self_dev_agent": "actions.self_dev_agent",
             "crew_orchestrator": "actions.crew_orchestrator",
             "tool_forge": "actions.tool_forge",

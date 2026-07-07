@@ -1,0 +1,23 @@
+{
+  "model_router": {
+    "preferred_profile": "fast",
+    "model_scope": "linked",
+    "cost_mode": "balanced"
+  },
+  "ollama": {
+    "enabled": true,
+    "model": "llama3.1",
+    "base_url": "http://localhost:11434"
+  },
+  "ui": {
+    "default_view": "home",
+    "voice_first": true,
+    "background_id": "valley",
+    "background_url": "/backgrounds/mica-valley.jpg"
+  },
+  "calendar": {
+    "enabled": true,
+    "credentials_path": "./config/gmail_credentials.json",
+    "token_path": "./config/calendar_token.json"
+  }
+}

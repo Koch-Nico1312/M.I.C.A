@@ -1,0 +1,26 @@
+# Headless M.I.C.A + Pi coding-agent container dependencies.
+# Keep this intentionally slimmer than requirements.txt: no PyQt, torch, OCR, CUDA, or desktop automation stack.
+google-genai==2.7.0
+google-generativeai==0.8.6
+python-dotenv==1.2.2
+pyyaml==6.0.3
+requests==2.34.2
+beautifulsoup4==4.14.3
+duckduckgo-search==8.1.1
+aiohttp==3.13.5
+websockets==16.0
+psutil==7.2.2
+redis==8.0.0
+ollama==0.6.2
+chromadb==1.5.9
+google-api-python-client==2.197.0
+google-auth-oauthlib==1.4.0
+google-auth-httplib2==0.4.0
+mcp==1.27.2
+spotipy==2.26.0
+youtube-transcript-api==1.2.4
+python-pptx==1.0.2
+watchfiles==1.2.0
+watchdog>=4.0.0
+zstandard>=0.22.0
+langfuse>=3.0.0

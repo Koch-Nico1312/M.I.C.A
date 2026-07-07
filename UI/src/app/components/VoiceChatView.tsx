@@ -329,7 +329,7 @@ export function VoiceChatView({
                 className="rounded-2xl border-white/10 bg-white/5 text-slate-100 hover:bg-white/10"
               >
                 <Mic2 className="h-4 w-4" />
-                {pushActive ? "Push-to-talk aktiv" : "Nur fuer Push-to-talk gedrueckt halten"}
+                {pushActive ? "Push-to-talk aktiv" : "Nur für Push-to-talk gedrückt halten"}
               </Button>
             </div>
           ) : null}
@@ -340,7 +340,7 @@ export function VoiceChatView({
                 Live-Transkription
               </div>
               <p className="mt-2 min-h-12 text-sm leading-6 text-slate-100">
-                {speechHint || lastTranscript || "Open mic ist bereit fuer deine Stimme."}
+                {speechHint || lastTranscript || "Open mic ist bereit für deine Stimme."}
               </p>
             </div>
             <div className="rounded-2xl border border-white/10 bg-black/15 p-4">

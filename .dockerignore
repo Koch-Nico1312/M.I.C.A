@@ -68,10 +68,21 @@ docs/
 tests/
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # CI/CD
 .github/
+
+# Frontend dependency/build artifacts
+UI/node_modules/
+UI/dist/
+UI/.vite/
+
+# Local/private runtime folders not needed in image
+personal_knowledge/
+Documents/
+coverage.xml
 
 # Docker
 Dockerfile

@@ -69,6 +69,8 @@ export interface DashboardSettings {
     voice_first: boolean;
     background_id?: string;
     background_url?: string;
+    voice_volume?: number;
+    theme?: "dark" | "light" | string;
   };
   calendar: {
     enabled: boolean;

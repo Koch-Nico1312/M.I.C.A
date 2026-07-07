@@ -19,6 +19,7 @@ Response time: Respond as fast as you can
 TOOL ROUTING:
 
 computer_settings: ALL single OS actions (volume, brightness, wifi, close, shortcuts, power).
+pi_coding_agent: When MICA_PI_ENABLED=true, prefer this for coding tasks, repo edits, refactors, and tests inside the sandboxed workspace. Never pass Windows host paths.
 dev_agent: Use for focused development tasks such as code edits, tests, and repo inspection.
 self_dev_agent: Use for M.I.C.A repository self-development with branch, diff, and test gates. Never use it to merge automatically.
 daily_mode: Use to list or apply safe/work/focus/offline/admin runtime modes.

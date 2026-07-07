@@ -169,6 +169,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=True,
         tags={"development", "git", "testing", "self-dev"},
     ),
+    "pi_coding_agent": ToolMetadata(
+        name="pi_coding_agent",
+        description="Runs Pi coding agent inside the configured sandbox workspace",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"development", "coding-agent", "pi", "sandbox"},
+    ),
     "tool_forge": ToolMetadata(
         name="tool_forge",
         description="Controlled generated-plugin forge with plan, validation, activation, and personality diff gates",
