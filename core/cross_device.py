@@ -8,6 +8,7 @@ Send summaries/reminders to phone via Telegram or Discord
 import asyncio
 import json
 from datetime import datetime
+from uuid import uuid4
 from typing import Dict, List, Optional
 
 try:
@@ -18,6 +19,105 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
 
 from config.config_loader import get_config
+
+
+class CrossDevice:
+    """Local device/session registry used by tests and non-network handoff flows."""
+
+    def __init__(self):
+        self.devices: Dict[str, dict] = {}
+        self.sessions: Dict[str, dict] = {}
+        self.enable_discovery = False
+        self.discovery_active = False
+
+    def register_device(
+        self, device_name: str, device_type: str, capabilities: List[str] | None = None
+    ) -> str:
+        device_id = f"{device_type}_{uuid4().hex[:10]}"
+        self.devices[device_id] = {
+            "device_id": device_id,
+            "device_name": device_name,
+            "device_type": device_type,
+            "capabilities": list(capabilities or []),
+            "registered_at": datetime.now().isoformat(),
+            "last_sync": None,
+        }
+        return device_id
+
+    def get_device(self, device_id: str) -> Optional[dict]:
+        return self.devices.get(device_id)
+
+    def get_devices(self) -> List[dict]:
+        return list(self.devices.values())
+
+    def unregister_device(self, device_id: str) -> bool:
+        if device_id not in self.devices:
+            return False
+        del self.devices[device_id]
+        return True
+
+    def create_session(self, device_id: str) -> str:
+        if device_id not in self.devices:
+            raise KeyError(device_id)
+        session_id = f"session_{uuid4().hex[:10]}"
+        self.sessions[session_id] = {
+            "session_id": session_id,
+            "current_device": device_id,
+            "origin_device": device_id,
+            "messages": [],
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+        }
+        return session_id
+
+    def get_session(self, session_id: str) -> Optional[dict]:
+        return self.sessions.get(session_id)
+
+    def get_active_sessions(self) -> List[dict]:
+        return list(self.sessions.values())
+
+    def add_message_to_session(self, session_id: str, role: str, content: str) -> bool:
+        session = self.sessions.get(session_id)
+        if not session:
+            return False
+        session["messages"].append(
+            {"role": role, "content": content, "timestamp": datetime.now().isoformat()}
+        )
+        session["updated_at"] = datetime.now().isoformat()
+        return True
+
+    def handoff_session(self, session_id: str, from_device: str, to_device: str) -> bool:
+        session = self.sessions.get(session_id)
+        if not session or from_device not in self.devices or to_device not in self.devices:
+            return False
+        if session.get("current_device") != from_device:
+            return False
+        session["current_device"] = to_device
+        session["updated_at"] = datetime.now().isoformat()
+        return True
+
+    def sync_devices(self, from_device: str, to_device: str) -> bool:
+        if from_device not in self.devices or to_device not in self.devices:
+            return False
+        now = datetime.now().isoformat()
+        self.devices[from_device]["last_sync"] = now
+        self.devices[to_device]["last_sync"] = now
+        return True
+
+    def sync_all_devices(self) -> bool:
+        now = datetime.now().isoformat()
+        for device in self.devices.values():
+            device["last_sync"] = now
+        return True
+
+    def device_has_capability(self, device_id: str, capability: str | None) -> bool:
+        if not capability:
+            return False
+        device = self.devices.get(device_id)
+        return bool(device and capability in device.get("capabilities", []))
+
+    def start_discovery(self) -> None:
+        self.discovery_active = bool(self.enable_discovery)
 
 
 class TelegramBot:

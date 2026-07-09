@@ -52,6 +52,7 @@ def test_gemini_key_validation_requires_gemini_shape():
     from memory.config_manager import is_valid_gemini_key
 
     assert is_valid_gemini_key("AIza" + "x" * 32) is True
+    assert is_valid_gemini_key("AQ." + "x" * 50) is True
     assert is_valid_gemini_key("sk-proj-" + "x" * 40) is False
     assert is_valid_gemini_key("http://localhost:11434") is False
 
@@ -66,10 +67,10 @@ def test_first_run_wizard_saves_prompted_gemini_key(monkeypatch):
             saved["reloaded"] = True
 
     monkeypatch.setattr(first_run_wizard, "has_valid_gemini_key", lambda: bool(saved.get("key")))
-    monkeypatch.setattr(first_run_wizard, "_prompt_in_terminal", lambda: "AIza" + "x" * 32)
+    monkeypatch.setattr(first_run_wizard, "_prompt_in_terminal", lambda: "AQ." + "x" * 50)
     monkeypatch.setattr(first_run_wizard, "save_api_keys", lambda gemini_api_key: saved.update(key=gemini_api_key))
     monkeypatch.setattr(first_run_wizard, "get_config", lambda: FakeConfig())
 
     assert first_run_wizard.ensure_gemini_api_key(use_gui=False) is True
-    assert saved["key"].startswith("AIza")
+    assert saved["key"].startswith("AQ.")
     assert saved["reloaded"] is True

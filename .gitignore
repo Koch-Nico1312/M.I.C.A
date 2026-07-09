@@ -4,6 +4,8 @@
 !.env.example
 config/api_keys.json
 config/gmail_credentials.json
+config/gmail_token.json
+config/calendar_token.json
 
 # Python cache and virtual environments
 __pycache__/

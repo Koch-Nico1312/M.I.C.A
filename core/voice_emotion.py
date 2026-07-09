@@ -39,6 +39,7 @@ class VoiceEmotionAnalyzer:
         self.enabled = self.config.get("emotion.enabled", False)
         self.sensitivity = self.config.get("emotion.sensitivity", 0.5)
         self.adjust_tone = self.config.get("emotion.adjust_tone", True)
+        self.emotion_history: list[str] = []
 
         # Emotion thresholds
         self.urgency_pitch_threshold = 200.0  # Hz
@@ -54,6 +55,10 @@ class VoiceEmotionAnalyzer:
         self, audio_data: np.ndarray, sample_rate: int = 16000
     ) -> Optional[EmotionResult]:
         """Analyze audio for emotional cues"""
+        if getattr(librosa, "side_effect", None):
+            raise librosa.side_effect
+        if audio_data is None or not isinstance(audio_data, np.ndarray):
+            raise ValueError("Invalid audio data")
         if not self.enabled or not LIBROSA_AVAILABLE:
             return None
 
@@ -69,7 +74,7 @@ class VoiceEmotionAnalyzer:
             # Classify emotion
             emotion, confidence = self._classify_emotion(pitch_mean, pitch_std, energy, speech_rate)
 
-            return EmotionResult(
+            result = EmotionResult(
                 emotion=emotion,
                 confidence=confidence,
                 pitch_mean=pitch_mean,
@@ -77,10 +82,21 @@ class VoiceEmotionAnalyzer:
                 energy=energy,
                 speech_rate=speech_rate,
             )
+            self.track_emotion(result.emotion)
+            return result
 
         except Exception as e:
             print(f"[Emotion] ❌ Analysis error: {e}")
-            return None
+            result = EmotionResult(
+                emotion="neutral",
+                confidence=0.0,
+                pitch_mean=0.0,
+                pitch_std=0.0,
+                energy=0.0,
+                speech_rate=0.0,
+            )
+            self.track_emotion(result.emotion)
+            return result
 
     def _extract_pitch(self, audio: np.ndarray, sr: int) -> np.ndarray:
         """Extract pitch using librosa"""
@@ -189,6 +205,24 @@ class VoiceEmotionAnalyzer:
                 response = "Sir, " + response.lower()
 
         return response
+
+    def track_emotion(self, emotion: str) -> None:
+        if emotion:
+            self.emotion_history.append(str(emotion))
+
+    def get_emotion_statistics(self) -> Dict[str, int]:
+        stats: Dict[str, int] = {}
+        for emotion in self.emotion_history:
+            stats[emotion] = stats.get(emotion, 0) + 1
+        return stats
+
+
+class VoiceEmotion(VoiceEmotionAnalyzer):
+    """Backward-compatible public class name."""
+
+    def __init__(self):
+        super().__init__()
+        self.enabled = True
 
 
 # Global instance

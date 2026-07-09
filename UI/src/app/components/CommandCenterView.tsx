@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -45,7 +45,7 @@ function EmptyState({ label }: { label: string }) {
   );
 }
 
-function CompactItem({ item }: { item: CockpitItem }) {
+const CompactItem = memo(function CompactItem({ item }: { item: CockpitItem }) {
   return (
     <div className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3">
       <div className="flex items-start justify-between gap-3">
@@ -63,9 +63,9 @@ function CompactItem({ item }: { item: CockpitItem }) {
       </div>
     </div>
   );
-}
+});
 
-function MessageBubble({ message }: { message: ChatMessage }) {
+const MessageBubble = memo(function MessageBubble({ message }: { message: ChatMessage }) {
   const isUser = message.role === "user";
   const isTool = message.role === "tool";
   return (
@@ -107,9 +107,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
       </div>
     </div>
   );
-}
+});
 
-export function CommandCenterView({
+export const CommandCenterView = memo(function CommandCenterView({
   dashboard,
   onSendCommand,
   onStartNewChat,
@@ -153,6 +153,14 @@ export function CommandCenterView({
   const activeProject = payload?.project_workspaces?.active;
   const pluginTools = payload?.plugins?.tools ?? [];
   const osActions = payload?.os_integrations?.actions ?? {};
+  const visibleTasks = useMemo(
+    () => [...activeTasks, ...openQuestions].slice(0, 5),
+    [activeTasks, openQuestions],
+  );
+  const visibleTimeline = useMemo(
+    () => [...(dayOverview?.calendar ?? []), ...(dayOverview?.reminders ?? []), ...(dayOverview?.tasks ?? [])].slice(0, 3),
+    [dayOverview?.calendar, dayOverview?.reminders, dayOverview?.tasks],
+  );
 
   const handleSend = async () => {
     const text = input.trim();
@@ -241,7 +249,7 @@ export function CommandCenterView({
                 Aktive Tasks und Rückfragen
               </div>
               <div className="space-y-2">
-                {[...activeTasks, ...openQuestions].slice(0, 5).map((item) => <CompactItem key={item.id} item={item} />)}
+                {visibleTasks.map((item) => <CompactItem key={item.id} item={item} />)}
                 {!activeTasks.length && !openQuestions.length ? <EmptyState label="Keine offenen Tasks oder Rückfragen" /> : null}
               </div>
             </div>
@@ -468,7 +476,7 @@ export function CommandCenterView({
             {dayOverview?.next_best_step ? (
               <CompactItem item={{ id: "next", title: dayOverview.next_best_step.title, subtitle: dayOverview.next_best_step.reason, status: dayOverview.next_best_step.action }} />
             ) : null}
-            {[...(dayOverview?.calendar ?? []), ...(dayOverview?.reminders ?? []), ...(dayOverview?.tasks ?? [])].slice(0, 3).map((item) => <CompactItem key={item.id} item={item} />)}
+            {visibleTimeline.map((item) => <CompactItem key={item.id} item={item} />)}
             {recentFiles.slice(0, 2).map((item) => <CompactItem key={item.id} item={item} />)}
             {!dayOverview?.next_best_step && !(dayOverview?.calendar ?? []).length && !recentFiles.length ? (
               <EmptyState label="Keine Tagesdaten" />
@@ -485,4 +493,4 @@ export function CommandCenterView({
       </section>
     </div>
   );
-}
+});

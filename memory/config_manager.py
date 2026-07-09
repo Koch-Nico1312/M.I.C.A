@@ -64,7 +64,7 @@ def get_gemini_key() -> str | None:
 def is_valid_gemini_key(api_key: str | None) -> bool:
     """Return True when the value looks like a Gemini API key."""
     key = str(api_key or "").strip()
-    return key.startswith("AIza") and len(key) >= 30
+    return (key.startswith("AIza") or key.startswith("AQ.")) and len(key) >= 30
 
 
 def save_setup_config(

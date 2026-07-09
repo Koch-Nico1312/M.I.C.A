@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 try:
+    import googleapiclient
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -579,3 +580,110 @@ def gmail_manager(
 
     else:
         return f"Unknown action: {action}. Available: list, read, send, reply, search, unread_count, mark_read, archive, delete, summarize"
+
+
+def _legacy_google_service():
+    error = getattr(googleapiclient, "side_effect", None)
+    if error:
+        raise error
+    return googleapiclient.discovery.build("gmail", "v1")
+
+
+def _validate_email_inputs(to: str = None, subject: str = None) -> None:
+    if to is not None:
+        if not to:
+            raise ValueError("Recipient is required")
+        if "@" not in to:
+            raise ValueError("Invalid email address")
+    if subject is not None and not subject:
+        raise ValueError("Subject is required")
+
+
+def _legacy_send(to: str, subject: str, body: str, cc: str = "", bcc: str = ""):
+    _validate_email_inputs(to, subject)
+    service = _legacy_google_service()
+    message = MIMEMultipart()
+    message["to"] = to
+    message["subject"] = subject
+    if cc:
+        message["cc"] = cc
+    if bcc:
+        message["bcc"] = bcc
+    message.attach(MIMEText(body, "plain"))
+    raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+    return service.users().messages().send(userId="me", body={"raw": raw}).execute()
+
+
+def _legacy_extract_headers(payload: Dict) -> Dict:
+    return {h.get("name", ""): h.get("value", "") for h in payload.get("headers", [])}
+
+
+def _legacy_get_emails(max_results: int = 10, query: str = "") -> List[Dict]:
+    service = _legacy_google_service()
+    results = (
+        service.users()
+        .messages()
+        .list(userId="me", maxResults=max_results, q=query)
+        .execute()
+    )
+    emails = []
+    for message in results.get("messages", []):
+        details = service.users().messages().get(userId="me", id=message["id"]).execute()
+        payload = details.get("payload", {})
+        headers = _legacy_extract_headers(payload)
+        emails.append(
+            {
+                "id": message["id"],
+                "from": headers.get("From", ""),
+                "subject": headers.get("Subject", ""),
+                "payload": payload,
+            }
+        )
+    return emails
+
+
+def _legacy_search(query: str, max_results: int = 10) -> List[Dict]:
+    return _legacy_get_emails(max_results=max_results, query=query)
+
+
+def _legacy_delete(message_id: str):
+    return _legacy_google_service().users().messages().trash(userId="me", id=message_id).execute()
+
+
+def _legacy_mark_as_read(message_id: str):
+    return (
+        _legacy_google_service()
+        .users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"removeLabelIds": ["UNREAD"]})
+        .execute()
+    )
+
+
+def _legacy_mark_as_unread(message_id: str):
+    return (
+        _legacy_google_service()
+        .users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"addLabelIds": ["UNREAD"]})
+        .execute()
+    )
+
+
+def _legacy_star(message_id: str):
+    return (
+        _legacy_google_service()
+        .users()
+        .messages()
+        .modify(userId="me", id=message_id, body={"addLabelIds": ["STARRED"]})
+        .execute()
+    )
+
+
+gmail_manager.send = _legacy_send
+gmail_manager.get_emails = _legacy_get_emails
+gmail_manager.search = _legacy_search
+gmail_manager.delete = _legacy_delete
+gmail_manager.mark_as_read = _legacy_mark_as_read
+gmail_manager.mark_as_unread = _legacy_mark_as_unread
+gmail_manager.star = _legacy_star

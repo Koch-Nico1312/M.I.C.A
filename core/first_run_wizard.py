@@ -77,11 +77,11 @@ def _prompt_with_qt() -> Optional[str]:
         "Der Key wird lokal in config/api_keys.json gespeichert."
     )
     body.setWordWrap(True)
-    hint = QLabel("Der Key muss mit 'AIza' beginnen.")
+    hint = QLabel("Der Key muss mit 'AIza' oder 'AQ.' beginnen.")
     hint.setStyleSheet("color: #64748b;")
 
     key_input = QLineEdit()
-    key_input.setPlaceholderText("AIza...")
+    key_input.setPlaceholderText("AIza... oder AQ...")
     key_input.setEchoMode(QLineEdit.EchoMode.Password)
     key_input.setMinimumHeight(34)
 
@@ -106,7 +106,7 @@ def _prompt_with_qt() -> Optional[str]:
             QMessageBox.warning(
                 dialog,
                 "Ungueltiger Key",
-                "Bitte gib einen Gemini API-Key ein. Gemini Keys beginnen normalerweise mit 'AIza'.",
+                "Bitte gib einen Gemini API-Key ein. Gemini Keys beginnen normalerweise mit 'AIza' oder 'AQ.'.",
             )
             return
         captured_key["value"] = value
@@ -128,6 +128,6 @@ def _prompt_in_terminal() -> Optional[str]:
     except (EOFError, KeyboardInterrupt):
         return None
     if not is_valid_gemini_key(key):
-        print("Ungueltiger Gemini API-Key. Gemini Keys beginnen normalerweise mit 'AIza'.")
+        print("Ungueltiger Gemini API-Key. Gemini Keys beginnen normalerweise mit 'AIza' oder 'AQ.'.")
         return None
     return key

@@ -6,7 +6,7 @@ models:
   live: "models/gemini-2.5-flash-native-audio-preview-12-2025"
   text: "gemini-2.5-flash"
   vision: "gemini-2.5-flash"
-  voice_name: "Charon"
+  voice_name: "Aoede"
   context_window: 1000000  # Maximum context window in tokens (1M for gemini-2.5)
 
 # Optional centralized model routing. If omitted, M.I.C.A falls back to the
@@ -227,6 +227,7 @@ performance:
   background_tasks_enabled: true      # enable background task processing
   background_workers: 4              # number of background worker threads
   status_update_interval_ms: 500     # interval for status updates (ms)
+  tool_metrics_sample_rate: 0.25      # sample successful fast tool metrics; failures/slow calls are always tracked
   # Performance Optimization Feature Flags
   flags:
     # Phase 1: Quick Wins

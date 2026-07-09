@@ -182,39 +182,92 @@ class ActionHistory:
 
         self.history_file = Path(history_file)
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
+        self.journal_file = self.history_file.with_suffix(self.history_file.suffix + ".jsonl")
 
         self._history: List[ActionRecord] = []
         self._lock = threading.Lock()
         self._max_history_size = 1000
+        self._compact_delay_seconds = 2.0
+        self._compact_timer: Optional[threading.Timer] = None
+        self._closed = False
 
         self._load_history()
         logger.info(f"Action history initialized with {len(self._history)} records")
 
     def _load_history(self):
         """Load history from file."""
-        if not self.history_file.exists():
-            return
+        loaded: list[ActionRecord] = []
 
-        try:
-            with open(self.history_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
+        if self.history_file.exists():
+            try:
+                with open(self.history_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                loaded = [ActionRecord.from_dict(item) for item in data]
+            except Exception as e:
+                logger.error(f"Failed to load action history snapshot: {e}")
 
-            self._history = [ActionRecord.from_dict(item) for item in data]
-            # Trim to max size
-            self._history = self._history[-self._max_history_size :]
+        if self.journal_file.exists():
+            try:
+                with open(self.journal_file, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line:
+                            continue
+                        loaded.append(ActionRecord.from_dict(json.loads(line)))
+            except Exception as e:
+                logger.error(f"Failed to load action history journal: {e}")
 
-        except Exception as e:
-            logger.error(f"Failed to load action history: {e}")
-            self._history = []
+        by_id: dict[str, ActionRecord] = {}
+        order: list[str] = []
+        for record in loaded:
+            if record.id not in by_id:
+                order.append(record.id)
+            by_id[record.id] = record
+
+        self._history = [by_id[record_id] for record_id in order][-self._max_history_size :]
 
     def _save_history(self):
-        """Save history to file."""
+        """Save a compact snapshot of history to file and clear the journal."""
         try:
             data = [record.to_dict() for record in self._history]
-            with open(self.history_file, "w", encoding="utf-8") as f:
-                json.dump(data, f, indent=2)
+            tmp_file = self.history_file.with_suffix(self.history_file.suffix + ".tmp")
+            with open(tmp_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, separators=(",", ":"))
+            tmp_file.replace(self.history_file)
+            with open(self.journal_file, "w", encoding="utf-8"):
+                pass
         except Exception as e:
             logger.error(f"Failed to save action history: {e}")
+
+    def _append_journal(self, record: ActionRecord) -> None:
+        """Persist a single newly-created record without rewriting the snapshot."""
+        try:
+            with open(self.journal_file, "a", encoding="utf-8") as f:
+                f.write(json.dumps(record.to_dict(), separators=(",", ":")) + "\n")
+        except Exception as e:
+            logger.error(f"Failed to append action history journal: {e}")
+
+    def _schedule_compaction(self) -> None:
+        if self._closed:
+            return
+        if self._compact_timer and self._compact_timer.is_alive():
+            return
+        self._compact_timer = threading.Timer(self._compact_delay_seconds, self.flush)
+        self._compact_timer.daemon = True
+        self._compact_timer.start()
+
+    def flush(self) -> None:
+        """Synchronously compact pending journal entries into the JSON snapshot."""
+        with self._lock:
+            if self._compact_timer:
+                self._compact_timer.cancel()
+                self._compact_timer = None
+            self._save_history()
+
+    def close(self) -> None:
+        """Flush pending action history writes."""
+        self._closed = True
+        self.flush()
 
     def record_action(
         self,
@@ -276,7 +329,8 @@ class ActionHistory:
             if len(self._history) > self._max_history_size:
                 self._history = self._history[-self._max_history_size :]
 
-            self._save_history()
+            self._append_journal(record)
+            self._schedule_compaction()
 
         logger.info(f"Action recorded: {tool_name}/{action} (ID: {record.id})")
         return record
@@ -498,7 +552,8 @@ class ActionHistory:
             new_record.result = f"Retry of original action {record.id}"
 
             self._history.append(new_record)
-            self._save_history()
+            self._append_journal(new_record)
+            self._schedule_compaction()
 
         logger.info(
             f"Action retry created: {record.tool_name}/{record.action} (original ID: {record.id}, new ID: {new_record.id})"

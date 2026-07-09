@@ -178,6 +178,7 @@ export interface ProjectAwarenessPayload {
 }
 
 export interface DashboardResponse {
+  revision?: string;
   state: {
     state: LiveMode;
     muted: boolean;

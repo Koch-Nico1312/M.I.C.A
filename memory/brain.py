@@ -251,19 +251,41 @@ class MemoryBrain:
     def _collect_entries(self, memory: dict) -> list[dict]:
         entries: list[dict] = []
         for category, items in memory.items():
-            if not isinstance(items, dict):
-                continue
-            for key, entry in items.items():
-                if isinstance(entry, dict):
-                    entries.append(
-                        {
-                            "category": category,
-                            "key": key,
-                            "value": str(entry.get("value", "")),
-                            "entry": entry,
-                        }
-                    )
+            entries.extend(self._collect_entry_values(category, "", items))
         return entries
+
+    def _collect_entry_values(self, category: str, key_prefix: str, value: object) -> list[dict]:
+        if isinstance(value, dict):
+            if "value" in value:
+                raw_value = value.get("value", "")
+                return [
+                    {
+                        "category": category,
+                        "key": key_prefix,
+                        "value": str(raw_value),
+                        "entry": value,
+                    }
+                ] if str(raw_value).strip() else []
+
+            entries: list[dict] = []
+            for key, child in value.items():
+                child_key = f"{key_prefix}.{key}" if key_prefix else str(key)
+                entries.extend(self._collect_entry_values(category, child_key, child))
+            return entries
+
+        if isinstance(value, list):
+            raw_value = ", ".join(str(item) for item in value if str(item).strip())
+        else:
+            raw_value = str(value) if value is not None else ""
+
+        return [
+            {
+                "category": category,
+                "key": key_prefix,
+                "value": raw_value,
+                "entry": {"value": raw_value},
+            }
+        ] if key_prefix and raw_value.strip() else []
 
     def _entry_matches_query(self, entry: dict, query: str) -> bool:
         haystack = " ".join(

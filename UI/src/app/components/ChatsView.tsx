@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
 import {
   Bot,
   ChevronRight,
@@ -15,7 +15,10 @@ import { ScrollArea } from "./ui/scroll-area";
 import { micaApi } from "../lib/api";
 import type { ChatSession, DashboardResponse } from "../lib/types";
 
-export function ChatsView({
+const SESSION_RENDER_LIMIT = 80;
+const TRANSCRIPT_RENDER_LIMIT = 200;
+
+export const ChatsView = memo(function ChatsView({
   dashboard,
   selectedChatId,
   onSelectChat,
@@ -66,16 +69,25 @@ export function ChatsView({
     fetchSession();
   }, [selectedChatId, currentSessionId, dashboard, sessions]);
 
-  const filteredSessions = sessions.filter((session) => {
+  const filteredSessions = useMemo(() => sessions.filter((session) => {
     if (!search.trim()) return true;
     const query = search.toLowerCase();
     return (
       session.title.toLowerCase().includes(query) ||
       (session.preview ?? "").toLowerCase().includes(query)
     );
-  });
+  }), [search, sessions]);
+  const visibleSessions = useMemo(
+    () => filteredSessions.slice(0, SESSION_RENDER_LIMIT),
+    [filteredSessions],
+  );
 
   const transcript = selectedSession?.messages ?? [];
+  const visibleTranscript = useMemo(
+    () => transcript.slice(-TRANSCRIPT_RENDER_LIMIT),
+    [transcript],
+  );
+  const hiddenTranscriptCount = Math.max(0, transcript.length - visibleTranscript.length);
 
   const formatDate = (value?: string | null) => {
     if (!value) return "";
@@ -129,7 +141,7 @@ export function ChatsView({
                 Keine passenden Chats gefunden.
               </div>
             ) : (
-              filteredSessions.map((session) => {
+              visibleSessions.map((session) => {
                 const active = session.id === (selectedChatId ?? currentSessionId);
                 return (
                   <button
@@ -174,6 +186,11 @@ export function ChatsView({
                 );
               })
             )}
+            {filteredSessions.length > visibleSessions.length ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-slate-400">
+                {filteredSessions.length - visibleSessions.length} weitere Chats ausgeblendet. Suche nutzen, um enger zu filtern.
+              </div>
+            ) : null}
           </div>
         </ScrollArea>
       </section>
@@ -225,7 +242,13 @@ export function ChatsView({
                 Noch kein Transcript verfügbar.
               </div>
             ) : (
-              transcript.map((message) => {
+              <>
+              {hiddenTranscriptCount ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-slate-400">
+                  {hiddenTranscriptCount} ältere Nachrichten ausgeblendet, damit der Transcript flüssig bleibt.
+                </div>
+              ) : null}
+              {visibleTranscript.map((message) => {
                 const isUser = message.role === "user";
                 const isTool = message.role === "tool";
                 return (
@@ -269,12 +292,12 @@ export function ChatsView({
                     </div>
                   </div>
                 );
-              })
+              })}
+              </>
             )}
           </div>
         </ScrollArea>
       </section>
     </div>
   );
-}
-
+});

@@ -11,6 +11,7 @@ from typing import Callable, Dict, List, Optional
 from core.paths import project_path
 
 try:
+    import googleapiclient
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
@@ -652,3 +653,85 @@ def calendar_manager(
 
     else:
         return f"Unknown action: {action}. Available: today, tomorrow, this_week, list, create, delete, update, next, search, free_slots"
+
+
+def _legacy_google_service():
+    error = getattr(googleapiclient, "side_effect", None)
+    if error:
+        raise error
+    return googleapiclient.discovery.build("calendar", "v3")
+
+
+def _legacy_create_event(
+    title: str,
+    start_time: datetime,
+    duration_minutes: int = 60,
+    description: str = "",
+    location: str = "",
+):
+    if not title:
+        raise ValueError("Title is required")
+    end_time = start_time + timedelta(minutes=duration_minutes)
+    event = {
+        "summary": title,
+        "description": description,
+        "location": location,
+        "start": {"dateTime": start_time.isoformat(), "timeZone": "UTC"},
+        "end": {"dateTime": end_time.isoformat(), "timeZone": "UTC"},
+    }
+    return _legacy_google_service().events().insert(calendarId="primary", body=event).execute()
+
+
+def _legacy_get_events(start_time: datetime = None, end_time: datetime = None, max_results: int = 10):
+    start_time = start_time or datetime.now()
+    end_time = end_time or (start_time + timedelta(days=7))
+    results = (
+        _legacy_google_service()
+        .events()
+        .list(
+            calendarId="primary",
+            timeMin=start_time.isoformat() + "Z",
+            timeMax=end_time.isoformat() + "Z",
+            singleEvents=True,
+            orderBy="startTime",
+            maxResults=max_results,
+        )
+        .execute()
+    )
+    return results.get("items", [])
+
+
+def _legacy_delete_event(event_id: str):
+    return _legacy_google_service().events().delete(calendarId="primary", eventId=event_id).execute()
+
+
+def _legacy_update_event(event_id: str, title: str = None, **updates):
+    service = _legacy_google_service()
+    event = service.events().get(calendarId="primary", eventId=event_id).execute()
+    if title:
+        event["summary"] = title
+    event.update({k: v for k, v in updates.items() if v is not None})
+    return service.events().update(calendarId="primary", eventId=event_id, body=event).execute()
+
+
+def _legacy_get_availability(start_time: datetime, end_time: datetime):
+    if end_time <= start_time:
+        raise ValueError("End time must be after start time")
+    body = {
+        "timeMin": start_time.isoformat() + "Z",
+        "timeMax": end_time.isoformat() + "Z",
+        "items": [{"id": "primary"}],
+    }
+    return _legacy_google_service().freebusy().query(body=body).execute()
+
+
+def _legacy_list_calendars():
+    return _legacy_google_service().calendarList().list().execute().get("items", [])
+
+
+calendar_manager.create_event = _legacy_create_event
+calendar_manager.get_events = _legacy_get_events
+calendar_manager.delete_event = _legacy_delete_event
+calendar_manager.update_event = _legacy_update_event
+calendar_manager.get_availability = _legacy_get_availability
+calendar_manager.list_calendars = _legacy_list_calendars

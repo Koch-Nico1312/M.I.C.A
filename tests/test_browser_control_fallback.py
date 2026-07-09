@@ -66,3 +66,11 @@ def test_launch_failure_detection_matches_playwright_error():
     assert browser_control_module._is_browser_launch_failure(
         RuntimeError("BrowserType.launch_persistent_context: Failed to launch the browser process")
     )
+
+
+def test_real_chromium_profiles_are_opt_in(monkeypatch):
+    monkeypatch.delenv("MICA_USE_REAL_BROWSER_PROFILE", raising=False)
+    assert browser_control_module._use_real_chromium_profile() is False
+
+    monkeypatch.setenv("MICA_USE_REAL_BROWSER_PROFILE", "1")
+    assert browser_control_module._use_real_chromium_profile() is True

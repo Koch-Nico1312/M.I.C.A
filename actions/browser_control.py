@@ -122,6 +122,20 @@ def _real_profile_dir(browser: str) -> str:
     return str(fallback)
 
 
+def _mica_profile_dir(browser: str) -> str:
+    profile = Path.home() / ".mica_profiles" / browser
+    profile.mkdir(parents=True, exist_ok=True)
+    return str(profile)
+
+
+def _use_real_chromium_profile() -> bool:
+    return os.environ.get("MICA_USE_REAL_BROWSER_PROFILE", "").lower() in {
+        "1",
+        "true",
+        "yes",
+    }
+
+
 def _firefox_profile_dir() -> Optional[str]:
     home = Path.home()
 
@@ -522,7 +536,16 @@ class _BrowserSession:
             logger.info("Safari launched")
             return
 
-        profile = _real_profile_dir(self.browser_name)
+        attempted_real_profile = _use_real_chromium_profile()
+        if attempted_real_profile:
+            profile = _real_profile_dir(self.browser_name)
+        else:
+            profile = _mica_profile_dir(self.browser_name)
+            logger.info(
+                "Using M.I.C.A profile for %s; set MICA_USE_REAL_BROWSER_PROFILE=1 "
+                "to attempt launching the real browser profile.",
+                self.browser_name,
+            )
 
         kwargs = {
             "headless": False,
@@ -556,10 +579,11 @@ class _BrowserSession:
             logger.info(f"Launched [{label}] profile={profile}")
             return
         except Exception as e:
+            if not attempted_real_profile:
+                raise RuntimeError(f"Could not launch {self.browser_name}: {e}") from e
             logger.warning(f"Real profile failed for {label}: {e}")
 
-        mica_profile = str(Path.home() / ".mica_profiles" / self.browser_name)
-        Path(mica_profile).mkdir(parents=True, exist_ok=True)
+        mica_profile = _mica_profile_dir(self.browser_name)
         logger.info(f"Retrying with M.I.C.A profile: {mica_profile}")
 
         try:

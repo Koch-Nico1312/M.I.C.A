@@ -96,6 +96,17 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _is_auth_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    return (
+        "invalid authentication credentials" in text
+        or "api key not valid" in text
+        or "permission_denied" in text
+        or "unauthenticated" in text
+        or "expected oauth 2 access token" in text
+    )
+
+
 def _compress(img_bytes: bytes, source_format: str = "PNG") -> tuple[bytes, str]:
     if not _PIL:
         return img_bytes, f"image/{source_format.lower()}"
@@ -219,9 +230,12 @@ class _VisionSession:
         self._ready_evt: threading.Event = threading.Event()
         self._player = None
         self._lock: threading.Lock = threading.Lock()
+        self._fatal_error: Optional[BaseException] = None
 
     def start(self, player=None, timeout: float = 25.0) -> None:
         with self._lock:
+            if self._fatal_error is not None:
+                raise RuntimeError(f"Vision session unavailable: {self._fatal_error}")
             if self._thread and self._thread.is_alive():
                 if player is not None:
                     self._player = player
@@ -236,6 +250,8 @@ class _VisionSession:
 
         if not self._ready_evt.wait(timeout=timeout):
             raise RuntimeError(f"Vision session did not connect within {timeout}s.")
+        if self._fatal_error is not None:
+            raise RuntimeError(f"Vision session unavailable: {self._fatal_error}")
         print("[Vision] ✅ Session ready")
 
     def analyze(self, image_bytes: bytes, mime_type: str, user_text: str) -> None:
@@ -292,14 +308,20 @@ class _VisionSession:
             except* Exception as eg:
                 for exc in eg.exceptions:
                     print(f"[Vision] ⚠️  Session error: {exc}")
+                    if _is_auth_error(exc):
+                        self._fatal_error = exc
             finally:
                 self._session = None
                 self._ready_evt.clear()
 
+            if self._fatal_error is not None:
+                print("[Vision] ❌ Authentication failed — check GEMINI_API_KEY/api_keys.json.")
+                self._ready_evt.set()
+                return
+
             print(f"[Vision] 🔄 Reconnecting in {backoff:.0f}s...")
             await asyncio.sleep(backoff)
             backoff = min(backoff * 1.5, 30.0)
-            self._ready_evt.set()
 
     async def _send_loop(self) -> None:
         while True:

@@ -1,4 +1,4 @@
-import { Component, startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { Component, memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
   Activity,
@@ -155,69 +155,6 @@ class ViewErrorBoundary extends Component<
   }
 }
 
-function roundResourceMetric(value: unknown) {
-  return Math.round(Number(value ?? 0) * 10) / 10;
-}
-
-function stableDashboardSignature(dashboard: DashboardResponse) {
-  const state = dashboard.state;
-  const resources = dashboard.resources;
-
-  return JSON.stringify({
-    state: state
-      ? {
-          value: state.state,
-          muted: state.muted,
-          speaking: state.speaking,
-          current_file: state.current_file,
-          voice_focus: state.voice_focus,
-          default_view: state.default_view,
-          logs: (state.logs ?? []).slice(-12).map((log) => ({
-            timestamp: Math.round(Number(log.timestamp ?? 0)),
-            text: log.text,
-          })),
-        }
-      : null,
-    resources: resources
-      ? {
-          cpu_percent: roundResourceMetric(resources.cpu_percent),
-          memory_percent: roundResourceMetric(resources.memory_percent),
-          disk_percent: roundResourceMetric(resources.disk_percent),
-          threads: resources.threads ?? 0,
-          active_tasks: resources.performance?.active_tasks ?? 0,
-          current_activity: resources.performance?.current_activity ?? "idle",
-          waiting_for_input: Boolean(resources.performance?.waiting_for_input),
-          model_active: Boolean(resources.performance?.model_active),
-          tool_active: Boolean(resources.performance?.tool_active),
-        }
-      : null,
-    settings: dashboard.settings,
-    calendar: dashboard.calendar,
-    current_session: dashboard.current_session,
-    recent_sessions: dashboard.recent_sessions,
-    cockpit: dashboard.cockpit,
-    resume: dashboard.resume,
-    documents: dashboard.documents,
-    setup: dashboard.setup,
-    models: dashboard.models,
-    memory: dashboard.memory,
-    devices: dashboard.devices,
-    action_history: dashboard.action_history,
-    approvals: dashboard.approvals,
-    permissions: dashboard.permissions,
-    quick_actions: dashboard.quick_actions,
-    command_center: dashboard.command_center,
-    artifacts: dashboard.artifacts,
-    personal_mode: dashboard.personal_mode,
-    active_mode: dashboard.active_mode,
-    trust_level: dashboard.trust_level,
-    silent_brain: dashboard.silent_brain,
-    command_palette: dashboard.command_palette,
-    artifact_panel: dashboard.artifact_panel,
-    project_awareness: dashboard.project_awareness,
-  });
-}
-
 function getValidViewId(value: string): ViewId {
   return viewRegistry.some((view) => view.id === value) ? (value as ViewId) : "voice-chat";
 }
@@ -302,7 +239,9 @@ function VoicePulse({ speaking }: { speaking: boolean }) {
   );
 }
 
-function ArtifactCard({ artifact }: { artifact: ArtifactPanelItem }) {
+const ARTIFACT_RENDER_LIMIT = 24;
+
+const ArtifactCard = memo(function ArtifactCard({ artifact }: { artifact: ArtifactPanelItem }) {
   const createdAt = artifact.created_at
     ? new Date(artifact.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     : "";
@@ -391,7 +330,7 @@ function ArtifactCard({ artifact }: { artifact: ArtifactPanelItem }) {
       ) : null}
     </article>
   );
-}
+});
 
 function GlassPill({
   icon: Icon,
@@ -654,21 +593,29 @@ class MICACore:
   );
 }
 
-function ArtifactSpaceView({ artifacts }: { artifacts: ArtifactPanelItem[] }) {
+const ArtifactSpaceView = memo(function ArtifactSpaceView({ artifacts }: { artifacts: ArtifactPanelItem[] }) {
   if (!artifacts.length) {
     return <div className="h-full" aria-label="Artifact panel empty" />;
   }
 
+  const visibleArtifacts = artifacts.slice(0, ARTIFACT_RENDER_LIMIT);
+  const hiddenCount = Math.max(0, artifacts.length - visibleArtifacts.length);
+
   return (
     <div className="h-full min-h-0 overflow-y-auto p-4 md:p-5">
       <div className="grid gap-3 xl:grid-cols-2">
-        {artifacts.map((artifact) => (
+        {visibleArtifacts.map((artifact) => (
           <ArtifactCard key={artifact.id} artifact={artifact} />
         ))}
+        {hiddenCount ? (
+          <div className="apple-panel rounded-[1.35rem] border border-white/10 p-4 text-sm text-slate-400">
+            {hiddenCount} weitere Artefakte ausgeblendet, damit die Ansicht flüssig bleibt.
+          </div>
+        ) : null}
       </div>
     </div>
   );
-}
+});
 
 export default function App() {
   const [activeView, setActiveView] = useState<ActiveViewId>(null);
@@ -689,21 +636,25 @@ export default function App() {
   const [, setCustomBackgroundVersion] = useState(0);
   const commandInputRef = useRef<HTMLInputElement>(null);
   const appliedVoiceDefault = useRef(false);
-  const lastDashboardSignature = useRef<string | null>(null);
+  const dashboardEtag = useRef<string | null>(null);
   const knownArtifactIds = useRef<Set<string> | null>(null);
   const companionDrag = useRef<{ pointerId: number; dx: number; dy: number } | null>(null);
   const companionPositionInitialized = useRef(false);
 
   const refreshDashboard = async (force = false) => {
     try {
-      const next = await micaApi.getDashboard();
-      const signature = stableDashboardSignature(next);
-      if (!force && signature === lastDashboardSignature.current) {
+      const response = await micaApi.getDashboardIfChanged(force ? null : dashboardEtag.current);
+      if (!force && response.notModified) {
+        setLoadError(null);
+        return;
+      }
+      const next = response.dashboard;
+      if (!next) {
         setLoadError(null);
         return;
       }
 
-      lastDashboardSignature.current = signature;
+      dashboardEtag.current = response.etag ?? (next.revision ? `"${next.revision}"` : null);
       startTransition(() => {
         setDashboard(next);
         setLoadError(null);
@@ -777,7 +728,7 @@ export default function App() {
   useEffect(() => {
     const nextVolume = Number(dashboard?.settings?.ui?.voice_volume);
     if (Number.isFinite(nextVolume)) {
-      setVoiceVolume(Math.max(0, Math.min(100, Math.round(nextVolume))));
+      setVoiceVolume(Math.max(0, Math.min(200, Math.round(nextVolume))));
     }
     const nextTheme = dashboard?.settings?.ui?.theme === "light" ? "light" : "dark";
     setTheme(nextTheme);
@@ -880,7 +831,7 @@ export default function App() {
   };
 
   const handleVoiceVolumeCommit = async (value: number) => {
-    const nextVolume = Math.max(0, Math.min(100, Math.round(value)));
+    const nextVolume = Math.max(0, Math.min(200, Math.round(value)));
     setVoiceVolume(nextVolume);
     await micaApi.saveSettings({ ui: { voice_volume: nextVolume } });
     await refreshDashboard(true);
@@ -1122,9 +1073,9 @@ export default function App() {
   ];
 
   return (
-    <div className={`reference-shell reference-shell-${theme} min-h-screen overflow-hidden p-3 text-slate-100`}>
+    <div className={`reference-shell reference-shell-${theme} ${isPanelFullscreen ? "reference-shell-fullscreen" : ""} text-slate-100`}>
       <div className="reference-wallpaper pointer-events-none fixed inset-0" style={wallpaperStyle} />
-      <main className={`reference-window relative z-10 mx-auto h-[calc(100vh-1.5rem)] min-h-[760px] max-w-[1720px] overflow-hidden ${isPanelFullscreen ? "reference-window-fullscreen" : ""}`}>
+      <main className={`reference-window relative z-10 h-full w-full overflow-hidden ${isPanelFullscreen ? "reference-window-fullscreen" : ""}`}>
         <header className="reference-topbar">
           <div className="reference-brand">M.I.C.A</div>
 
@@ -1183,7 +1134,7 @@ export default function App() {
                 <input
                   type="range"
                   min={0}
-                  max={100}
+                  max={200}
                   value={voiceVolume}
                   onChange={(event) => setVoiceVolume(Number(event.target.value))}
                   onPointerUp={(event) => handleVoiceVolumeCommit(Number(event.currentTarget.value))}

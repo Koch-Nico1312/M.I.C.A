@@ -12,12 +12,21 @@
   "ui": {
     "default_view": "home",
     "voice_first": true,
-    "background_id": "valley",
-    "background_url": "/backgrounds/mica-valley.jpg"
+    "background_id": "lake",
+    "background_url": "/backgrounds/mica-lake.jpg",
+    "voice_volume": 200,
+    "theme": "dark"
   },
   "calendar": {
     "enabled": true,
     "credentials_path": "./config/gmail_credentials.json",
     "token_path": "./config/calendar_token.json"
+  },
+  "personal_mode": {
+    "active_mode": "focus",
+    "trust_level": 2
+  },
+  "proactive": {
+    "mode": "off"
   }
 }

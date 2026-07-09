@@ -233,88 +233,93 @@ def search_mem0_memory(query: str, limit: int = 5) -> dict[str, Any]:
     return result.to_dict()
 
 
+def _memory_value(value: Any) -> str:
+    if isinstance(value, dict) and "value" in value:
+        return _memory_value(value.get("value"))
+    if isinstance(value, (str, int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        parts = [_memory_value(item) for item in value]
+        return ", ".join(part for part in parts if part)
+    return ""
+
+
+def _flatten_memory_items(value: Any, prefix: str = "") -> list[tuple[str, str]]:
+    if isinstance(value, dict):
+        if "value" in value:
+            entry_value = _memory_value(value)
+            return [(prefix, entry_value)] if entry_value else []
+
+        items: list[tuple[str, str]] = []
+        for key, child in value.items():
+            child_prefix = f"{prefix}.{key}" if prefix else str(key)
+            child_items = _flatten_memory_items(child, child_prefix)
+            if child_items:
+                items.extend(child_items)
+                continue
+
+            child_value = _memory_value(child)
+            if child_value:
+                items.append((child_prefix, child_value))
+        return items
+
+    entry_value = _memory_value(value)
+    return [(prefix, entry_value)] if prefix and entry_value else []
+
+
 def format_memory_for_prompt(memory: dict | None) -> str:
     if not memory:
         return ""
 
     lines = []
 
-    identity = memory.get("identity", {})
-    id_fields = ["name", "age", "birthday", "city", "job", "language", "school", "nationality"]
-    for field in id_fields:
-        entry = identity.get(field)
-        if entry:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"{field.title()}: {val}")
-    for key, entry in identity.items():
-        if key in id_fields:
+    sections = [
+        ("identity", "Identity", 14),
+        ("preferences", "Preferences", 18),
+        ("projects", "Active Projects / Goals", 12),
+        ("skills_and_goals", "Skills / Goals", 12),
+        ("interests", "Interests", 12),
+        ("relationships", "People in their life", 12),
+        ("wishes", "Wishes / Plans / Wants", 10),
+        ("knowledge", "Recently learned facts", 10),
+        ("notes", "Other notes", 10),
+        ("decisions", "Decisions", 8),
+        ("todos", "Todos", 8),
+    ]
+    seen_categories = set()
+
+    for category, title, limit in sections:
+        seen_categories.add(category)
+        entries = _flatten_memory_items(memory.get(category, {}))
+        if not entries:
             continue
-        val = entry.get("value") if isinstance(entry, dict) else entry
-        if val:
-            lines.append(f"{key.replace('_', ' ').title()}: {val}")
+        if lines:
+            lines.append("")
+        lines.append(f"{title}:")
+        for key, value in entries[:limit]:
+            label = key.replace("_", " ").replace(".", " / ").title()
+            lines.append(f"  - {label}: {value}")
 
-    prefs = memory.get("preferences", {})
-    if prefs:
-        lines.append("")
-        lines.append("Preferences:")
-        for key, entry in list(prefs.items())[:15]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
-
-    projects = memory.get("projects", {})
-    if projects:
-        lines.append("")
-        lines.append("Active Projects / Goals:")
-        for key, entry in list(projects.items())[:8]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
-
-    knowledge = memory.get("knowledge", {})
-    if knowledge:
-        lines.append("")
-        lines.append("Recently learned facts:")
-        for key, entry in list(knowledge.items())[:10]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
-
-    rels = memory.get("relationships", {})
-    if rels:
-        lines.append("")
-        lines.append("People in their life:")
-        for key, entry in list(rels.items())[:10]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
-
-    wishes = memory.get("wishes", {})
-    if wishes:
-        lines.append("")
-        lines.append("Wishes / Plans / Wants:")
-        for key, entry in list(wishes.items())[:8]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key.replace('_', ' ').title()}: {val}")
-
-    notes = memory.get("notes", {})
-    if notes:
-        lines.append("")
-        lines.append("Other notes:")
-        for key, entry in list(notes.items())[:8]:
-            val = entry.get("value") if isinstance(entry, dict) else entry
-            if val:
-                lines.append(f"  - {key}: {val}")
+    for category, value in memory.items():
+        if category in seen_categories:
+            continue
+        entries = _flatten_memory_items(value)
+        if not entries:
+            continue
+        if lines:
+            lines.append("")
+        lines.append(f"{category.replace('_', ' ').title()}:")
+        for key, entry_value in entries[:8]:
+            label = key.replace("_", " ").replace(".", " / ").title()
+            lines.append(f"  - {label}: {entry_value}")
 
     if not lines:
         return ""
 
     header = "[WHAT YOU KNOW ABOUT THIS PERSON — use naturally, never recite like a list]\n"
     result = header + "\n".join(lines)
-    if len(result) > 2000:
-        result = result[:1997] + "…"
+    if len(result) > 6000:
+        result = result[:5997] + "…"
 
     return result + "\n"
 

@@ -950,8 +950,62 @@ export interface TerminalActionResponse {
   platform?: PlatformPayload;
 }
 
+export interface DashboardPollResult {
+  dashboard: DashboardResponse | null;
+  etag: string | null;
+  notModified: boolean;
+}
+
+async function getDashboardIfChanged(etag?: string | null): Promise<DashboardPollResult> {
+  try {
+    const response = await fetch("/api/dashboard", {
+      headers: {
+        "Content-Type": "application/json",
+        ...(etag ? { "If-None-Match": etag } : {}),
+      },
+    });
+
+    if (response.status === 304) {
+      return {
+        dashboard: null,
+        etag: response.headers.get("ETag") ?? etag ?? null,
+        notModified: true,
+      };
+    }
+
+    const text = await response.text();
+    let body: any = {};
+    if (text) {
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { raw: text };
+      }
+    }
+
+    if (!response.ok) {
+      const message = body?.error || body?.message || `Request failed: ${response.status}`;
+      throw new Error(message);
+    }
+
+    return {
+      dashboard: body as DashboardResponse,
+      etag: response.headers.get("ETag") ?? (body?.revision ? `"${body.revision}"` : null),
+      notModified: false,
+    };
+  } catch (error) {
+    console.warn("Backend not available, using mock data:", error);
+    return {
+      dashboard: getMockData<DashboardResponse>("/api/dashboard"),
+      etag: null,
+      notModified: false,
+    };
+  }
+}
+
 export const micaApi = {
   getDashboard: () => requestJson<DashboardResponse>("/api/dashboard"),
+  getDashboardIfChanged,
   getPersonalMode: () => requestJson<PersonalModePayload>("/api/personal-mode"),
   getSilentBrain: () => requestJson<SilentBrainPayload>("/api/silent-brain"),
   getCommandCenter: () => requestJson<CommandCenterPayload>("/api/command-center"),

@@ -14,6 +14,7 @@ from array import array
 import contextlib
 import functools
 import json
+import os
 import re
 import sys
 import threading
@@ -33,7 +34,6 @@ from core.api_cache import get_api_cache
 from core.approval_flow import get_approval_flow
 from core.cross_device import get_cross_device
 from core.healthcheck import build_runtime_report, format_runtime_report
-from core.hud_overlay import get_hud_manager
 from core.knowledge_manager import get_knowledge_manager
 from core.llm_fallback import get_hybrid_llm
 from core.logger import get_logger
@@ -42,7 +42,6 @@ from core.passive_vision import get_passive_vision
 from core.performance_flags import get_performance_flags
 from core.performance_monitor import get_performance_monitor, track_api_call_decorator
 from core.plugin_system import get_plugin_manager
-from core.proactive_suggestions import get_proactive_suggestions
 from core.security import get_api_key_manager
 from core.semantic_search import get_semantic_search
 from core.session_manager import get_session_manager
@@ -80,9 +79,37 @@ DEFAULT_CHUNK_SIZE = 1024
 _CTRL_RE = re.compile(r"<ctrl\d+>", re.IGNORECASE)
 
 
+class _NoopHUD:
+    """Cheap HUD stand-in used when the overlay is disabled."""
+
+    def initialize(self) -> bool:
+        return False
+
+    def set_status(self, text: str) -> None:
+        return None
+
+    def set_action(self, action: str) -> None:
+        return None
+
+    def highlight_click(self, x: int, y: int) -> None:
+        return None
+
+    def highlight_region(
+        self, x: int, y: int, width: int, height: int, color: str = None
+    ) -> None:
+        return None
+
+    def update_mouse(self, x: int, y: int) -> None:
+        return None
+
+
+class _LiveReconnect(Exception):
+    """Raised when Gemini Live closes the websocket and the session should reconnect."""
+
+
 def _scale_pcm16(chunk: bytes, volume: float) -> bytes:
     """Scale little-endian signed 16-bit PCM audio without external dependencies."""
-    if volume >= 0.995:
+    if 0.995 <= volume <= 1.005:
         return chunk
     if volume <= 0:
         return b"\x00" * len(chunk)
@@ -203,7 +230,25 @@ def _ensure_audio_backend() -> None:
 def _is_invalid_api_key_error(exc: Exception) -> bool:
     """Check if exception is due to invalid API key."""
     text = str(exc).lower()
-    return "api key not valid" in text or "invalid api key" in text
+    return (
+        "api key not valid" in text
+        or "invalid api key" in text
+        or "invalid authentication credentials" in text
+        or "expected oauth 2 access token" in text
+    )
+
+
+def _is_live_reconnect_error(exc: Exception) -> bool:
+    """Detect recoverable Gemini Live websocket closures."""
+    text = str(exc).lower()
+    return (
+        isinstance(exc, _LiveReconnect)
+        or "deadline expired" in text
+        or "connectionclosed" in text
+        or "connection closed" in text
+        or "received 1011" in text
+        or "websocket" in text and "closed" in text
+    )
 
 
 def _get_api_key() -> str:
@@ -274,8 +319,8 @@ class MicaLive:
         self.passive_vision = get_passive_vision()
         self.semantic_search = get_semantic_search()
         self.knowledge_manager = get_knowledge_manager()
-        self.hud = get_hud_manager()
-        self.proactive = get_proactive_suggestions()
+        self.hud = self._create_hud()
+        self._proactive = None
         self.emotion = get_emotion_analyzer()
         self.voice_mode = get_voice_conversation_mode()
         self.vscode = get_vscode_bridge()
@@ -303,6 +348,27 @@ class MicaLive:
         self._auto_start_services()
 
         logger.info("MicaLive initialized")
+
+    def _create_hud(self) -> Any:
+        """Create the HUD manager only when the overlay is enabled."""
+        if not self.config.get("hud.enabled", False):
+            return _NoopHUD()
+        try:
+            from core.hud_overlay import get_hud_manager
+
+            return get_hud_manager()
+        except Exception as exc:
+            logger.warning("HUD manager unavailable during startup: %s", exc)
+            return _NoopHUD()
+
+    @property
+    def proactive(self) -> Any:
+        """Lazily create proactive suggestions after the live path is ready."""
+        if self._proactive is None:
+            from core.proactive_suggestions import get_proactive_suggestions
+
+            self._proactive = get_proactive_suggestions()
+        return self._proactive
 
     def _refresh_runtime_config(self) -> None:
         """Refresh runtime configuration from config file."""
@@ -395,8 +461,16 @@ class MicaLive:
         for task in tasks.values():
             task.cancel()
         for name, task in tasks.items():
-            with contextlib.suppress(asyncio.CancelledError):
+            try:
                 await task
+            except asyncio.CancelledError:
+                continue
+            except Exception as exc:
+                if _is_live_reconnect_error(exc):
+                    logger.debug("Task %s closed during reconnect shutdown: %r", name, exc)
+                else:
+                    logger.debug("Task %s failed during shutdown: %r", name, exc)
+                continue
             if task.cancelled():
                 continue
             try:
@@ -411,6 +485,9 @@ class MicaLive:
         exc = task.exception()
         if exc is None:
             logger.warning("Runtime task %s stopped without an exception", name)
+            return
+        if _is_live_reconnect_error(exc):
+            logger.warning("Runtime task %s requested reconnect: %s", name, exc)
             return
         logger.error("Runtime task %s failed: %r", name, exc)
         if getattr(exc, "exceptions", None):
@@ -431,41 +508,39 @@ class MicaLive:
         declarations.extend(FEATURE_TOOL_DECLARATIONS)
         declarations.extend(self.plugin_manager.get_tool_declarations())
 
-        # Load MCP tools if enabled
-        if self.config.get("security.mcp_enabled", True):
+        return declarations
+
+    def _start_deferred_mcp_discovery(self) -> None:
+        """Discover MCP servers after startup so Live connection is not blocked."""
+        if not self.config.get("security.mcp_enabled", True):
+            return
+        if not self.config.get("security.mcp_deferred_startup", True):
+            return
+
+        def discover() -> None:
             try:
                 from core.mcp_client import get_mcp_client, get_mcp_tools
 
-                mcp_client = get_mcp_client()
-                mcp_client.connect_all_enabled()
-                mcp_tools = get_mcp_tools()
+                client = get_mcp_client()
+                results = client.connect_all_enabled()
+                tools = get_mcp_tools()
+                logger.info(
+                    "[MCP] Deferred discovery complete: servers=%s tools=%s",
+                    len(results),
+                    len(tools),
+                )
+            except Exception as exc:
+                logger.warning("[MCP] Deferred discovery failed: %s", exc)
 
-                # Format MCP tools to match Gemini Live tool declaration schema
-                for tool in mcp_tools:
-                    declarations.append(
-                        {
-                            "name": tool["name"],
-                            "description": tool["description"],
-                            "parameters": tool["parameters"],
-                        }
-                    )
-                logger.info(f"[MCP] Registered {len(mcp_tools)} tools into tool declarations.")
-            except Exception as me:
-                logger.warning(f"[MCP] Failed to load/register MCP tools: {me}")
-
-        return declarations
+        threading.Thread(target=discover, name="mica-mcp-discovery", daemon=True).start()
 
     def _auto_start_services(self) -> None:
         """Auto-start enabled services."""
-        if self.hud.initialize():
-            self.hud.set_status("M.I.C.A booting")
+        if self.config.get("hud.enabled", False):
+            logger.info("HUD overlay startup deferred to keep Live startup fast.")
 
-        if self.passive_vision.enabled:
-            self.passive_vision.start()
-
-        if self.proactive.enabled:
-            self.proactive.set_speak_callback(self.speak)
-            self.proactive.start()
+        self._start_background_service("passive_vision", self._start_passive_vision)
+        self._start_background_service("proactive", self._start_proactive_suggestions)
 
         if self.config.get("briefing.enabled", False):
             from core.daily_briefing import get_daily_briefing
@@ -474,21 +549,50 @@ class MicaLive:
             briefing.set_speak_callback(self.speak)
             briefing.start_scheduler()
 
-        if self.config.get("rag.enabled", False) and self.semantic_search.enabled:
-            auto_paths = self.config.get("rag.auto_index_paths", ["./docs"])
-            stats = self.semantic_search.get_stats()
-            if stats.get("total_documents", 0) == 0:
-                for raw_path in auto_paths:
-                    path = Path(raw_path)
-                    if not path.is_absolute():
-                        path = BASE_DIR / path
-                    if path.exists():
-                        self.semantic_search.index_directory(path)
+        self._start_background_service("rag_auto_index", self._start_rag_auto_index)
 
         if self.config.get("vscode.bridge_enabled", False) and self.config.get(
             "vscode.auto_connect", False
         ):
-            self.vscode.sync_connect()
+            self._start_background_service("vscode_sync", self.vscode.sync_connect)
+
+        self._start_deferred_mcp_discovery()
+
+    def _start_background_service(self, name: str, target: Callable[[], Any]) -> None:
+        """Start optional startup work without delaying Gemini Live connect."""
+        def run() -> None:
+            try:
+                target()
+            except Exception as exc:
+                logger.warning("Deferred startup service %s failed: %s", name, exc)
+
+        threading.Thread(target=run, name=f"mica-{name}", daemon=True).start()
+
+    def _start_passive_vision(self) -> None:
+        if self.passive_vision.enabled:
+            self.passive_vision.start()
+
+    def _start_proactive_suggestions(self) -> None:
+        if not self.config.get("proactive.enabled", False):
+            return
+        proactive = self.proactive
+        if proactive.enabled:
+            proactive.set_speak_callback(self.speak)
+            proactive.start()
+
+    def _start_rag_auto_index(self) -> None:
+        if not (self.config.get("rag.enabled", False) and self.semantic_search.enabled):
+            return
+        auto_paths = self.config.get("rag.auto_index_paths", ["./docs"])
+        stats = self.semantic_search.get_stats()
+        if stats.get("total_documents", 0) != 0:
+            return
+        for raw_path in auto_paths:
+            path = Path(raw_path)
+            if not path.is_absolute():
+                path = BASE_DIR / path
+            if path.exists():
+                self.semantic_search.index_directory(path)
 
     def _note_user_input(self, text: str) -> None:
         """Note user input and start Obsidian conversation if enabled."""
@@ -1031,14 +1135,19 @@ class MicaLive:
         # Import tool functions dynamically to avoid circular imports
         from main import (
             agent_reach,
+            advanced_knowledge,
+            browser_agent,
             browser_control,
+            calendar_manager,
             code_helper,
             computer_control,
             computer_settings,
             crawl_url,
+            crew_orchestrator,
             desktop_control,
             dev_agent,
             daily_mode,
+            daily_briefing,
             file_controller,
             file_processor,
             flight_finder,
@@ -1051,7 +1160,9 @@ class MicaLive:
             screen_process,
             self_dev_agent,
             send_message,
+            spotify_controller,
             tool_forge,
+            tool_provider,
             weather_action,
             web_search_action,
             youtube_video,
@@ -1220,6 +1331,36 @@ class MicaLive:
             elif name == "daily_mode":
                 r = await loop.run_in_executor(
                     None, lambda: daily_mode(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "advanced_knowledge":
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: advanced_knowledge(
+                        parameters=args, player=self.ui, speak=self.speak
+                    ),
+                )
+                result = r or "Done."
+
+            elif name == "crew_orchestrator":
+                r = await loop.run_in_executor(
+                    None,
+                    lambda: crew_orchestrator(
+                        parameters=args, player=self.ui, speak=self.speak
+                    ),
+                )
+                result = r or "Done."
+
+            elif name == "browser_agent":
+                r = await loop.run_in_executor(
+                    None, lambda: browser_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "tool_provider":
+                r = await loop.run_in_executor(
+                    None, lambda: tool_provider(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 
@@ -1580,11 +1721,11 @@ class MicaLive:
                         if idle_keepalive_hits >= 3:
                             self._log_stream_state("idle-keepalive")
             except Exception as e:
-                logger.error(f"Error sending realtime input: {e}")
-                # If connection is closed, break the loop to allow reconnection
-                if "ConnectionClosed" in str(e) or "closed" in str(e).lower():
+                if _is_live_reconnect_error(e):
+                    logger.warning("Realtime sender detected closed Live session: %s", e)
                     self._log_stream_state("send-closed")
-                    break
+                    raise _LiveReconnect(str(e)) from e
+                logger.error(f"Error sending realtime input: {e}")
                 raise
 
     async def _listen_audio(self) -> None:
@@ -1688,6 +1829,9 @@ class MicaLive:
                 # so keep the receiver alive by starting the next turn wait loop.
                 logger.debug("Gemini receive() completed a turn; waiting for the next one.")
         except Exception as e:
+            if _is_live_reconnect_error(e):
+                logger.warning("Audio receiver detected closed Live session: %s", e)
+                raise _LiveReconnect(str(e)) from e
             logger.error(f"Audio receiver error: {e}")
             traceback.print_exc()
             raise
@@ -1720,8 +1864,8 @@ class MicaLive:
                         self._turn_done_event.clear()
                     continue
                 self.set_speaking(True)
-                volume = max(0.0, min(1.0, float(self.config.get("ui.voice_volume", 82) or 82) / 100.0))
-                if volume < 0.995:
+                volume = max(0.0, min(2.0, float(self.config.get("ui.voice_volume", 82) or 82) / 100.0))
+                if volume < 0.995 or volume > 1.005:
                     chunk = _scale_pcm16(chunk, volume)
                 await asyncio.to_thread(stream.write, chunk)
         except Exception as e:
@@ -1736,9 +1880,15 @@ class MicaLive:
         """Main run loop for MicaLive."""
         self._refresh_runtime_config()
         self._patch_live_websocket_keepalive()
-        client = google.genai.Client(
-            api_key=_get_api_key(), http_options={"api_version": "v1beta", "timeout": 600}
-        )
+        api_key = _get_api_key()
+        google_api_key = os.environ.pop("GOOGLE_API_KEY", None)
+        try:
+            client = google.genai.Client(
+                api_key=api_key, http_options={"api_version": "v1beta", "timeout": 600}
+            )
+        finally:
+            if google_api_key is not None:
+                os.environ["GOOGLE_API_KEY"] = google_api_key
 
         while True:
             try:
@@ -1783,7 +1933,10 @@ class MicaLive:
                                     "unknown",
                                 )
                                 self._log_task_failure(failed_name, task)
-                                raise task.exception()
+                                exc = task.exception()
+                                if exc is not None and _is_live_reconnect_error(exc):
+                                    raise _LiveReconnect(str(exc)) from exc
+                                raise exc
 
                         if done and not any(
                             task.exception() for task in done if not task.cancelled()
@@ -1816,8 +1969,12 @@ class MicaLive:
                         await self._shutdown_runtime_tasks(tasks)
 
             except Exception as e:
-                logger.error(f"Connection error: {e}")
-                traceback.print_exc()
+                recoverable_live_close = _is_live_reconnect_error(e)
+                if recoverable_live_close:
+                    logger.warning("Gemini Live session closed; reconnecting: %s", e)
+                else:
+                    logger.error(f"Connection error: {e}")
+                    traceback.print_exc()
                 self.session_context.mark_reconnect()
                 if _is_invalid_api_key_error(e):
                     self.set_speaking(False)

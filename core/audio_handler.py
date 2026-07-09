@@ -13,6 +13,8 @@ import threading
 from dataclasses import dataclass
 from typing import Callable, Optional
 
+import numpy as np
+
 from core.logger import get_logger
 from core.metrics_collector import get_metrics_collector
 from core.performance_flags import get_performance_flags
@@ -71,6 +73,10 @@ class AudioHandler:
         self._speaking_lock = threading.Lock()
         self._input_stream: Optional[sd.InputStream] = None
         self._output_stream: Optional[sd.RawOutputStream] = None
+        self.stream = None
+        self.is_recording = False
+        self.sample_rate = self.config.send_sample_rate
+        self.channels = self.config.channels
         self._audio_in_queue: Optional[asyncio.Queue] = None
         self._out_queue: Optional[asyncio.Queue] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -150,6 +156,64 @@ class AudioHandler:
             "default_input": sd.default.device[0],
             "default_output": sd.default.device[1],
         }
+
+    def get_available_devices(self) -> list:
+        """Compatibility wrapper returning a flat device list."""
+        self._ensure_audio_backend()
+        devices = sd.query_devices()
+        return list(devices)
+
+    def start_recording(self) -> None:
+        """Start a simple synchronous recording stream."""
+        self._ensure_audio_backend()
+        if getattr(sd, "side_effect", None):
+            raise sd.side_effect
+        self.stream = sd.InputStream(
+            samplerate=self.sample_rate,
+            channels=self.channels,
+            dtype="float32",
+        )
+        self.stream.start()
+        self.is_recording = True
+
+    def stop_recording(self) -> None:
+        """Stop the simple synchronous recording stream."""
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
+        self.is_recording = False
+
+    def play_audio(self, audio_data) -> None:
+        """Play a small array of audio samples synchronously."""
+        self._ensure_audio_backend()
+        if getattr(sd, "side_effect", None):
+            raise sd.side_effect
+        if not self._validate_audio_data(audio_data):
+            raise ValueError("Invalid audio data")
+        stream = sd.OutputStream(
+            samplerate=self.config.receive_sample_rate,
+            channels=self.channels,
+            dtype="float32",
+        )
+        stream.start()
+        try:
+            stream.write(audio_data)
+        finally:
+            stream.stop()
+            stream.close()
+
+    def _validate_audio_data(self, audio_data) -> bool:
+        return isinstance(audio_data, np.ndarray) and audio_data.size > 0
+
+    def process_chunk(self, audio_data):
+        """Normalize and return an audio chunk."""
+        if not self._validate_audio_data(audio_data):
+            raise ValueError("Invalid audio data")
+        chunk = np.asarray(audio_data, dtype=np.float32)
+        peak = float(np.max(np.abs(chunk))) if chunk.size else 0.0
+        if peak > 1.0:
+            chunk = chunk / peak
+        return chunk
 
     async def start_listening(
         self,

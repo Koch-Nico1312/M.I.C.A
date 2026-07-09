@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import mimetypes
 import os
@@ -1904,7 +1905,7 @@ class MicaUI:
 
     def _dashboard_payload(self) -> Dict[str, Any]:
         state = self._current_state()
-        return {
+        payload = {
             "state": state,
             "artifacts": state.get("artifacts", []),
             "resources": self._resource_snapshot(),
@@ -1939,6 +1940,25 @@ class MicaUI:
             "artifact_panel": self._artifact_panel_payload(),
             "project_awareness": self._project_awareness_payload(),
         }
+        payload["revision"] = self._dashboard_revision(payload)
+        return payload
+
+    def _dashboard_revision(self, payload: Dict[str, Any]) -> str:
+        """Return a stable validator for the current dashboard payload."""
+        blob = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
+
+    def _send_dashboard_payload(self, request: BaseHTTPRequestHandler) -> None:
+        payload = self._dashboard_payload()
+        etag = f"\"{payload['revision']}\""
+        if request.headers.get("If-None-Match") == etag:
+            request.send_response(304)
+            request.send_header("ETag", etag)
+            request.send_header("Cache-Control", "no-store")
+            request.send_header("Content-Length", "0")
+            request.end_headers()
+            return
+        request._send_json(200, payload, headers={"ETag": etag})  # type: ignore[attr-defined]
 
     def _knowledge_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         from dataclasses import asdict, is_dataclass
@@ -2114,12 +2134,19 @@ class MicaUI:
                         values[name_match.group(1)] = body.decode("utf-8", errors="ignore")
                 return fields, values
 
-            def _send_json(self, status: int, payload: Dict[str, Any]) -> None:
+            def _send_json(
+                self,
+                status: int,
+                payload: Dict[str, Any],
+                headers: Optional[Dict[str, str]] = None,
+            ) -> None:
                 blob = json.dumps(payload, ensure_ascii=False).encode("utf-8")
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(blob)))
                 self.send_header("Cache-Control", "no-store")
+                for key, value in (headers or {}).items():
+                    self.send_header(key, value)
                 self.end_headers()
                 self.wfile.write(blob)
 
@@ -2179,7 +2206,7 @@ class MicaUI:
         query = parse_qs(parsed_url.query)
 
         if path == "/api/dashboard":
-            return request._send_json(200, self._dashboard_payload())  # type: ignore[attr-defined]
+            return self._send_dashboard_payload(request)
         if path == "/api/cockpit":
             return request._send_json(200, self._cockpit_payload())  # type: ignore[attr-defined]
         if path == "/api/command-center":

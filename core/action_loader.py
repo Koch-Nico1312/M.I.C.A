@@ -183,8 +183,13 @@ class ActionLoader:
         """
         Return available tool declarations.
 
-        Static declarations are the source of truth for built-in tools; module
-        declarations are included when present for plugin-like action modules.
+        Static declarations are the source of truth for built-in tools.
+
+        Keep this path import-free for action modules: callers ask for tool
+        schemas during startup and prompt construction, and importing every
+        action here would erase the startup win from lazy action loading. Tool
+        implementations are imported by load_action() only when execution needs
+        them.
         """
         declarations: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -194,18 +199,6 @@ class ActionLoader:
             if name and name not in seen:
                 declarations.append(declaration)
                 seen.add(name)
-
-        for action_name in self._action_map:
-            try:
-                module = self.load_action(action_name)
-            except ImportError:
-                continue
-            declaration = getattr(module, "TOOL_DECLARATION", None)
-            if isinstance(declaration, dict):
-                name = declaration.get("name")
-                if name and name not in seen:
-                    declarations.append(declaration)
-                    seen.add(name)
 
         return declarations
 
