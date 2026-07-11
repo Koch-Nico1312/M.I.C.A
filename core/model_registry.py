@@ -44,6 +44,7 @@ class ModelRegistry:
     """Loads model profiles and routing aliases from config/env."""
 
     def __init__(self, config: Any | None = None):
+        self._use_environment_overrides = config is None
         self.config = config or get_config()
         self.models: dict[str, ModelProfile] = {}
         self.aliases: dict[str, str] = {}
@@ -118,7 +119,8 @@ class ModelRegistry:
         }
         configured_aliases = self.config.get("model_router.aliases", {}) or {}
         self.aliases.update({str(k): str(v) for k, v in configured_aliases.items()})
-        self._apply_env_overrides()
+        if self._use_environment_overrides:
+            self._apply_env_overrides()
 
     def _load_configured_models(
         self, configured: dict[str, Any], defaults: dict[str, ModelProfile]

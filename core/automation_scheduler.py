@@ -19,6 +19,7 @@ SAFE_AUTOMATION_ACTIONS = {
     "knowledge_reindex",
     "reminder",
     "folder_monitor",
+    "learned_workflow",
 }
 
 

@@ -1,8 +1,9 @@
-import { Component, memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { Component, lazy, memo, startTransition, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType, CSSProperties, FormEvent, PointerEvent as ReactPointerEvent, ReactNode, RefObject } from "react";
 import {
   Activity,
   Bell,
+  BrainCircuit,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -34,20 +35,24 @@ import {
   Volume2,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
-import { CommandCenterView } from "./components/CommandCenterView";
-import { HomeView } from "./components/HomeView";
-import { VoiceChatView } from "./components/VoiceChatView";
-import { ChatsView } from "./components/ChatsView";
-import { SettingsModal } from "./components/SettingsModal";
 import { getMicaBackgroundUrl } from "./lib/backgrounds";
 import { micaApi } from "./lib/api";
 import type { ArtifactPanelItem, ChatSession, DashboardResponse } from "./lib/types";
+
+const CommandCenterView = lazy(() => import("./components/CommandCenterView").then((module) => ({ default: module.CommandCenterView })));
+const HomeView = lazy(() => import("./components/HomeView").then((module) => ({ default: module.HomeView })));
+const VoiceChatView = lazy(() => import("./components/VoiceChatView").then((module) => ({ default: module.VoiceChatView })));
+const ChatsView = lazy(() => import("./components/ChatsView").then((module) => ({ default: module.ChatsView })));
+const SettingsModal = lazy(() => import("./components/SettingsModal").then((module) => ({ default: module.SettingsModal })));
+const IntelligenceCenterView = lazy(() => import("./components/IntelligenceCenterView").then((module) => ({ default: module.IntelligenceCenterView })));
+const AgentHubView = lazy(() => import("./components/AgentHubView").then((module) => ({ default: module.AgentHubView })));
 
 type ViewId =
   | "command-center"
   | "home"
   | "voice-chat"
-  | "chats";
+  | "chats"
+  | "intelligence";
 
 type ActiveViewId = ViewId | null;
 
@@ -93,9 +98,17 @@ const viewRegistry: ViewDefinition[] = [
     icon: MessageSquareText,
     supportsFullscreen: true,
   },
+  {
+    id: "intelligence",
+    label: "Intelligence",
+    category: "AI",
+    description: "Teach Mode, Task Graphs, Evidence and budgets",
+    icon: BrainCircuit,
+    supportsFullscreen: true,
+  },
 ];
 
-const DASHBOARD_REFRESH_MS = 2000;
+const DASHBOARD_FALLBACK_REFRESH_MS = 30000;
 
 const modeOptions = [
   { id: "focus", label: "Fokus" },
@@ -161,6 +174,17 @@ function getValidViewId(value: string): ViewId {
 
 type MicaFaceMode = "idle" | "listening" | "thinking" | "speaking" | "muted";
 
+type MicaOutfit = "black" | "teal" | "plum";
+
+const MICA_OUTFITS: Array<{ id: MicaOutfit; label: string }> = [
+  { id: "black", label: "Schwarz" },
+  { id: "teal", label: "Teal" },
+  { id: "plum", label: "Plum" },
+];
+
+const MICA_OUTFIT_STORAGE_KEY = "mica.avatarOutfit";
+const MICA_OUTFIT_EVENT = "mica-avatar-outfit";
+
 function MicaHead({
   speaking,
   mode = speaking ? "speaking" : "idle",
@@ -170,61 +194,123 @@ function MicaHead({
   mode?: MicaFaceMode;
   compact?: boolean;
 }) {
-  const humanDetails = ["glance-left", "glance-right", "soft-smile", "curious", "calm"] as const;
-  const [humanDetail, setHumanDetail] = useState<(typeof humanDetails)[number]>("calm");
+  const [frame, setFrame] = useState(0);
+  const [motionFrame, setMotionFrame] = useState(0);
+  const [outfit, setOutfit] = useState<MicaOutfit>(() => {
+    const saved = window.localStorage.getItem(MICA_OUTFIT_STORAGE_KEY);
+    return MICA_OUTFITS.some((item) => item.id === saved) ? (saved as MicaOutfit) : "black";
+  });
 
   useEffect(() => {
-    if (compact) return;
-    const pickNextDetail = () => {
-      setHumanDetail((current) => {
-        const pool = humanDetails.filter((detail) => detail !== current);
-        return pool[Math.floor(Math.random() * pool.length)] ?? "calm";
-      });
+    if (!speaking) {
+      setFrame(0);
+      return;
+    }
+    const sequence = [1, 2, 1, 3, 5, 1, 4, 2];
+    let index = 0;
+    const timer = window.setInterval(() => {
+      setFrame(sequence[index % sequence.length]);
+      index += 1;
+    }, 120);
+    return () => window.clearInterval(timer);
+  }, [speaking]);
+
+  useEffect(() => {
+    const preload = new Image();
+    preload.src = "/avatars/mica-motion.webp";
+
+    let cancelled = false;
+    let nextMotionTimer = 0;
+    const frameTimers = new Set<number>();
+
+    const later = (callback: () => void, delay: number) => {
+      const timer = window.setTimeout(() => {
+        frameTimers.delete(timer);
+        if (!cancelled) callback();
+      }, delay);
+      frameTimers.add(timer);
     };
-    const firstTimer = window.setTimeout(pickNextDetail, 1800 + Math.random() * 2200);
-    const interval = window.setInterval(pickNextDetail, 6200 + Math.random() * 3800);
+
+    const scheduleMotion = () => {
+      nextMotionTimer = window.setTimeout(() => {
+        if (cancelled) return;
+        setMotionFrame(1);
+        later(() => setMotionFrame(2), 75);
+        later(() => setMotionFrame(1), 145);
+        later(() => setMotionFrame(0), 220);
+
+        if (!speaking && Math.random() > 0.55) {
+          later(() => setMotionFrame(3), 900);
+          later(() => setMotionFrame(0), 1750);
+        }
+        later(scheduleMotion, 2200);
+      }, 3200 + Math.random() * 3600);
+    };
+
+    scheduleMotion();
     return () => {
-      window.clearTimeout(firstTimer);
-      window.clearInterval(interval);
+      cancelled = true;
+      window.clearTimeout(nextMotionTimer);
+      frameTimers.forEach((timer) => window.clearTimeout(timer));
+      frameTimers.clear();
     };
-  }, [compact]);
+  }, [speaking]);
+
+  useEffect(() => {
+    const syncOutfit = (event: Event) => setOutfit((event as CustomEvent<MicaOutfit>).detail);
+    window.addEventListener(MICA_OUTFIT_EVENT, syncOutfit);
+    return () => window.removeEventListener(MICA_OUTFIT_EVENT, syncOutfit);
+  }, []);
+
+  const selectOutfit = (next: MicaOutfit) => {
+    window.localStorage.setItem(MICA_OUTFIT_STORAGE_KEY, next);
+    window.dispatchEvent(new CustomEvent<MicaOutfit>(MICA_OUTFIT_EVENT, { detail: next }));
+  };
+
+  const outfitRow = MICA_OUTFITS.findIndex((item) => item.id === outfit);
+  const showingMotion = motionFrame > 0;
+  const xPosition = showingMotion ? `${motionFrame * (100 / 3)}%` : `${frame * 20}%`;
+  const yPosition = `${Math.max(0, outfitRow) * 50}%`;
 
   return (
     <div
-      className={`mica-face mica-orb mica-orb-${mode} mica-human-${humanDetail} ${speaking ? "mica-orb-speaking" : ""} relative flex aspect-square items-center justify-center ${
+      className={`mica-avatar mica-avatar-${mode} ${speaking ? "mica-avatar-speaking" : ""} relative aspect-square ${
         compact
           ? "w-24"
           : "w-[min(27vw,342px)] min-w-[238px] max-w-[352px]"
       }`}
     >
-      <div className="mica-orb-halo absolute inset-[-7%] rounded-full" />
-      <div className="mica-orb-shell absolute inset-0 rounded-full" />
-      <div className="mica-orb-glass absolute inset-[4%] rounded-full" />
-      <div className="mica-orb-shade absolute inset-[10%] rounded-full" />
-      <div className="mica-cheek mica-cheek-left absolute rounded-full" />
-      <div className="mica-cheek mica-cheek-right absolute rounded-full" />
-      <div className="mica-brow mica-brow-left absolute" />
-      <div className="mica-brow mica-brow-right absolute" />
-      <div className="mica-nose-light absolute" />
-
-      <div className="relative mt-[5%] flex w-[45%] items-center justify-between">
-        {[0, 1].map((eye) => (
-          <div
-            key={eye}
-            className={`mica-orb-eye ${compact ? "h-5 w-5" : "h-[46px] w-[46px]"}`}
-          >
-            <span />
-            <i />
-          </div>
-        ))}
-      </div>
       <div
-        className={`mica-orb-mouth absolute rounded-full ${
-          compact ? "bottom-[31%] h-1 w-8" : "bottom-[27%] h-[22px] w-[76px]"
-        }`}
+        aria-label={`M.I.C.A Avatar, Outfit ${outfit}`}
+        className="mica-avatar-figure absolute inset-0 bg-no-repeat drop-shadow-[0_24px_38px_rgba(0,0,0,0.38)]"
+        role="img"
+        style={{
+          backgroundImage: showingMotion
+            ? 'url("/avatars/mica-motion.webp")'
+            : 'url("/avatars/mica-sprites.webp")',
+          backgroundPosition: `${xPosition} ${yPosition}`,
+          backgroundSize: showingMotion ? "400% 300%" : "600% 300%",
+        }}
       />
-      <div className="mica-expression-line mica-expression-left absolute" />
-      <div className="mica-expression-line mica-expression-right absolute" />
+      {!compact && (
+        <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1 rounded-full border border-white/15 bg-slate-950/65 p-1 backdrop-blur-md">
+          {MICA_OUTFITS.map((item) => (
+            <button
+              key={item.id}
+              aria-pressed={outfit === item.id}
+              className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition ${
+                outfit === item.id
+                  ? "bg-cyan-300 text-slate-950"
+                  : "text-slate-200/70 hover:bg-white/10 hover:text-white"
+              }`}
+              onClick={() => selectOutfit(item.id)}
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -397,7 +483,7 @@ function CommandPalette({
   onExample,
 }: {
   value: string;
-  inputRef: RefObject<HTMLInputElement>;
+  inputRef: RefObject<HTMLInputElement | null>;
   placeholder: string;
   examples: Array<{ id: string; label: string; command: string }>;
   sending: boolean;
@@ -618,6 +704,9 @@ const ArtifactSpaceView = memo(function ArtifactSpaceView({ artifacts }: { artif
 });
 
 export default function App() {
+  const [workspace, setWorkspace] = useState<"main" | "agent-hub">(() =>
+    window.localStorage.getItem("mica.workspace") === "agent-hub" ? "agent-hub" : "main",
+  );
   const [activeView, setActiveView] = useState<ActiveViewId>(null);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
@@ -637,6 +726,7 @@ export default function App() {
   const commandInputRef = useRef<HTMLInputElement>(null);
   const appliedVoiceDefault = useRef(false);
   const dashboardEtag = useRef<string | null>(null);
+  const liveRefreshTimer = useRef<number | null>(null);
   const knownArtifactIds = useRef<Set<string> | null>(null);
   const companionDrag = useRef<{ pointerId: number; dx: number; dy: number } | null>(null);
   const companionPositionInitialized = useRef(false);
@@ -681,10 +771,19 @@ export default function App() {
     };
 
     tick();
-    const timer = window.setInterval(tick, DASHBOARD_REFRESH_MS);
+    const unsubscribe = micaApi.subscribeToLiveEvents(() => {
+      if (!alive || liveRefreshTimer.current !== null) return;
+      liveRefreshTimer.current = window.setTimeout(() => {
+        liveRefreshTimer.current = null;
+        tick();
+      }, 120);
+    });
+    const timer = window.setInterval(tick, DASHBOARD_FALLBACK_REFRESH_MS);
 
     return () => {
       alive = false;
+      unsubscribe();
+      if (liveRefreshTimer.current !== null) window.clearTimeout(liveRefreshTimer.current);
       window.clearInterval(timer);
     };
   }, []);
@@ -967,6 +1066,7 @@ export default function App() {
     }
 
     return (
+      <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-cyan-100/70">Ansicht wird geladen…</div>}>
       <ViewErrorBoundary viewKey={activeView ?? "empty"}>
         {activeView === null && (
           <ArtifactSpaceView artifacts={dashboard?.artifacts ?? []} />
@@ -1001,7 +1101,11 @@ export default function App() {
             onRefresh={refreshDashboard}
           />
         )}
+        {activeView === "intelligence" && (
+          <IntelligenceCenterView dashboard={dashboard} />
+        )}
       </ViewErrorBoundary>
+      </Suspense>
     );
   };
 
@@ -1072,6 +1176,13 @@ export default function App() {
     { id: "health", label: "Systemcheck", command: "was ist kaputt im system" },
   ];
 
+  const handleWorkspaceChange = (next: "main" | "agent-hub") => {
+    setWorkspace(next);
+    window.localStorage.setItem("mica.workspace", next);
+    setOpenTopMenu(null);
+    setIsArtifactPanelOpen(false);
+  };
+
   return (
     <div className={`reference-shell reference-shell-${theme} ${isPanelFullscreen ? "reference-shell-fullscreen" : ""} text-slate-100`}>
       <div className="reference-wallpaper pointer-events-none fixed inset-0" style={wallpaperStyle} />
@@ -1079,7 +1190,12 @@ export default function App() {
         <header className="reference-topbar">
           <div className="reference-brand">M.I.C.A</div>
 
-          <div className="reference-top-pills">
+          <div className="workspace-switcher" role="group" aria-label="Arbeitsbereich auswählen">
+            <button type="button" className={workspace === "main" ? "active" : ""} onClick={() => handleWorkspaceChange("main")}>Main</button>
+            <button type="button" className={workspace === "agent-hub" ? "active" : ""} onMouseEnter={() => void import("./components/AgentHubView")} onFocus={() => void import("./components/AgentHubView")} onClick={() => handleWorkspaceChange("agent-hub")}>Agent-Hub</button>
+          </div>
+
+          <div className={`reference-top-pills ${workspace === "agent-hub" ? "workspace-main-controls-hidden" : ""}`}>
             <button type="button" onClick={() => setOpenTopMenu(openTopMenu === "mode" ? null : "mode")} className="reference-top-pill">
               <Radio className="h-4 w-4 text-white/85" />
               {activeMode?.label ?? "Fokus"}
@@ -1122,6 +1238,16 @@ export default function App() {
           <div className="reference-window-actions">
             <Button
               size="icon"
+              title={activeView === "intelligence" ? "Artifact Space" : "Intelligence Center"}
+              onMouseEnter={() => void import("./components/IntelligenceCenterView")}
+              onFocus={() => void import("./components/IntelligenceCenterView")}
+              onClick={() => setActiveView((current) => current === "intelligence" ? null : "intelligence")}
+              className="reference-round-action"
+            >
+              <BrainCircuit className="h-5 w-5" />
+            </Button>
+            <Button
+              size="icon"
               title="M.I.C.A Lautstärke"
               onClick={() => setOpenTopMenu(openTopMenu === "volume" ? null : "volume")}
               className="reference-round-action"
@@ -1161,8 +1287,21 @@ export default function App() {
           </div>
         </header>
 
+        {workspace === "agent-hub" ? (
+          <div className="agent-hub-host">
+            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-cyan-100/70">Agent-Hub wird geladen…</div>}>
+              <ViewErrorBoundary viewKey="agent-hub"><AgentHubView /></ViewErrorBoundary>
+            </Suspense>
+          </div>
+        ) : (
         <div className={`reference-main-grid ${isArtifactPanelOpen ? "reference-main-grid-open" : "reference-main-grid-closed"}`}>
           <section className="reference-stage">
+            {activeView !== null ? (
+              <div className="h-full min-h-0 w-full overflow-hidden px-3 pb-3 pt-2 lg:px-5 lg:pb-5">
+                {renderActiveView()}
+              </div>
+            ) : (
+              <>
             <div className="reference-centerpiece">
               <MicaHead speaking={isSpeaking} mode={faceMode} />
               <VoicePulse speaking={isSpeaking} />
@@ -1203,6 +1342,8 @@ export default function App() {
                 onExample={handleCommandExample}
               />
             </div>
+              </>
+            )}
           </section>
 
           {isArtifactPanelOpen ? (
@@ -1224,13 +1365,18 @@ export default function App() {
             {isArtifactPanelOpen ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
           </button>
         </div>
+        )}
       </main>
 
-      <SettingsModal
-        isOpen={isSettingsModalOpen}
-        onClose={() => setIsSettingsModalOpen(false)}
-        onSaved={handleSettingsSaved}
-      />
+      {isSettingsModalOpen ? (
+        <Suspense fallback={null}>
+          <SettingsModal
+            isOpen={isSettingsModalOpen}
+            onClose={() => setIsSettingsModalOpen(false)}
+            onSaved={handleSettingsSaved}
+          />
+        </Suspense>
+      ) : null}
     </div>
   );
 }

@@ -301,10 +301,10 @@
         }
       },
       "risk": {
-        "level": "low",
-        "score": 0,
+        "level": "medium",
+        "score": 2,
         "reasons": [
-          "standard tool permissions"
+          "unsigned"
         ],
         "permissions": [
           "tools:execute"
@@ -392,10 +392,10 @@
         }
       },
       "risk": {
-        "level": "low",
-        "score": 0,
+        "level": "medium",
+        "score": 2,
         "reasons": [
-          "standard tool permissions"
+          "unsigned"
         ],
         "permissions": [
           "tools:execute"
@@ -856,6 +856,70 @@
   ],
   "metrics": [
     {
+      "id": "metric-cd1d092d",
+      "action": "stop_agent_run",
+      "scope": "stop_agent_run",
+      "model": "platform",
+      "tool": "stop_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 182,
+      "cost": 0.000364,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:35"
+    },
+    {
+      "id": "metric-02028653",
+      "action": "resume_agent_run",
+      "scope": "resume_agent_run",
+      "model": "platform",
+      "tool": "resume_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 145,
+      "cost": 0.00029,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:24"
+    },
+    {
+      "id": "metric-c5178a20",
+      "action": "pause_agent_run",
+      "scope": "pause_agent_run",
+      "model": "platform",
+      "tool": "pause_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 123,
+      "cost": 0.000246,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:00"
+    },
+    {
+      "id": "metric-40bb3d8c",
+      "action": "start_agent_run",
+      "scope": "research-copilot",
+      "model": "fast",
+      "tool": "start_agent_run",
+      "user": "u-admin",
+      "agent": "research-copilot",
+      "workflow": "platform",
+      "tokens": 122,
+      "cost": 0.000244,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:26:40"
+    },
+    {
       "scope": "research-copilot",
       "model": "fast",
       "tool": "documents_search",
@@ -880,8 +944,110 @@
       "tool_calls": 12
     }
   ],
-  "metric_events": [],
-  "audit_events": [],
+  "metric_events": [
+    {
+      "id": "metric-cd1d092d",
+      "action": "stop_agent_run",
+      "scope": "stop_agent_run",
+      "model": "platform",
+      "tool": "stop_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 182,
+      "cost": 0.000364,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:35"
+    },
+    {
+      "id": "metric-02028653",
+      "action": "resume_agent_run",
+      "scope": "resume_agent_run",
+      "model": "platform",
+      "tool": "resume_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 145,
+      "cost": 0.00029,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:24"
+    },
+    {
+      "id": "metric-c5178a20",
+      "action": "pause_agent_run",
+      "scope": "pause_agent_run",
+      "model": "platform",
+      "tool": "pause_agent_run",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 123,
+      "cost": 0.000246,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:00"
+    },
+    {
+      "id": "metric-40bb3d8c",
+      "action": "start_agent_run",
+      "scope": "research-copilot",
+      "model": "fast",
+      "tool": "start_agent_run",
+      "user": "u-admin",
+      "agent": "research-copilot",
+      "workflow": "platform",
+      "tokens": 122,
+      "cost": 0.000244,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T11:26:40"
+    }
+  ],
+  "audit_events": [
+    {
+      "id": "audit-ad116137",
+      "action": "stop_agent_run",
+      "user": "u-admin",
+      "permission": "agents:execute",
+      "resource": "stop_agent_run:agent-run-7e9c4395",
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:35"
+    },
+    {
+      "id": "audit-4010cfce",
+      "action": "resume_agent_run",
+      "user": "u-admin",
+      "permission": "agents:execute",
+      "resource": "resume_agent_run:agent-run-7e9c4395",
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:24"
+    },
+    {
+      "id": "audit-e6b2e326",
+      "action": "pause_agent_run",
+      "user": "u-admin",
+      "permission": "agents:execute",
+      "resource": "pause_agent_run:agent-run-7e9c4395",
+      "status": "ok",
+      "timestamp": "2026-07-11T11:27:00"
+    },
+    {
+      "id": "audit-1146e0c1",
+      "action": "start_agent_run",
+      "user": "u-admin",
+      "permission": "agents:execute",
+      "resource": "agent:research-copilot",
+      "status": "ok",
+      "timestamp": "2026-07-11T11:26:40"
+    }
+  ],
   "knowledge": [
     {
       "id": "local-documents",
@@ -1133,9 +1299,15 @@
     "postgres": "compose+helm-ready",
     "postgres_schema": "deploy/postgres/migrations/001_platform_hub.sql",
     "persistence": {
-      "backend": "json",
-      "status": "ready",
-      "path": "data\\platform_hub.json"
+      "backend": "postgres",
+      "status": "fallback-json",
+      "driver": "missing",
+      "fallback": {
+        "backend": "json",
+        "status": "ready",
+        "path": "data\\platform_hub.json"
+      },
+      "last_error": "No module named 'psycopg2'"
     },
     "migrations": {
       "directory": "deploy/postgres/migrations",
@@ -1237,5 +1409,7 @@
     "pairing_codes": [],
     "sessions": []
   },
-  "updated_at": "2026-06-29T22:32:50"
+  "updated_at": "2026-07-11T11:27:35",
+  "invocations": [],
+  "agent_runs": []
 }

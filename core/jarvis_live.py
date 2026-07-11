@@ -11,8 +11,6 @@ This module contains the core MicaLive class that manages:
 
 import asyncio
 from array import array
-import contextlib
-import functools
 import json
 import os
 import re
@@ -30,7 +28,6 @@ from google.genai import types
 
 from config.config_loader import get_config
 from core.action_history import ActionStatus, get_action_history
-from core.api_cache import get_api_cache
 from core.approval_flow import get_approval_flow
 from core.cross_device import get_cross_device
 from core.healthcheck import build_runtime_report, format_runtime_report
@@ -40,7 +37,7 @@ from core.logger import get_logger
 from core.metrics_collector import get_metrics_collector
 from core.passive_vision import get_passive_vision
 from core.performance_flags import get_performance_flags
-from core.performance_monitor import get_performance_monitor, track_api_call_decorator
+from core.performance_monitor import get_performance_monitor
 from core.plugin_system import get_plugin_manager
 from core.security import get_api_key_manager
 from core.semantic_search import get_semantic_search
@@ -507,8 +504,52 @@ class MicaLive:
         declarations = list(TOOL_DECLARATIONS)
         declarations.extend(FEATURE_TOOL_DECLARATIONS)
         declarations.extend(self.plugin_manager.get_tool_declarations())
+        self._all_tool_declarations = declarations
+        if not self.config.get("performance.contextual_live_tools", True):
+            return declarations
 
-        return declarations
+        common_names = {
+            "open_app",
+            "weather_report",
+            "browser_control",
+            "file_controller",
+            "send_message",
+            "reminder",
+            "screen_process",
+            "computer_control",
+            "save_memory",
+            "memory_brain",
+        }
+        common = [item for item in declarations if item.get("name") in common_names]
+        gateway = [
+            {
+                "name": "find_tools",
+                "description": "Find the best M.I.C.A tools for a task before using run_tool.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+            },
+            {
+                "name": "run_tool",
+                "description": "Run any tool returned by find_tools. Pass its exact name and parameters.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "tool_name": {"type": "string"},
+                        "parameters": {"type": "object"},
+                    },
+                    "required": ["tool_name", "parameters"],
+                },
+            },
+        ]
+        logger.info(
+            "Contextual Live tool catalog enabled: %s direct of %s total tools",
+            len(common),
+            len(declarations),
+        )
+        return [*gateway, *common]
 
     def _start_deferred_mcp_discovery(self) -> None:
         """Discover MCP servers after startup so Live connection is not blocked."""
@@ -1027,7 +1068,7 @@ class MicaLive:
             note_title = self.obsidian_bridge.end_conversation(summary)
             if note_title:
                 logger.info(f"[Obsidian] Saved conversation: {note_title}")
-                self.speak(f"Conversation saved to Obsidian, sir.")
+                self.speak("Conversation saved to Obsidian, sir.")
             self.conversation_started = False
         except Exception as e:
             logger.warning(f"[Obsidian] Could not save conversation: {e}")
@@ -1111,7 +1152,36 @@ class MicaLive:
             FunctionResponse with result
         """
         name = fc.name
+        response_name = name
         args = dict(fc.args or {})
+
+        if name == "find_tools":
+            from core.tool_router import get_tool_router
+
+            matches = get_tool_router().select(
+                str(args.get("query") or ""),
+                getattr(self, "_all_tool_declarations", self._tool_declarations),
+            )
+            return types.FunctionResponse(
+                id=fc.id,
+                name=response_name,
+                response={"tools": matches, "instruction": "Call run_tool with the selected tool."},
+            )
+
+        if name == "run_tool":
+            target = str(args.get("tool_name") or "").strip()
+            known = {
+                str(item.get("name") or "")
+                for item in getattr(self, "_all_tool_declarations", self._tool_declarations)
+            }
+            if target not in known:
+                return types.FunctionResponse(
+                    id=fc.id,
+                    name=response_name,
+                    response={"result": f"Unknown tool: {target}"},
+                )
+            name = target
+            args = dict(args.get("parameters") or {})
 
         logger.info(f"Tool execution: {name} with args {args}")
         self.ui.set_state("THINKING")
@@ -1129,7 +1199,7 @@ class MicaLive:
             logger.warning(f"Action blocked or denied: {name} - {approval_message}")
             self.ui.write_log(f"SEC: {approval_message}")
             return types.FunctionResponse(
-                id=fc.id, name=name, response={"result": f"Action not allowed: {approval_message}"}
+                id=fc.id, name=response_name, response={"result": f"Action not allowed: {approval_message}"}
             )
 
         # Import tool functions dynamically to avoid circular imports
@@ -1193,7 +1263,7 @@ class MicaLive:
             if not self.ui.muted:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
-                id=fc.id, name=name, response={"result": "ok", "silent": True}
+                id=fc.id, name=response_name, response={"result": "ok", "silent": True}
             )
 
         if name == "memory_brain":
@@ -1213,7 +1283,7 @@ class MicaLive:
             if not self.ui.muted:
                 self.ui.set_state("LISTENING")
             return types.FunctionResponse(
-                id=fc.id, name=name, response={"result": result, "silent": False}
+                id=fc.id, name=response_name, response={"result": result, "silent": False}
             )
 
         loop = asyncio.get_event_loop()
@@ -1624,7 +1694,7 @@ class MicaLive:
         self.hud.set_action("")
 
         logger.info(f"Tool result: {name} → {str(result)[:80]}")
-        return types.FunctionResponse(id=fc.id, name=name, response={"result": result})
+        return types.FunctionResponse(id=fc.id, name=response_name, response={"result": result})
 
     def _handle_obsidian_manager(self, args: dict[str, Any]) -> str:
         """Handle Obsidian manager tool calls."""

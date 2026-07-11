@@ -177,6 +177,81 @@ export interface ProjectAwarenessPayload {
   next_three: CockpitItem[];
 }
 
+export interface LiveEventPayload {
+  id: number;
+  type: string;
+  timestamp: string;
+  payload: Record<string, unknown>;
+}
+
+export interface TeachModePayload {
+  recording: boolean;
+  active: {
+    id: string;
+    name: string;
+    started_at: string;
+    steps: Array<{ id: string; tool: string; args: Record<string, unknown>; label: string }>;
+  } | null;
+  items: Array<{
+    id: string;
+    name: string;
+    status: string;
+    created_at: string;
+    steps: Array<{ id: string; tool: string; args: Record<string, unknown>; label: string }>;
+  }>;
+}
+
+export interface TaskGraphPayload {
+  id: string;
+  name: string;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  steps: Array<{
+    id: string;
+    tool: string;
+    args: Record<string, unknown>;
+    depends_on: string[];
+    status: string;
+    attempts: number;
+    error?: string | null;
+  }>;
+}
+
+export interface AIGovernorPayload {
+  daily_budget_usd: number;
+  daily_cost_usd_estimate: number;
+  daily_tokens_estimate: number;
+  budget_used_percent: number;
+  budget_exceeded: boolean;
+  local_first: boolean;
+  recent_calls: Array<Record<string, unknown>>;
+}
+
+export interface FeatureHubPayload {
+  teach_mode: TeachModePayload;
+  task_graphs: { items: TaskGraphPayload[] };
+  governor: AIGovernorPayload;
+  live_events: { sequence: number; events: LiveEventPayload[] };
+  evidence_mode: { enabled: boolean; endpoint: string };
+}
+
+export interface EvidencePayload {
+  query: string;
+  generated_at: string;
+  citation_count: number;
+  context: string;
+  citations: Array<{
+    id: string;
+    title: string;
+    content: string;
+    excerpt: string;
+    source: string;
+    uri: string;
+    score?: number | null;
+  }>;
+}
+
 export interface DashboardResponse {
   revision?: string;
   state: {
@@ -223,6 +298,7 @@ export interface DashboardResponse {
   command_palette?: CommandPalettePayload;
   artifact_panel?: ArtifactPanelPayload;
   project_awareness?: ProjectAwarenessPayload;
+  features?: FeatureHubPayload;
 }
 
 export interface SessionPayload {
@@ -649,6 +725,7 @@ export interface PlatformAgent {
   tools: string[];
   knowledge: string[];
   parameters: Record<string, number | string | boolean>;
+  permissions?: string[];
   version?: string;
   visibility: string;
   owner: string;
@@ -1140,6 +1217,8 @@ export interface PlatformPayload {
   acls: Array<Record<string, unknown>>;
   audit_events?: PlatformAuditEvent[];
   agents: PlatformAgent[];
+  agent_runs?: PlatformAgentRun[];
+  invocations?: PlatformAgentInvocation[];
   agent_packages?: PlatformAgentPackage[];
   marketplace: PlatformMarketplaceItem[];
   marketplace_policy?: {
@@ -1216,4 +1295,34 @@ export interface PlatformPayload {
   companion: Record<string, unknown>;
   counts: Record<string, number>;
   updated_at: string;
+}
+
+export interface PlatformAgentRunLog {
+  timestamp: string;
+  level: string;
+  message: string;
+}
+
+export interface PlatformAgentRun {
+  id: string;
+  agent_id: string;
+  agent_name: string;
+  assignment: string;
+  status: string;
+  model: string;
+  started_at: string;
+  updated_at: string;
+  completed_at?: string;
+  logs: PlatformAgentRunLog[];
+  result: string;
+}
+
+export interface PlatformAgentInvocation {
+  id: string;
+  agent_id: string;
+  status: string;
+  input: string;
+  output: string;
+  tool_plan: string[];
+  created_at: string;
 }

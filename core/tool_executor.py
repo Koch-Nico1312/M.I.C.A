@@ -10,7 +10,6 @@ This module provides:
 """
 
 import asyncio
-import concurrent.futures
 import inspect
 import math
 import time
@@ -440,66 +439,73 @@ class ToolExecutor:
             return results
 
         metrics.start_operation("parallel_tool_execution")
+        from core.task_graph import get_task_graph_executor
 
-        # Determine which tools can be executed in parallel
-        # Tools that depend on each other's results should be executed sequentially
-        independent_tools = []
-        dependent_tools = []
-
-        for tool_call in tool_calls:
-            tool_name = tool_call["name"]
-            # Simple heuristic: tools with no dependencies can run in parallel
-            # In a real implementation, you'd have a dependency graph
-            if tool_name in ["file_processor", "web_search", "computer_control"]:
-                independent_tools.append(tool_call)
-            else:
-                dependent_tools.append(tool_call)
-
-        # Execute independent tools in parallel
-        parallel_results = []
-        if independent_tools:
-            tasks = [
-                self._execute_tool_async(tc["name"], tc["args"], player, speak, raise_errors=False)
-                for tc in independent_tools
-            ]
-            parallel_results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        # Execute dependent tools sequentially
-        sequential_results = []
-        for tool_call in dependent_tools:
-            result = await self._execute_tool_async(
-                tool_call["name"], tool_call["args"], player, speak, raise_errors=False
+        steps: list[dict[str, Any]] = []
+        previous_serial_step: str | None = None
+        read_only_tools = {"web_search", "weather_report", "advanced_knowledge", "flight_finder"}
+        for index, tool_call in enumerate(tool_calls):
+            name = str(tool_call["name"])
+            step_id = str(tool_call.get("id") or f"tool-{index + 1}")
+            metadata = self.tool_metadata.get(name, {})
+            explicitly_safe = bool(tool_call.get("parallel_safe", metadata.get("parallel_safe", False)))
+            is_parallel_safe = explicitly_safe or name in read_only_tools
+            dependencies = [str(item) for item in tool_call.get("depends_on", [])]
+            if not dependencies and not is_parallel_safe and previous_serial_step:
+                dependencies = [previous_serial_step]
+            if not is_parallel_safe:
+                previous_serial_step = step_id
+            steps.append(
+                {
+                    "id": step_id,
+                    "tool": name,
+                    "args": dict(tool_call.get("args") or {}),
+                    "depends_on": dependencies,
+                    "reads": list(tool_call.get("reads") or (["network"] if is_parallel_safe else [])),
+                    "writes": list(tool_call.get("writes") or ([] if is_parallel_safe else ["desktop"])),
+                    "max_retries": int(tool_call.get("max_retries", 0) or 0),
+                }
             )
-            sequential_results.append(result)
 
-        # Combine results
+        graph_executor = get_task_graph_executor()
+        graph_executor.max_parallel = self.max_parallel_tools
+        graph = graph_executor.create(steps, name="Tool execution")
+
+        async def run_tool(name: str, args: dict[str, Any]) -> dict[str, Any]:
+            return await self._execute_tool_async(
+                name, args, player, speak, raise_errors=False
+            )
+
+        graph = await graph_executor.execute(graph["id"], run_tool)
+        result_by_id = {step["id"]: step for step in graph["steps"]}
         all_results = []
-        for result in parallel_results:
-            if isinstance(result, Exception):
+        for step in steps:
+            completed = result_by_id[step["id"]]
+            result = completed.get("result")
+            if isinstance(result, dict):
+                all_results.append(result)
+            else:
                 all_results.append(
                     {
-                        "name": "unknown",
-                        "result": str(result),
-                        "success": False,
-                        "error": str(result),
+                        "name": step["tool"],
+                        "result": result or completed.get("error") or completed["status"],
+                        "success": completed["status"] == "completed",
+                        "error": completed.get("error"),
                         "duration_ms": 0,
                     }
                 )
-            else:
-                all_results.append(result)
-
-        all_results.extend(sequential_results)
 
         metrics.end_operation(
             "parallel_tool_execution",
             {
                 "total_tools": len(tool_calls),
-                "parallel_tools": len(independent_tools),
-                "sequential_tools": len(dependent_tools),
+                "parallel_tools": len([step for step in steps if not step["depends_on"]]),
+                "sequential_tools": len([step for step in steps if step["depends_on"]]),
+                "graph_id": graph["id"],
             },
         )
 
-        logger.info(f"Executed {len(tool_calls)} tools ({len(independent_tools)} parallel)")
+        logger.info("Executed %s tools via task graph %s", len(tool_calls), graph["id"])
         return all_results
 
 

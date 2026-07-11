@@ -44,6 +44,7 @@ class ModelPolicy:
     def __init__(self, registry: ModelRegistry | None = None, config: Any | None = None):
         self.registry = registry or get_model_registry()
         self.config = config or self.registry.config
+        self._use_global_privacy_mode = config is None
 
     def detect_intent(
         self,
@@ -236,6 +237,8 @@ class ModelPolicy:
     def _maybe_adjust_for_privacy(
         self, profile: str, sensitivity: Sensitivity
     ) -> tuple[str, str]:
+        if not self._use_global_privacy_mode:
+            return profile, ""
         try:
             from core.privacy_modes import get_privacy_mode_manager
 

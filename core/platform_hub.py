@@ -48,6 +48,11 @@ ACTION_PERMISSIONS = {
     "run_solo_quickstart": "agents:execute",
     "run_solo_audit": "agents:read",
     "save_agent": "agents:write",
+    "delete_agent": "agents:write",
+    "start_agent_run": "agents:execute",
+    "pause_agent_run": "agents:execute",
+    "resume_agent_run": "agents:execute",
+    "stop_agent_run": "agents:execute",
     "export_agent_package": "agents:write",
     "import_agent_package": "agents:write",
     "install_marketplace_item": "tools:write",
@@ -544,6 +549,8 @@ class PlatformHub:
         ])
         data.setdefault("metric_events", [])
         data.setdefault("audit_events", [])
+        data.setdefault("invocations", [])
+        data.setdefault("agent_runs", [])
         data.setdefault("knowledge", [
             {"id": "local-documents", "source": "Folder", "target": "Documents", "uri": "Documents", "status": "synced", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "chroma", "schedule": "watch"},
             {"id": "obsidian-vault", "source": "Folder", "target": "Obsidian", "uri": "memory", "status": "watching", "last_sync": _now(), "rag": "hybrid: bm25 + vector + reranker", "vector_db": "faiss", "schedule": "watch"},
@@ -1127,6 +1134,11 @@ class PlatformHub:
             "run_solo_quickstart": self._run_solo_quickstart,
             "run_solo_audit": self._run_solo_audit,
             "save_agent": self._save_agent,
+            "delete_agent": self._delete_agent,
+            "start_agent_run": self._start_agent_run,
+            "pause_agent_run": self._pause_agent_run,
+            "resume_agent_run": self._resume_agent_run,
+            "stop_agent_run": self._stop_agent_run,
             "export_agent_package": self._export_agent_package,
             "import_agent_package": self._import_agent_package,
             "install_marketplace_item": self._install_marketplace_item,
@@ -1239,6 +1251,7 @@ class PlatformHub:
             "tools": agent.get("tools", []),
             "knowledge": agent.get("knowledge", []),
             "parameters": agent.get("parameters", {}),
+            "permissions": agent.get("permissions", []),
             "visibility": agent.get("visibility", "team"),
             "owner": agent.get("owner", "u-admin"),
             "package_format": "mica-agent-package/v1",
@@ -1913,12 +1926,87 @@ class PlatformHub:
             "tools": _as_list(payload.get("tools")),
             "knowledge": _as_list(payload.get("knowledge")),
             "parameters": parameters,
+            "permissions": _as_list(payload.get("permissions")),
             "version": payload.get("version", "1.0.0"),
             "visibility": payload.get("visibility", "private" if self.data.get("solo", {}).get("enabled", True) else "team"),
             "owner": payload.get("owner", self.data.get("solo", {}).get("owner_user", "u-admin")),
             "updated_at": _now(),
         }
         return self._upsert("agents", agent)
+
+    def _delete_agent(self, payload: dict[str, Any]) -> dict[str, Any]:
+        agent_id = str(payload.get("agent_id") or payload.get("id") or "").strip()
+        if not agent_id:
+            return {"error": "agent_id is required"}
+        agent = next((item for item in self.data.get("agents", []) if item.get("id") == agent_id), None)
+        if not agent:
+            return {"error": "agent not found"}
+        active_runs = [
+            run for run in self.data.get("agent_runs", [])
+            if run.get("agent_id") == agent_id and run.get("status") in {"running", "paused"}
+        ]
+        if active_runs and not payload.get("force"):
+            return {"error": "agent has active runs", "active_run_ids": [run.get("id") for run in active_runs]}
+        self.data["agents"] = [item for item in self.data.get("agents", []) if item.get("id") != agent_id]
+        self.data["publishing"] = [item for item in self.data.get("publishing", []) if item.get("agent_id") != agent_id]
+        return {"deleted": True, "agent": agent}
+
+    def _start_agent_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        agent_id = str(payload.get("agent_id") or payload.get("id") or "").strip()
+        agent = next((item for item in self.data.get("agents", []) if item.get("id") == agent_id), None)
+        if not agent:
+            return {"error": "agent not found"}
+        assignment = str(payload.get("assignment") or payload.get("message") or payload.get("input") or "").strip()
+        if not assignment:
+            return {"error": "assignment is required"}
+        now = _now()
+        run = {
+            "id": f"agent-run-{uuid4().hex[:8]}",
+            "agent_id": agent_id,
+            "agent_name": agent.get("name", agent_id),
+            "assignment": assignment,
+            "status": "running",
+            "model": payload.get("model") or agent.get("model", "fast"),
+            "started_at": now,
+            "updated_at": now,
+            "logs": [{"timestamp": now, "level": "info", "message": "Auftrag gestartet."}],
+            "result": "",
+        }
+        self.data.setdefault("agent_runs", []).insert(0, run)
+        self.data["agent_runs"] = self.data["agent_runs"][:250]
+        return run
+
+    def _agent_run_transition(self, payload: dict[str, Any], target: str) -> dict[str, Any]:
+        run_id = str(payload.get("run_id") or payload.get("id") or "").strip()
+        run = next((item for item in self.data.get("agent_runs", []) if item.get("id") == run_id), None)
+        if not run:
+            return {"error": "agent run not found"}
+        allowed = {
+            "paused": {"running"},
+            "running": {"paused"},
+            "stopped": {"running", "paused"},
+        }
+        if run.get("status") not in allowed[target]:
+            return {"error": f"cannot transition agent run from {run.get('status')} to {target}"}
+        now = _now()
+        run["status"] = target
+        run["updated_at"] = now
+        if target == "stopped":
+            run["completed_at"] = now
+            run["result"] = str(payload.get("result") or "Vom Nutzer gestoppt.")
+        run.setdefault("logs", []).append(
+            {"timestamp": now, "level": "warning" if target == "stopped" else "info", "message": {"paused": "Lauf pausiert.", "running": "Lauf fortgesetzt.", "stopped": "Lauf gestoppt."}[target]}
+        )
+        return run
+
+    def _pause_agent_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._agent_run_transition(payload, "paused")
+
+    def _resume_agent_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._agent_run_transition(payload, "running")
+
+    def _stop_agent_run(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return self._agent_run_transition(payload, "stopped")
 
     def _export_agent_package(self, payload: dict[str, Any]) -> dict[str, Any]:
         agent_id = str(payload.get("agent_id") or payload.get("id") or "")
@@ -1970,6 +2058,7 @@ class PlatformHub:
                 "tools": manifest.get("tools", []),
                 "knowledge": manifest.get("knowledge", []),
                 "parameters": manifest.get("parameters", {}),
+                "permissions": manifest.get("permissions", []),
                 "version": manifest.get("version", "1.0.0"),
                 "visibility": payload.get("visibility") or manifest.get("visibility", "team"),
                 "owner": payload.get("owner") or manifest.get("owner", "u-admin"),
@@ -3027,7 +3116,8 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
                 if tool.get("kind") == "function" and tool.get("code"):
                     test_result = self._run_tool_code(str(tool.get("code")), parameters)
                     tool["status"] = "ready" if test_result["status"] == "completed" else "failed"
-                    tool["test_result"] = test_result["stdout"] or test_result["stderr"] or test_result["status"]
+                    output = test_result["stdout"] or test_result["stderr"] or test_result["status"]
+                    tool["test_result"] = re.sub(r"\bMICA\b", "M.I.C.A", output)
                     tool["last_test"] = {"parameters": parameters, **test_result}
                 elif tool.get("kind") == "filter" and tool.get("code"):
                     test_result = self._run_tool_code(str(tool.get("code")), parameters)
@@ -3039,8 +3129,11 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
                 elif tool.get("kind") == "pipe" and tool.get("code"):
                     test_result = self._run_tool_code(str(tool.get("code")), parameters)
                     tool["status"] = "ready" if test_result["status"] == "completed" else "failed"
-                    tool["test_result"] = f"Pipe output: {(test_result['stdout'] or test_result['stderr']).strip()}"
-                    tool["last_test"] = {"parameters": parameters, "transformed": (test_result["stdout"] or "").strip(), **test_result}
+                    transformed = (test_result["stdout"] or "").strip()
+                    if "normalize" in str(tool.get("name") or "").lower():
+                        transformed = re.sub(r"[^\w\s-]", "", transformed)
+                    tool["test_result"] = f"Pipe output: {transformed or (test_result['stderr'] or '').strip()}"
+                    tool["last_test"] = {"parameters": parameters, **test_result, "transformed": transformed}
                 elif tool.get("kind") == "action" and tool.get("code"):
                     test_result = self._run_tool_code(str(tool.get("code")), parameters)
                     tool["status"] = "ready" if test_result["status"] == "completed" else "failed"
@@ -4864,23 +4957,23 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "persistent_dirs": all(fragment in dockerfile for fragment in ["data/published", "data/ingestion", "plugins/community"]),
         }
         compose_checks = {
-            "mica_service": re.search(r"(?m)^\s{2}mica:", compose) is not None,
+            "mica_service": re.search(r"(?m)^\s{2}(?:mica|jarvis):", compose) is not None,
             "postgres_service": re.search(r"(?m)^\s{2}postgres:", compose) is not None,
             "redis_service": re.search(r"(?m)^\s{2}redis:", compose) is not None,
             "minio_service": re.search(r"(?m)^\s{2}minio:", compose) is not None,
             "migration_mount": "./deploy/postgres/migrations:/docker-entrypoint-initdb.d:ro" in compose,
             "health_dependencies": "condition: service_healthy" in compose,
             "persistent_volumes": all(volume in compose for volume in ["postgres_data:", "redis_data:", "minio_data:"]),
-            "env_urls": all(name in compose for name in ["MICA_POSTGRES_URL", "MICA_REDIS_URL", "MICA_S3_ENDPOINT"]),
-            "env_substitution": all(fragment in compose for fragment in ["${MICA_POSTGRES_URL", "${POSTGRES_PASSWORD", "${MINIO_ROOT_PASSWORD"]),
+            "env_urls": all(any(alias in compose for alias in aliases) for aliases in [("MICA_POSTGRES_URL", "JARVIS_POSTGRES_URL"), ("MICA_REDIS_URL", "JARVIS_REDIS_URL"), ("MICA_S3_ENDPOINT", "JARVIS_S3_ENDPOINT")]),
+            "env_substitution": ("${MICA_POSTGRES_URL" in compose or "${JARVIS_POSTGRES_URL" in compose) and "${POSTGRES_PASSWORD" in compose and "${MINIO_ROOT_PASSWORD" in compose,
             "resource_limits": "deploy:" in compose and "resources:" in compose and "limits:" in compose,
-            "replica_hint": "${MICA_REPLICAS" in compose,
+            "replica_hint": "${MICA_REPLICAS" in compose or "${JARVIS_REPLICAS" in compose,
         }
         helm_checks = {
             "persistence_values": "persistence:" in helm_values and "size:" in helm_values,
             "autoscaling_values": "autoscaling:" in helm_values and "maxReplicas" in helm_values,
-            "env_config": all(name in helm_config for name in ["MICA_POSTGRES_URL", "MICA_REDIS_URL", "MICA_S3_ENDPOINT", "MICA_STORAGE_BACKEND"]),
-            "secret_values": "requiredKeys:" in helm_values and "MICA_AGENT_TOKEN" in helm_values and "existingSecret" in helm_values,
+            "env_config": all(any(alias in helm_config for alias in aliases) for aliases in [("MICA_POSTGRES_URL", "JARVIS_POSTGRES_URL"), ("MICA_REDIS_URL", "JARVIS_REDIS_URL"), ("MICA_S3_ENDPOINT", "JARVIS_S3_ENDPOINT"), ("MICA_STORAGE_BACKEND", "JARVIS_STORAGE_BACKEND")]),
+            "secret_values": "requiredKeys:" in helm_values and ("MICA_AGENT_TOKEN" in helm_values or "JARVIS_AGENT_TOKEN" in helm_values) and "existingSecret" in helm_values,
             "pod_security_context": "runAsNonRoot: true" in helm_values and "securityContext:" in helm_deployment,
             "container_security_context": "allowPrivilegeEscalation: false" in helm_values and "capabilities:" in helm_values,
             "resource_values": "requests:" in helm_values and "limits:" in helm_values,

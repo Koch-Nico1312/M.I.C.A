@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
+import threading
+from dataclasses import dataclass, field, replace
 from typing import Any, Callable
 
 from core.api_cache import get_api_cache
@@ -200,12 +201,13 @@ class ModelRunner:
             sensitivity=call.sensitivity,
             context_chars=call.context_chars or len(call.prompt),
         )
+        call = self._route_call_tools(call)
         cache_allowed = decision.use_cache if call.use_cache is None else call.use_cache
         cache_key_prompt = call.prompt or _contents_to_prompt(call.contents)
         if cache_allowed and _is_cacheable(call.contents, call.tools):
             cached = self._cache_get(cache_key_prompt, decision.model.model_id, decision.intent)
             if cached:
-                return ModelRunResult(
+                result = ModelRunResult(
                     text=str(cached.get("text", "")),
                     model_name=decision.model.name,
                     model_id=decision.model.model_id,
@@ -215,11 +217,43 @@ class ModelRunner:
                     duration_ms=0.0,
                     cache_hit=True,
                 )
+                self._record_governor(result, call)
+                return result
 
         result = self._attempt_chain(decision, call)
         if cache_allowed and _is_cacheable(call.contents, call.tools):
             self._cache_set(cache_key_prompt, result)
+        self._record_governor(result, call)
         return result
+
+    def _route_call_tools(self, call: ModelCall) -> ModelCall:
+        tools = call.tools
+        if not isinstance(tools, list) or len(tools) != 1 or not isinstance(tools[0], dict):
+            return call
+        declarations = tools[0].get("function_declarations")
+        if not isinstance(declarations, list):
+            return call
+        from core.tool_router import get_tool_router
+
+        selected = get_tool_router().select(call.prompt, declarations)
+        return replace(call, tools=[{"function_declarations": selected}])
+
+    @staticmethod
+    def _record_governor(result: ModelRunResult, call: ModelCall) -> None:
+        try:
+            from core.ai_governor import get_ai_governor
+
+            get_ai_governor().record(
+                provider=result.provider,
+                model_id=result.model_id,
+                intent=result.intent,
+                duration_ms=result.duration_ms,
+                input_chars=len(call.prompt or _contents_to_prompt(call.contents)),
+                output_chars=len(result.text),
+                cache_hit=result.cache_hit,
+            )
+        except Exception as exc:
+            logger.debug("AI governor accounting skipped: %s", exc)
 
     def _attempt_chain(self, decision: ModelDecision, call: ModelCall) -> ModelRunResult:
         chain = (decision.profile,) + tuple(decision.fallback_profiles)
@@ -359,12 +393,23 @@ class ModelRunner:
         )
 
 
+_gemini_clients: dict[str, Any] = {}
+_gemini_models: dict[tuple[str, str], Any] = {}
+_gemini_client_lock = threading.Lock()
+
+
 def _call_gemini(model: ModelProfile, call: ModelCall) -> str:
     contents = call.contents if call.contents is not None else call.prompt
     if call.tools or call.has_image:
         from google import genai
 
-        client = genai.Client(api_key=_api_key("gemini"))
+        api_key = _api_key("gemini")
+        key_id = str(hash(api_key))
+        with _gemini_client_lock:
+            client = _gemini_clients.get(key_id)
+            if client is None:
+                client = genai.Client(api_key=api_key)
+                _gemini_clients[key_id] = client
         config: dict[str, Any] = {}
         if call.tools:
             config["tools"] = [call.tools] if isinstance(call.tools, dict) else call.tools
@@ -379,11 +424,17 @@ def _call_gemini(model: ModelProfile, call: ModelCall) -> str:
 
     import google.generativeai as genai
 
-    genai.configure(api_key=_api_key("gemini"))
+    api_key = _api_key("gemini")
+    genai.configure(api_key=api_key)
     kwargs = {}
     if call.system_instruction:
         kwargs["system_instruction"] = call.system_instruction
-    gemini_model = genai.GenerativeModel(model.model_id, **kwargs)
+    cache_key = (model.model_id, call.system_instruction)
+    with _gemini_client_lock:
+        gemini_model = _gemini_models.get(cache_key)
+        if gemini_model is None:
+            gemini_model = genai.GenerativeModel(model.model_id, **kwargs)
+            _gemini_models[cache_key] = gemini_model
     response = gemini_model.generate_content(contents)
     return _extract_text(response)
 

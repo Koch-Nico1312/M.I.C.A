@@ -182,7 +182,10 @@ class ActionHistory:
 
         self.history_file = Path(history_file)
         self.history_file.parent.mkdir(parents=True, exist_ok=True)
-        self.journal_file = self.history_file.with_suffix(self.history_file.suffix + ".jsonl")
+        legacy_journal = self.history_file.with_suffix(self.history_file.suffix + ".jsonl")
+        self.journal_file = self.history_file.with_suffix(".jsonl")
+        if legacy_journal.exists() and not self.journal_file.exists():
+            legacy_journal.replace(self.journal_file)
 
         self._history: List[ActionRecord] = []
         self._lock = threading.Lock()

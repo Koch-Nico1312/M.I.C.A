@@ -1,0 +1,48 @@
+{
+  "run_id": "sandbox-aab02041",
+  "language": "python",
+  "status": "completed",
+  "policy": {
+    "network": "disabled",
+    "filesystem": "uploads-only",
+    "blocked_imports": [
+      "ftplib",
+      "http",
+      "os",
+      "pathlib",
+      "requests",
+      "shutil",
+      "socket",
+      "subprocess",
+      "urllib"
+    ],
+    "blocked_calls": [
+      "__import__",
+      "compile",
+      "eval",
+      "exec",
+      "input",
+      "open"
+    ]
+  },
+  "limits": {
+    "timeout_seconds": 5,
+    "max_output_chars": 4000,
+    "max_upload_files": 10,
+    "max_upload_bytes": 200000
+  },
+  "artifacts": [
+    {
+      "kind": "text",
+      "path": "data\\sandbox_artifacts\\sandbox-aab02041\\stdout.txt",
+      "title": "stdout"
+    },
+    {
+      "kind": "chart",
+      "path": "data\\sandbox_artifacts\\sandbox-aab02041\\chart.json",
+      "title": "Run chart"
+    }
+  ],
+  "uploaded_files": [],
+  "created_at": "2026-07-11T11:35:25"
+}

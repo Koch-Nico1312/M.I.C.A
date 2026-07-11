@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import functools
 import hashlib
 import json
 import mimetypes
@@ -24,6 +25,7 @@ from uuid import uuid4
 
 from config.config_loader import get_config
 from core.logger import get_logger
+from core.live_events import get_live_event_bus
 from core.metrics_collector import get_metrics_collector
 from core.paths import project_path, resolve_project_root
 from core.platform_hub import get_platform_hub
@@ -105,6 +107,23 @@ def get_qt_webengine_recovery_hint() -> str:
         "`python -m pip install PyQt6-WebEngine==6.11.0`. "
         "For a browser-only UI, set MICA_ALLOW_BROWSER_FALLBACK=1 before starting M.I.C.A."
     )
+
+
+def _dashboard_section(func):
+    """Deduplicate repeated section builders during one dashboard snapshot."""
+
+    @functools.wraps(func)
+    def wrapped(self, *args, **kwargs):
+        local = getattr(self, "_dashboard_build_local", None)
+        sections = getattr(local, "sections", None) if local is not None else None
+        if sections is None or args or kwargs:
+            return func(self, *args, **kwargs)
+        key = func.__name__
+        if key not in sections:
+            sections[key] = func(self)
+        return sections[key]
+
+    return wrapped
 
 
 class _MultipartUpload:
@@ -319,6 +338,16 @@ class MicaUI:
         self._config = get_config()
         self._session_manager = get_session_manager()
         self._voice_mode = get_voice_conversation_mode()
+        self._event_bus = get_live_event_bus()
+        self._dashboard_build_local = threading.local()
+        self._dashboard_cache_lock = threading.RLock()
+        self._dashboard_cache: Optional[Dict[str, Any]] = None
+        self._dashboard_cache_time = 0.0
+        self._dashboard_generation = 0
+        self._dashboard_cached_generation = -1
+        self._dashboard_cache_ttl = float(
+            self._config.get("performance.dashboard_snapshot_ttl_seconds", 10) or 10
+        )
 
         # Debouncing and dirty flag for UI state updates
         self._state_dirty = False
@@ -342,6 +371,7 @@ class MicaUI:
     def muted(self, value: bool) -> None:
         with self._lock:
             self._muted = bool(value)
+        self._invalidate_dashboard("voice", {"muted": bool(value)})
         self._log(f"SYS: Microphone {'muted' if value else 'active'}.")
 
     @property
@@ -353,6 +383,7 @@ class MicaUI:
     def current_file(self, value: str | None) -> None:
         with self._lock:
             self._current_file = value
+        self._invalidate_dashboard("file", {"current_file": value})
 
     @property
     def on_text_command(self):
@@ -378,6 +409,7 @@ class MicaUI:
             old_state = self._state
             self._state = state
             self._state_dirty = True
+        self._invalidate_dashboard("state", {"state": state})
 
         if perf_flags.is_enabled("debounce_ui_updates"):
             metrics.start_operation("ui_state_change")
@@ -418,12 +450,14 @@ class MicaUI:
         }
         with self._lock:
             self._artifacts.appendleft(item)
+        self._invalidate_dashboard("artifact", {"artifact_id": artifact_id})
         self._log(f"SYS: Artifact published: {item['title']}.")
         return artifact_id
 
     def clear_artifacts(self) -> None:
         with self._lock:
             self._artifacts.clear()
+        self._invalidate_dashboard("artifact", {"cleared": True})
 
     def wait_for_api_key(self):
         api_key = str(self._config.get_api_key("gemini") or "").strip()
@@ -521,7 +555,20 @@ class MicaUI:
         }
         with self._lock:
             self._logs.append(entry)
+        self._invalidate_dashboard("log", entry)
 
+    def _invalidate_dashboard(
+        self, event_type: str = "dashboard", payload: Optional[Dict[str, Any]] = None
+    ) -> None:
+        lock = getattr(self, "_dashboard_cache_lock", None)
+        if lock is not None:
+            with lock:
+                self._dashboard_generation += 1
+        event_bus = getattr(self, "_event_bus", None)
+        if event_bus is not None:
+            event_bus.publish(event_type, payload or {})
+
+    @_dashboard_section
     def _current_state(self) -> Dict[str, Any]:
         perf_flags = get_performance_flags()
         metrics = get_metrics_collector()
@@ -584,6 +631,7 @@ class MicaUI:
 
         return current_state_dict
 
+    @_dashboard_section
     def _resource_snapshot(self) -> Dict[str, Any]:
         psutil = _get_psutil()
         if psutil is None:
@@ -616,6 +664,7 @@ class MicaUI:
             "resource_trend": recent_resource_stats,
         }
 
+    @_dashboard_section
     def _settings_payload(self) -> Dict[str, Any]:
         return {
             "ui": {
@@ -650,6 +699,7 @@ class MicaUI:
             },
         }
 
+    @_dashboard_section
     def _setup_payload(self) -> Dict[str, Any]:
         api_file = BASE_DIR / "config" / "api_keys.json"
         example_file = BASE_DIR / "config" / "api_keys.example.json"
@@ -671,12 +721,12 @@ class MicaUI:
             "settings": self._settings_payload(),
         }
 
+    @_dashboard_section
     def _models_payload(self) -> Dict[str, Any]:
         try:
             from core.model_registry import get_model_registry
 
             registry = get_model_registry()
-            registry.reload()
             models = [self._model_profile_payload(model) for model in registry.models.values()]
         except Exception as exc:
             logger.debug("Could not load model registry: %s", exc)
@@ -730,6 +780,7 @@ class MicaUI:
             "linked": linked,
         }
 
+    @_dashboard_section
     def _memory_payload(self) -> Dict[str, Any]:
         try:
             from memory.memory_manager import DEFAULT_MEMORY_CATEGORIES, MEMORY_PATH, load_memory
@@ -827,6 +878,7 @@ class MicaUI:
             return {**result, **self._note_composer_payload()}
         raise ValueError(f"unknown note composer action: {action}")
 
+    @_dashboard_section
     def _automation_payload(self) -> Dict[str, Any]:
         from core.automation_scheduler import get_automation_scheduler
 
@@ -853,6 +905,7 @@ class MicaUI:
             return {"status": "disabled", "automation": item, "automations": scheduler.list()}
         raise ValueError(f"unknown automation action: {action}")
 
+    @_dashboard_section
     def _privacy_payload(self) -> Dict[str, Any]:
         from core.privacy_modes import get_privacy_mode_manager
 
@@ -866,6 +919,7 @@ class MicaUI:
             minutes=int(payload["minutes"]) if payload.get("minutes") else None,
         )
 
+    @_dashboard_section
     def _project_workspaces_payload(self) -> Dict[str, Any]:
         from core.project_workspace import get_project_workspace_manager
 
@@ -890,6 +944,7 @@ class MicaUI:
             return {"status": "noted", "workspace": workspace, "project_workspaces": manager.snapshot()}
         raise ValueError(f"unknown project action: {action}")
 
+    @_dashboard_section
     def _feedback_payload(self) -> Dict[str, Any]:
         from core.learning_feedback import get_learning_feedback_store
 
@@ -909,12 +964,14 @@ class MicaUI:
         )
         return {"status": "stored_for_review", "feedback": record, "learning_feedback": store.list()}
 
+    @_dashboard_section
     def _plugin_payload(self) -> Dict[str, Any]:
         from core.plugin_system import get_plugin_manager
 
         manager = get_plugin_manager()
         return manager.status()
 
+    @_dashboard_section
     def _os_payload(self) -> Dict[str, Any]:
         from core.personal_os import get_personal_os_integration
 
@@ -973,6 +1030,7 @@ class MicaUI:
             return {"error": "key is required", "memory": self._memory_payload()}
         return {"status": forget(key, category), "memory": self._memory_payload()}
 
+    @_dashboard_section
     def _calendar_payload(self) -> Dict[str, Any]:
         calendar_cfg = self._settings_payload()["calendar"]
         credentials = Path(calendar_cfg["credentials_path"])
@@ -1031,6 +1089,7 @@ class MicaUI:
             encoding="utf-8",
         )
 
+    @_dashboard_section
     def _documents_payload(self) -> Dict[str, Any]:
         UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
         records = self._load_document_records()
@@ -1054,6 +1113,7 @@ class MicaUI:
             },
         }
 
+    @_dashboard_section
     def _devices_payload(self) -> Dict[str, Any]:
         psutil = _get_psutil()
         if psutil is None:
@@ -1102,6 +1162,7 @@ class MicaUI:
             ],
         }
 
+    @_dashboard_section
     def _action_history_payload(self) -> Dict[str, Any]:
         try:
             from core.action_history import get_action_history
@@ -1118,6 +1179,7 @@ class MicaUI:
             logger.debug("Could not load action history: %s", exc)
             return {"records": [], "undoable": [], "stats": {}, "error": str(exc)}
 
+    @_dashboard_section
     def _approvals_payload(self) -> Dict[str, Any]:
         try:
             from core.approval_flow import get_approval_flow
@@ -1131,6 +1193,7 @@ class MicaUI:
             logger.debug("Could not load approvals: %s", exc)
             return {"permission_level": "normal", "pending": [], "error": str(exc)}
 
+    @_dashboard_section
     def _permissions_payload(self) -> Dict[str, Any]:
         try:
             from core.permission_profiles import get_all_tool_metadata, get_disabled_actions
@@ -1156,6 +1219,7 @@ class MicaUI:
             logger.debug("Could not load permissions: %s", exc)
             return {"tools": [], "disabled_actions": [], "error": str(exc)}
 
+    @_dashboard_section
     def _reliability_payload(self) -> Dict[str, Any]:
         try:
             from core.reliability import build_reliability_report
@@ -1171,6 +1235,7 @@ class MicaUI:
                 "error": str(exc),
             }
 
+    @_dashboard_section
     def _quick_actions_payload(self) -> Dict[str, Any]:
         return {
             "items": [
@@ -1300,6 +1365,7 @@ class MicaUI:
             "indexed": indexed,
         }
 
+    @_dashboard_section
     def _resume_payload(self) -> Dict[str, Any]:
         current = self._session_manager.get_current_session()
         recent = self._session_manager.get_recent_sessions(limit=8)
@@ -1361,6 +1427,7 @@ class MicaUI:
                 break
         return items
 
+    @_dashboard_section
     def _cockpit_payload(self) -> Dict[str, Any]:
         calendar_status = self._calendar_payload()
         resume = self._resume_payload()
@@ -1510,6 +1577,7 @@ class MicaUI:
             raise ValueError(f"unknown pipeline action: {action}")
         return {"status": action, "pipeline": pipeline, "task_pipelines": self._task_pipelines_payload()}
 
+    @_dashboard_section
     def _command_center_payload(self) -> Dict[str, Any]:
         state = self._current_state()
         resources = self._resource_snapshot()
@@ -1673,6 +1741,7 @@ class MicaUI:
             "os_integrations": os_integrations,
         }
 
+    @_dashboard_section
     def _trust_level_payload(self) -> Dict[str, Any]:
         level = int(self._config.get("personal_mode.trust_level", 2) or 2)
         level = max(1, min(4, level))
@@ -1704,6 +1773,7 @@ class MicaUI:
             ],
         }
 
+    @_dashboard_section
     def _active_mode_payload(self) -> Dict[str, Any]:
         mode = str(self._config.get("personal_mode.active_mode", "focus") or "focus").lower()
         presets = {
@@ -1725,6 +1795,7 @@ class MicaUI:
             "status": "active",
         }
 
+    @_dashboard_section
     def _personal_mode_payload(self) -> Dict[str, Any]:
         memory = self._memory_payload()
         raw_memory = memory.get("raw", {}) if isinstance(memory.get("raw"), dict) else {}
@@ -1764,6 +1835,7 @@ class MicaUI:
             "preferences": preferences,
         }
 
+    @_dashboard_section
     def _project_awareness_payload(self) -> Dict[str, Any]:
         projects = self._project_workspaces_payload()
         active_project = projects.get("active")
@@ -1816,6 +1888,7 @@ class MicaUI:
             "next_three": next_three,
         }
 
+    @_dashboard_section
     def _silent_brain_payload(self) -> Dict[str, Any]:
         command_center = self._command_center_payload()
         warnings = command_center.get("warnings", []) if isinstance(command_center.get("warnings"), list) else []
@@ -1859,6 +1932,7 @@ class MicaUI:
             "checks": checks,
         }
 
+    @_dashboard_section
     def _command_palette_payload(self) -> Dict[str, Any]:
         modes = [
             {**self._active_mode_payload(), "id": mode, "label": label}
@@ -1884,6 +1958,7 @@ class MicaUI:
             "modes": modes,
         }
 
+    @_dashboard_section
     def _artifact_panel_payload(self) -> Dict[str, Any]:
         state = self._current_state()
         artifacts = state.get("artifacts", [])
@@ -1903,7 +1978,31 @@ class MicaUI:
             "tabs": tabs,
         }
 
+    @_dashboard_section
+    def _feature_hub_payload(self) -> Dict[str, Any]:
+        from core.ai_governor import get_ai_governor
+        from core.task_graph import get_task_graph_executor
+        from core.teach_mode import get_teach_mode
+
+        return {
+            "teach_mode": get_teach_mode().snapshot(),
+            "task_graphs": get_task_graph_executor().list(limit=12),
+            "governor": get_ai_governor().snapshot(),
+            "live_events": self._event_bus.snapshot(limit=30),
+            "evidence_mode": {"enabled": True, "endpoint": "/api/evidence"},
+        }
+
     def _dashboard_payload(self) -> Dict[str, Any]:
+        now = time.monotonic()
+        with self._dashboard_cache_lock:
+            if (
+                self._dashboard_cache is not None
+                and self._dashboard_cached_generation == self._dashboard_generation
+                and now - self._dashboard_cache_time < self._dashboard_cache_ttl
+            ):
+                return self._dashboard_cache
+
+        self._dashboard_build_local.sections = {}
         state = self._current_state()
         payload = {
             "state": state,
@@ -1939,8 +2038,14 @@ class MicaUI:
             "command_palette": self._command_palette_payload(),
             "artifact_panel": self._artifact_panel_payload(),
             "project_awareness": self._project_awareness_payload(),
+            "features": self._feature_hub_payload(),
         }
         payload["revision"] = self._dashboard_revision(payload)
+        del self._dashboard_build_local.sections
+        with self._dashboard_cache_lock:
+            self._dashboard_cache = payload
+            self._dashboard_cache_time = now
+            self._dashboard_cached_generation = self._dashboard_generation
         return payload
 
     def _dashboard_revision(self, payload: Dict[str, Any]) -> str:
@@ -1959,6 +2064,99 @@ class MicaUI:
             request.end_headers()
             return
         request._send_json(200, payload, headers={"ETag": etag})  # type: ignore[attr-defined]
+
+    def _send_event_stream(self, request: BaseHTTPRequestHandler, since: int = 0) -> None:
+        request.send_response(200)
+        request.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        request.send_header("Cache-Control", "no-cache")
+        request.send_header("Connection", "keep-alive")
+        request.end_headers()
+        sequence = max(since, int(request.headers.get("Last-Event-ID", "0") or 0))
+        try:
+            request.wfile.write(b"retry: 1500\n\n")
+            request.wfile.flush()
+            while not self._shutdown_event.is_set():
+                events = self._event_bus.wait(sequence, timeout=15.0)
+                if not events:
+                    request.wfile.write(b": heartbeat\n\n")
+                    request.wfile.flush()
+                    continue
+                for event in events:
+                    sequence = int(event["id"])
+                    blob = json.dumps(event, ensure_ascii=False, separators=(",", ":"))
+                    message = f"id: {sequence}\nevent: {event['type']}\ndata: {blob}\n\n"
+                    request.wfile.write(message.encode("utf-8"))
+                request.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+    def _teach_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.teach_mode import get_teach_mode
+
+        manager = get_teach_mode()
+        action = str(payload.get("action") or "status")
+        if action == "start":
+            manager.start(str(payload.get("name") or "Gelernter Ablauf"))
+        elif action == "record":
+            manager.record(
+                str(payload.get("tool") or ""),
+                dict(payload.get("args") or {}),
+                label=str(payload.get("label") or ""),
+            )
+        elif action == "finish":
+            manager.finish(save=bool(payload.get("save", True)))
+        elif action == "cancel":
+            manager.cancel()
+        elif action != "status":
+            raise ValueError("unknown teach mode action")
+        return manager.snapshot()
+
+    def _task_graph_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.task_graph import get_task_graph_executor
+
+        manager = get_task_graph_executor()
+        action = str(payload.get("action") or "list")
+        if action == "create":
+            graph = manager.create(
+                list(payload.get("steps") or []), name=str(payload.get("name") or "Task graph")
+            )
+            return {"graph": graph, **manager.list()}
+        graph_id = str(payload.get("graph_id") or "")
+        if action == "cancel":
+            return {"graph": manager.cancel(graph_id), **manager.list()}
+        if action == "retry":
+            return {"graph": manager.retry_failed(graph_id), **manager.list()}
+        if action == "run":
+            from core.tool_executor import get_tool_executor
+
+            executor = get_tool_executor()
+
+            async def execute_graph() -> None:
+                async def runner(name: str, args: Dict[str, Any]) -> Dict[str, Any]:
+                    return await executor._execute_tool_async(
+                        name, args, raise_errors=False
+                    )
+
+                await manager.execute(graph_id, runner)
+                self._invalidate_dashboard("task_graph", {"graph_id": graph_id})
+
+            threading.Thread(
+                target=lambda: asyncio.run(execute_graph()),
+                name=f"MICATaskGraph-{graph_id}",
+                daemon=True,
+            ).start()
+            return {"graph": manager.get(graph_id), **manager.list()}
+        if action != "list":
+            raise ValueError("unknown task graph action")
+        return manager.list()
+
+    def _governor_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.ai_governor import get_ai_governor
+
+        if "daily_budget_usd" in payload:
+            budget = max(0.0, float(payload["daily_budget_usd"]))
+            self._config.update_local_settings({"ai_governor": {"daily_budget_usd": budget}})
+        return get_ai_governor().snapshot()
 
     def _knowledge_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         from dataclasses import asdict, is_dataclass
@@ -2159,6 +2357,9 @@ class MicaUI:
                 self.wfile.write(blob)
 
             def do_GET(self):  # noqa: N802
+                if urlparse(self.path).path == "/api/events":
+                    ui._handle_get(self)
+                    return
                 if perf_flags.is_enabled("async_ui_server"):
                     # Run handler in event loop for async I/O
                     try:
@@ -2187,6 +2388,9 @@ class MicaUI:
                         ui._handle_post(self)
                 else:
                     ui._handle_post(self)
+                ui._invalidate_dashboard(
+                    "mutation", {"path": urlparse(self.path).path}
+                )
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 8000), Handler)
         self._server.daemon_threads = True
@@ -2207,6 +2411,16 @@ class MicaUI:
 
         if path == "/api/dashboard":
             return self._send_dashboard_payload(request)
+        if path == "/api/events":
+            try:
+                since = int((query.get("since") or ["0"])[0])
+            except ValueError:
+                since = 0
+            return self._send_event_stream(request, since=since)
+        if path == "/api/events/snapshot":
+            return request._send_json(200, self._event_bus.snapshot(limit=100))  # type: ignore[attr-defined]
+        if path == "/api/features":
+            return request._send_json(200, self._feature_hub_payload())  # type: ignore[attr-defined]
         if path == "/api/cockpit":
             return request._send_json(200, self._cockpit_payload())  # type: ignore[attr-defined]
         if path == "/api/command-center":
@@ -2365,6 +2579,27 @@ class MicaUI:
             payload = request._read_json()  # type: ignore[attr-defined]
         except Exception as exc:
             return request._send_json(400, {"error": f"invalid json: {exc}"})  # type: ignore[attr-defined]
+
+        if path in {"/api/teach", "/api/task-graphs", "/api/evidence", "/api/governor"}:
+            try:
+                if path == "/api/teach":
+                    result = self._teach_action(payload)
+                elif path == "/api/task-graphs":
+                    result = self._task_graph_action(payload)
+                elif path == "/api/evidence":
+                    from core.evidence_mode import get_evidence_mode
+
+                    result = get_evidence_mode().build(
+                        str(payload.get("query") or ""),
+                        limit=int(payload.get("limit", 5) or 5),
+                        sources=list(payload.get("sources") or []) or None,
+                    )
+                else:
+                    result = self._governor_action(payload)
+                self._invalidate_dashboard(path.rsplit("/", 1)[-1], {"action": payload.get("action")})
+                return request._send_json(200, result)  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc)})  # type: ignore[attr-defined]
 
         if path == "/api/command":
             text = str(payload.get("text", "")).strip()

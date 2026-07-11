@@ -228,6 +228,10 @@ performance:
   background_workers: 4              # number of background worker threads
   status_update_interval_ms: 500     # interval for status updates (ms)
   tool_metrics_sample_rate: 0.25      # sample successful fast tool metrics; failures/slow calls are always tracked
+  dashboard_snapshot_ttl_seconds: 10  # safety refresh; live events invalidate immediately
+  contextual_tool_minimum: 6
+  contextual_tool_maximum: 10
+  contextual_live_tools: true        # compact Live schema plus find_tools/run_tool gateway
   # Performance Optimization Feature Flags
   flags:
     # Phase 1: Quick Wins
@@ -253,6 +257,11 @@ performance:
     precompute_queries: true         # Precompute common queries
     response_streaming: true         # Stream API responses
     async_ui_server: true            # Use aiohttp for UI server
+
+ai_governor:
+  daily_budget_usd: 2.0
+  input_usd_per_million: 0.3
+  output_usd_per_million: 2.5
 
 # Workflow & Orchestration Settings
 workflow:

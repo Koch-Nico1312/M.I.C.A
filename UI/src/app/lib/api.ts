@@ -33,6 +33,11 @@ import type {
   TrustLevelPayload,
   UploadDocumentsResponse,
   VoiceConversationState,
+  AIGovernorPayload,
+  EvidencePayload,
+  FeatureHubPayload,
+  LiveEventPayload,
+  TeachModePayload,
 } from "./types";
 
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
@@ -286,10 +291,10 @@ function getMockData<T>(path: string): T {
     },
     permissions: {
       tools: [
-        { id: "tool-custom-summarize", name: "summarize_text", kind: "function", status: "draft", code: "return parameters.get('text', '')[:500]", test_parameters: { text: "M.I.C.A Studio" }, test_result: "Not run" },
-        { id: "filter-nonempty-text", name: "nonempty_text", kind: "filter", status: "ready", code: "return bool(parameters.get('text', '').strip())", test_parameters: { text: "M.I.C.A" }, test_result: "Filter ready" },
-        { id: "pipe-normalize-text", name: "normalize_text", kind: "pipe", status: "ready", code: "return parameters.get('text', '').strip().lower()", test_parameters: { text: "  M.I.C.A Studio  " }, test_result: "Pipe ready" },
-        { id: "action-create-note", name: "create_note_action", kind: "action", status: "ready", code: "return {'artifact_title': parameters.get('title', 'Tool Note')}", test_parameters: { title: "Tool Note" }, test_result: "Action ready" },
+        { name: "summarize_text", description: "Text lokal zusammenfassen", risk_level: "low", requires_confirmation: false, requires_permission: false, reversible: true, tags: ["text"], enabled: true },
+        { name: "nonempty_text", description: "Leere Eingaben abweisen", risk_level: "low", requires_confirmation: false, requires_permission: false, reversible: true, tags: ["filter"], enabled: true },
+        { name: "normalize_text", description: "Text für die Verarbeitung normalisieren", risk_level: "low", requires_confirmation: false, requires_permission: false, reversible: true, tags: ["text"], enabled: true },
+        { name: "create_note_action", description: "Eine lokale Notiz erzeugen", risk_level: "medium", requires_confirmation: true, requires_permission: true, reversible: true, tags: ["notes"], enabled: true },
       ],
       disabled_actions: [],
     },
@@ -876,6 +881,8 @@ function normalizePlatformPayload(payload: PlatformPayload): PlatformPayload {
     acls: asArray(source.acls),
     audit_events: asArray(source.audit_events),
     agents: asArray(source.agents),
+    agent_runs: asArray(source.agent_runs),
+    invocations: asArray(source.invocations),
     agent_packages: asArray(source.agent_packages),
     marketplace: asArray(source.marketplace),
     marketplace_policy: source.marketplace_policy,
@@ -1003,9 +1010,48 @@ async function getDashboardIfChanged(etag?: string | null): Promise<DashboardPol
   }
 }
 
+function subscribeToLiveEvents(
+  onEvent: (event: LiveEventPayload) => void,
+  onError?: () => void,
+): () => void {
+  if (typeof window === "undefined" || !("EventSource" in window)) return () => undefined;
+  const source = new EventSource("/api/events");
+  const handle = (message: MessageEvent<string>) => {
+    try {
+      onEvent(JSON.parse(message.data) as LiveEventPayload);
+    } catch {
+      // Ignore malformed third-party/proxy event frames; EventSource reconnects automatically.
+    }
+  };
+  for (const eventName of ["state", "voice", "file", "artifact", "log", "task_graph", "teach", "governor", "evidence", "mutation"]) {
+    source.addEventListener(eventName, handle as EventListener);
+  }
+  source.onerror = () => onError?.();
+  return () => source.close();
+}
+
 export const micaApi = {
   getDashboard: () => requestJson<DashboardResponse>("/api/dashboard"),
   getDashboardIfChanged,
+  subscribeToLiveEvents,
+  getFeatures: () => requestJson<FeatureHubPayload>("/api/features"),
+  teachAction: (payload: Record<string, unknown>) =>
+    requestJson<TeachModePayload>("/api/teach", { method: "POST", body: JSON.stringify(payload) }),
+  taskGraphAction: (payload: Record<string, unknown>) =>
+    requestJson<{ graph?: import("./types").TaskGraphPayload; items: import("./types").TaskGraphPayload[] }>("/api/task-graphs", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  buildEvidence: (query: string, limit = 5) =>
+    requestJson<EvidencePayload>("/api/evidence", {
+      method: "POST",
+      body: JSON.stringify({ query, limit }),
+    }),
+  saveGovernor: (dailyBudgetUsd: number) =>
+    requestJson<AIGovernorPayload>("/api/governor", {
+      method: "POST",
+      body: JSON.stringify({ daily_budget_usd: dailyBudgetUsd }),
+    }),
   getPersonalMode: () => requestJson<PersonalModePayload>("/api/personal-mode"),
   getSilentBrain: () => requestJson<SilentBrainPayload>("/api/silent-brain"),
   getCommandCenter: () => requestJson<CommandCenterPayload>("/api/command-center"),

@@ -6,6 +6,7 @@ Maintains conversation context across reconnections and persists chat history.
 from __future__ import annotations
 
 import json
+import atexit
 import threading
 import uuid
 from collections import deque
@@ -39,12 +40,13 @@ class SessionContextManager:
         max_messages: int = 200,
         max_tool_results: int = 25,
         max_sessions: int = 40,
+        history_path: Path | None = None,
     ):
         self.max_messages = max_messages
         self.max_tool_results = max_tool_results
         self.max_sessions = max_sessions
 
-        self._history_path = CHAT_HISTORY_PATH
+        self._history_path = history_path or CHAT_HISTORY_PATH
         self._messages: Deque[Dict[str, Any]] = deque(maxlen=max_messages)
         self._tool_results: Deque[Dict[str, Any]] = deque(maxlen=max_tool_results)
         self._sessions: Deque[Dict[str, Any]] = deque(maxlen=max_sessions)
@@ -54,19 +56,23 @@ class SessionContextManager:
         self._session_start: Optional[datetime] = None
         self._reconnect_count: int = 0
         self._lock = threading.RLock()
+        self._compact_timer: Optional[threading.Timer] = None
+        self._compact_delay_seconds = 3.0
 
         self._load_history()
+        atexit.register(self.flush)
 
     # ------------------------------------------------------------------
     # Persistence
     # ------------------------------------------------------------------
     def _load_history(self) -> None:
         """Load persisted chat history from disk."""
-        if not self._history_path.exists():
-            return
-
         try:
-            raw = json.loads(self._history_path.read_text(encoding="utf-8"))
+            raw = (
+                json.loads(self._history_path.read_text(encoding="utf-8"))
+                if self._history_path.exists()
+                else {}
+            )
             sessions = raw.get("sessions", [])
             if isinstance(sessions, list):
                 for session in sessions[: self.max_sessions]:
@@ -94,6 +100,11 @@ class SessionContextManager:
                     current_session.get("id"),
                     len(self._messages),
                 )
+            journal_path = self._journal_path()
+            if journal_path.exists():
+                for line in journal_path.read_text(encoding="utf-8").splitlines():
+                    if line.strip():
+                        self._apply_journal_event(json.loads(line))
         except Exception as exc:
             logger.warning("[Session] Could not load chat history: %s", exc)
 
@@ -112,8 +123,66 @@ class SessionContextManager:
                 encoding="utf-8",
             )
             tmp_path.replace(self._history_path)
+            self._journal_path().write_text("", encoding="utf-8")
         except Exception as exc:
             logger.warning("[Session] Could not save chat history: %s", exc)
+
+    def _journal_path(self) -> Path:
+        return self._history_path.with_suffix(".jsonl")
+
+    def _persist_event(self, event: Dict[str, Any]) -> None:
+        """Append a small mutation and compact several rapid updates together."""
+        try:
+            self._history_path.parent.mkdir(parents=True, exist_ok=True)
+            with self._journal_path().open("a", encoding="utf-8") as handle:
+                handle.write(json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n")
+            self._schedule_compaction()
+        except Exception as exc:
+            logger.warning("[Session] Could not append chat journal: %s", exc)
+            self._save_history()
+
+    def _schedule_compaction(self) -> None:
+        if self._compact_timer and self._compact_timer.is_alive():
+            return
+        self._compact_timer = threading.Timer(self._compact_delay_seconds, self.flush)
+        self._compact_timer.daemon = True
+        self._compact_timer.start()
+
+    def flush(self) -> None:
+        with self._lock:
+            if self._compact_timer:
+                self._compact_timer.cancel()
+                self._compact_timer = None
+            if self._journal_path().exists() and self._journal_path().stat().st_size:
+                self._save_history()
+
+    def _apply_journal_event(self, event: Dict[str, Any]) -> None:
+        operation = event.get("op")
+        session_id = event.get("session_id")
+        if operation == "append_message" and self._current_session:
+            if self._current_session.get("id") != session_id:
+                return
+            message = dict(event.get("message") or {})
+            if not message or any(item.get("id") == message.get("id") for item in self._current_session.get("messages", [])):
+                return
+            self._current_session.setdefault("messages", []).append(message)
+            self._current_session["messages"] = self._current_session["messages"][-self.max_messages :]
+            self._current_session["updated_at"] = message.get("timestamp")
+            if event.get("title"):
+                self._current_session["title"] = event["title"]
+            self._messages.append(message)
+            if message.get("role") == "tool":
+                self._tool_results.append(message)
+        elif operation == "append_activity" and self._current_session:
+            if self._current_session.get("id") != session_id:
+                return
+            activity = dict(event.get("activity") or {})
+            self._current_session.setdefault("activity", []).append(activity)
+            self._current_session["activity"] = self._current_session["activity"][-200:]
+            self._current_session["recent_files"] = list(event.get("recent_files") or [])
+            self._current_session["open_ends"] = list(event.get("open_ends") or [])
+            self._current_session["updated_at"] = activity.get("timestamp")
+            self._activity.append(activity)
 
     @staticmethod
     def _parse_dt(value: Optional[str]) -> Optional[datetime]:
@@ -254,7 +323,14 @@ class SessionContextManager:
             if len(session["messages"]) > self.max_messages:
                 session["messages"] = session["messages"][-self.max_messages :]
 
-            self._save_history()
+            self._persist_event(
+                {
+                    "op": "append_message",
+                    "session_id": session["id"],
+                    "message": message,
+                    "title": session.get("title"),
+                }
+            )
 
     # ------------------------------------------------------------------
     # Public API
@@ -333,7 +409,15 @@ class SessionContextManager:
                     session_open_ends.append(item)
             session["open_ends"] = session_open_ends[-20:]
             session["updated_at"] = activity["timestamp"]
-            self._save_history()
+            self._persist_event(
+                {
+                    "op": "append_activity",
+                    "session_id": session["id"],
+                    "activity": activity,
+                    "recent_files": session["recent_files"],
+                    "open_ends": session["open_ends"],
+                }
+            )
             return deepcopy(activity)
 
     def complete_open_end(self, text: str) -> bool:

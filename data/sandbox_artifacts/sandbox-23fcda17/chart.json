@@ -1,0 +1,13 @@
+{
+  "type": "bar",
+  "data": [
+    {
+      "label": "tokens",
+      "value": 3
+    },
+    {
+      "label": "errors",
+      "value": 0
+    }
+  ]
+}

@@ -1324,3 +1324,54 @@ def test_javascript_sandbox_executes_and_blocks_unsafe_code(tmp_path):
     assert any(artifact["kind"] == "files" for artifact in executed["result"]["artifacts"])
     assert blocked["result"]["status"] == "blocked"
     assert "require" in blocked["result"]["stderr"]
+
+
+def test_agent_management_lifecycle_and_run_controls(tmp_path):
+    hub = PlatformHub(
+        store_path=tmp_path / "platform.json",
+        community_plugin_dir=tmp_path / "plugins",
+        published_dir=tmp_path / "published",
+        browser_companion_dir=tmp_path / "companion",
+        ingestion_dir=tmp_path / "ingestion",
+        sandbox_artifact_dir=tmp_path / "sandbox",
+        agent_package_dir=tmp_path / "agent-packages",
+    )
+
+    saved = hub.action(
+        "save_agent",
+        {
+            "id": "ops-agent",
+            "name": "Ops Agent",
+            "model": "fast",
+            "prompt": "Operate safely.",
+            "tools": ["summarize_text"],
+            "knowledge": ["local-documents"],
+            "permissions": ["tools:execute", "knowledge:read"],
+            "parameters": {"temperature": 0.2, "max_tokens": 900},
+        },
+    )
+    assert saved["result"]["permissions"] == ["tools:execute", "knowledge:read"]
+
+    started = hub.action("start_agent_run", {"agent_id": "ops-agent", "assignment": "Prüfe den Systemstatus."})
+    run_id = started["result"]["id"]
+    assert started["result"]["status"] == "running"
+    assert hub.action("pause_agent_run", {"run_id": run_id})["result"]["status"] == "paused"
+    assert hub.action("resume_agent_run", {"run_id": run_id})["result"]["status"] == "running"
+
+    active_delete = hub.action("delete_agent", {"agent_id": "ops-agent"})
+    assert active_delete["error"] == "agent has active runs"
+
+    stopped = hub.action("stop_agent_run", {"run_id": run_id})
+    assert stopped["result"]["status"] == "stopped"
+    assert len(stopped["result"]["logs"]) == 4
+
+    exported = hub.action("export_agent_package", {"agent_id": "ops-agent"})
+    imported = hub.action("import_agent_package", {"package": exported["result"]["package"], "id": "ops-copy"})
+    assert imported["result"]["agent"]["permissions"] == ["tools:execute", "knowledge:read"]
+    assert imported["result"]["agent"]["id"] == "ops-copy-import"
+
+    deleted = hub.action("delete_agent", {"agent_id": "ops-agent"})
+    assert deleted["result"]["deleted"] is True
+    snapshot = hub.snapshot()
+    assert not any(agent["id"] == "ops-agent" for agent in snapshot["agents"])
+    assert any(run["id"] == run_id and run["status"] == "stopped" for run in snapshot["agent_runs"])
