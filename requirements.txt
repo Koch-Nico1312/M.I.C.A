@@ -30,7 +30,9 @@ sentence-transformers==5.5.1
 ollama==0.6.2
 librosa==0.11.0
 soundfile==0.13.1
-pyaudio==0.2.14
+# Optional Windows desktop microphone backend. Linux/CI uses sounddevice;
+# building PyAudio there requires system PortAudio headers that M.I.C.A does not use.
+pyaudio==0.2.14; sys_platform == "win32"
 aiohttp==3.13.5
 websockets==16.0
 google-api-python-client==2.197.0
