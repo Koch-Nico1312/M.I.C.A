@@ -158,6 +158,177 @@
       "visibility": "private",
       "owner": "u-admin",
       "updated_at": "2026-06-29T22:32:50"
+    },
+    {
+      "id": "orchestrator",
+      "name": "Orchestrator",
+      "model": "quality",
+      "prompt": "Du koordinierst M.I.C.A-Agenten. Zerlege Ziele, weise Arbeit passend zu, beachte Abhängigkeiten und fordere Freigaben für riskante Schritte an.",
+      "tools": [
+        "task_graph",
+        "task_pipeline",
+        "approval_flow"
+      ],
+      "knowledge": [
+        "local-documents",
+        "obsidian-vault"
+      ],
+      "permissions": [
+        "agents:execute",
+        "workflows:execute",
+        "artifacts:read"
+      ],
+      "parameters": {
+        "temperature": 0.2,
+        "max_tokens": 2200,
+        "role": "orchestrator"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
+    },
+    {
+      "id": "planner",
+      "name": "Planer",
+      "model": "quality",
+      "prompt": "Du erstellst belastbare Pläne. Definiere Schritte, Abhängigkeiten, Risiken, Akzeptanzkriterien und den nächsten sicheren Schritt.",
+      "tools": [
+        "task_graph",
+        "create_note_action"
+      ],
+      "knowledge": [
+        "local-documents",
+        "obsidian-vault"
+      ],
+      "permissions": [
+        "workflows:write",
+        "artifacts:write",
+        "knowledge:read"
+      ],
+      "parameters": {
+        "temperature": 0.35,
+        "max_tokens": 1800,
+        "role": "planner"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
+    },
+    {
+      "id": "research",
+      "name": "Recherche",
+      "model": "fast",
+      "prompt": "Du recherchierst präzise, vergleichst Quellen, kennzeichnest Unsicherheit und lieferst kompakte Ergebnisse mit Evidenz.",
+      "tools": [
+        "web_search",
+        "documents_search",
+        "summarize_text"
+      ],
+      "knowledge": [
+        "local-documents",
+        "obsidian-vault",
+        "github-main"
+      ],
+      "permissions": [
+        "tools:execute",
+        "knowledge:read",
+        "artifacts:read"
+      ],
+      "parameters": {
+        "temperature": 0.25,
+        "max_tokens": 1800,
+        "role": "researcher"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
+    },
+    {
+      "id": "execution",
+      "name": "Ausführung",
+      "model": "fast",
+      "prompt": "Du setzt freigegebene Arbeitsschritte zuverlässig um. Arbeite reversibel, protokolliere Änderungen und stoppe bei unklaren oder riskanten Aktionen.",
+      "tools": [
+        "run_sandbox",
+        "create_note_action",
+        "normalize_text"
+      ],
+      "knowledge": [
+        "local-documents",
+        "github-main"
+      ],
+      "permissions": [
+        "tools:execute",
+        "artifacts:write",
+        "sandbox:execute"
+      ],
+      "parameters": {
+        "temperature": 0.15,
+        "max_tokens": 2000,
+        "role": "executor"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
+    },
+    {
+      "id": "review",
+      "name": "Review",
+      "model": "quality",
+      "prompt": "Du prüfst Ergebnisse gegen Anforderungen, Tests, Evidenz und Sicherheitsregeln. Melde konkrete Abweichungen und gib nur belegte Freigaben.",
+      "tools": [
+        "evidence",
+        "test_tool"
+      ],
+      "knowledge": [
+        "local-documents",
+        "github-main"
+      ],
+      "permissions": [
+        "tools:execute",
+        "artifacts:read",
+        "knowledge:read"
+      ],
+      "parameters": {
+        "temperature": 0.1,
+        "max_tokens": 1600,
+        "role": "reviewer"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
+    },
+    {
+      "id": "monitor",
+      "name": "Monitor",
+      "model": "local",
+      "prompt": "Du überwachst Agent-Läufe, Kosten, Fehler, Ressourcen und Sicherheitsereignisse. Eskaliere Abweichungen klar und frühzeitig.",
+      "tools": [
+        "aggregate_metrics",
+        "healthcheck"
+      ],
+      "knowledge": [
+        "local-documents"
+      ],
+      "permissions": [
+        "metrics:read",
+        "artifacts:read",
+        "agents:read"
+      ],
+      "parameters": {
+        "temperature": 0.05,
+        "max_tokens": 1200,
+        "role": "monitor"
+      },
+      "version": "1.0.0",
+      "visibility": "private",
+      "owner": "u-admin",
+      "updated_at": "2026-07-11T21:47:15"
     }
   ],
   "agent_packages": [],
@@ -718,7 +889,13 @@
             ]
           ]
         }
-      ]
+      ],
+      "trigger": {
+        "type": "manual",
+        "enabled": true
+      },
+      "schedule": "manual",
+      "next_run": ""
     }
   ],
   "runs": [
@@ -766,17 +943,19 @@
       "dataset": "golden-support-20",
       "status": "passing",
       "elo": {
-        "research-copilot": 1240,
-        "research-copilot-v2": 1216
+        "research-copilot": 1256,
+        "research-copilot-v2": 1216,
+        "orchestrator": 1194
       },
       "regressions": 0,
-      "last_score": 0.92,
+      "last_score": 0.865,
       "baseline": "research-copilot",
-      "challenger": "research-copilot-v2",
+      "challenger": "orchestrator",
       "regression_gate": {
         "min_score": 0.8,
         "max_regressions": 0
-      }
+      },
+      "last_run": "2026-07-11T21:56:47"
     }
   ],
   "evaluation_datasets": [
@@ -800,6 +979,75 @@
     }
   ],
   "evaluation_runs": [
+    {
+      "id": "eval-run-f5c4a418",
+      "evaluation_id": "eval-support",
+      "dataset": "golden-support-20",
+      "status": "passing",
+      "score": 0.865,
+      "regressions": 0,
+      "winner": "research-copilot",
+      "baseline": "research-copilot",
+      "challenger": "orchestrator",
+      "elo_delta": {
+        "research-copilot": 16,
+        "orchestrator": -6
+      },
+      "gate": {
+        "status": "passed",
+        "min_score": 0.8,
+        "max_regressions": 0
+      },
+      "pairs": [
+        {
+          "case_id": "case-1",
+          "baseline": "research-copilot",
+          "challenger": "orchestrator",
+          "winner": "research-copilot",
+          "loser": "orchestrator",
+          "margin": 0.01
+        },
+        {
+          "case_id": "case-2",
+          "baseline": "research-copilot",
+          "challenger": "orchestrator",
+          "winner": "research-copilot",
+          "loser": "orchestrator",
+          "margin": 0.01
+        }
+      ],
+      "cases": [
+        {
+          "case_id": "case-1",
+          "agent": "research-copilot",
+          "score": 0.86,
+          "winner": true,
+          "regression": false
+        },
+        {
+          "case_id": "case-1",
+          "agent": "orchestrator",
+          "score": 0.85,
+          "winner": false,
+          "regression": false
+        },
+        {
+          "case_id": "case-2",
+          "agent": "research-copilot",
+          "score": 0.88,
+          "winner": true,
+          "regression": false
+        },
+        {
+          "case_id": "case-2",
+          "agent": "orchestrator",
+          "score": 0.87,
+          "winner": false,
+          "regression": false
+        }
+      ],
+      "created_at": "2026-07-11T21:56:47"
+    },
     {
       "id": "eval-run-demo",
       "evaluation_id": "eval-support",
@@ -855,6 +1103,48 @@
     }
   ],
   "metrics": [
+    {
+      "id": "metric-021fe25c",
+      "action": "run_evaluation",
+      "scope": "eval-support",
+      "model": "platform",
+      "tool": "run_evaluation",
+      "user": "u-admin",
+      "agent": "eval-support",
+      "workflow": "platform",
+      "tokens": 455,
+      "cost": 0.00091,
+      "latency_ms": 0.11,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T21:56:47"
+    },
+    {
+      "id": "metric-f6991534",
+      "action": "run_agent_chain",
+      "scope": "orchestrator",
+      "model": "platform",
+      "tool": "run_agent_chain",
+      "user": "u-admin",
+      "agent": "orchestrator",
+      "workflow": "platform",
+      "tokens": 392,
+      "cost": 0.000784,
+      "latency_ms": 0.07,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T21:47:38"
+    },
+    {
+      "scope": "orchestrator",
+      "model": "chain",
+      "user": "u-admin",
+      "workflow": "agent-chain",
+      "tokens": 1080,
+      "cost": 0.00216,
+      "latency_ms": 560,
+      "tool_calls": 3
+    },
     {
       "id": "metric-cd1d092d",
       "action": "stop_agent_run",
@@ -946,6 +1236,38 @@
   ],
   "metric_events": [
     {
+      "id": "metric-021fe25c",
+      "action": "run_evaluation",
+      "scope": "eval-support",
+      "model": "platform",
+      "tool": "run_evaluation",
+      "user": "u-admin",
+      "agent": "eval-support",
+      "workflow": "platform",
+      "tokens": 455,
+      "cost": 0.00091,
+      "latency_ms": 0.11,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T21:56:47"
+    },
+    {
+      "id": "metric-f6991534",
+      "action": "run_agent_chain",
+      "scope": "orchestrator",
+      "model": "platform",
+      "tool": "run_agent_chain",
+      "user": "u-admin",
+      "agent": "orchestrator",
+      "workflow": "platform",
+      "tokens": 392,
+      "cost": 0.000784,
+      "latency_ms": 0.07,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T21:47:38"
+    },
+    {
       "id": "metric-cd1d092d",
       "action": "stop_agent_run",
       "scope": "stop_agent_run",
@@ -1011,6 +1333,24 @@
     }
   ],
   "audit_events": [
+    {
+      "id": "audit-2a9d9975",
+      "action": "run_evaluation",
+      "user": "u-admin",
+      "permission": "evals:write",
+      "resource": "run_evaluation",
+      "status": "ok",
+      "timestamp": "2026-07-11T21:56:47"
+    },
+    {
+      "id": "audit-530a3064",
+      "action": "run_agent_chain",
+      "user": "u-admin",
+      "permission": "agents:execute",
+      "resource": "agent:orchestrator",
+      "status": "ok",
+      "timestamp": "2026-07-11T21:47:38"
+    },
     {
       "id": "audit-ad116137",
       "action": "stop_agent_run",
@@ -1384,7 +1724,55 @@
       "status": "available"
     }
   ],
-  "agent_chain_runs": [],
+  "agent_chain_runs": [
+    {
+      "id": "chain-4ff212cf",
+      "agent_id": "orchestrator",
+      "goal": "Plane, recherchiere und prüfe eine minimalistische Agent-Hub Erweiterung.",
+      "status": "completed",
+      "steps": [
+        {
+          "subagent_id": "research-copilot",
+          "name": "Research Copilot",
+          "role": "private",
+          "status": "completed",
+          "input": "Plane, recherchiere und prüfe eine minimalistische Agent-Hub Erweiterung.",
+          "output": "Research Copilot handled private for: Plane, recherchiere und prüfe eine minimalistische Agent-Hub Erweiterung.",
+          "tokens_in": 220,
+          "tokens_out": 90
+        },
+        {
+          "subagent_id": "planner",
+          "name": "Planer",
+          "role": "planner",
+          "status": "completed",
+          "input": "prior compact context",
+          "output": "Planer handled planner for: Plane, recherchiere und prüfe eine minimalistische Agent-Hub Erweiterung.",
+          "tokens_in": 250,
+          "tokens_out": 110
+        },
+        {
+          "subagent_id": "research",
+          "name": "Recherche",
+          "role": "researcher",
+          "status": "completed",
+          "input": "prior compact context",
+          "output": "Recherche handled researcher for: Plane, recherchiere und prüfe eine minimalistische Agent-Hub Erweiterung.",
+          "tokens_in": 280,
+          "tokens_out": 130
+        }
+      ],
+      "compact_result": "Research Copilot -> Planer -> Recherche completed and returned compact context.",
+      "budget": {
+        "max_tokens": 2400,
+        "max_cost": 0.02,
+        "used_tokens": 1080,
+        "used_cost": 0.00216,
+        "reason": ""
+      },
+      "created_at": "2026-07-11T21:47:38"
+    }
+  ],
   "solo_quickstarts": [],
   "solo_audits": [],
   "companion": {
@@ -1409,7 +1797,7 @@
     "pairing_codes": [],
     "sessions": []
   },
-  "updated_at": "2026-07-11T11:27:35",
+  "updated_at": "2026-07-11T21:56:47",
   "invocations": [],
   "agent_runs": []
 }

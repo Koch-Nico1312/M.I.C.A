@@ -1046,6 +1046,75 @@ def test_evaluation_runs_and_agent_chains(tmp_path):
     assert "compact context" in chain["result"]["compact_result"]
 
 
+def test_agent_chain_uses_real_agents_and_enforces_budget(tmp_path):
+    hub = PlatformHub(
+        store_path=tmp_path / "platform.json",
+        community_plugin_dir=tmp_path / "plugins",
+        published_dir=tmp_path / "published",
+        browser_companion_dir=tmp_path / "companion",
+    )
+
+    completed = hub.action(
+        "run_agent_chain",
+        {"agent_id": "orchestrator", "agent_ids": ["planner", "research"], "goal": "Plan and research", "max_tokens": 1000, "max_cost": 0.01},
+    )["result"]
+    limited = hub.action(
+        "run_agent_chain",
+        {"agent_id": "orchestrator", "agent_ids": ["planner", "research"], "goal": "Stay inside budget", "max_tokens": 350},
+    )["result"]
+
+    assert completed["status"] == "completed"
+    assert [step["subagent_id"] for step in completed["steps"]] == ["planner", "research"]
+    assert completed["budget"]["used_tokens"] <= completed["budget"]["max_tokens"]
+    assert limited["status"] == "budget_exceeded"
+    assert len(limited["steps"]) == 1
+    assert "token budget exceeded" in limited["budget"]["reason"]
+
+
+def test_workflow_schedule_and_forced_scheduler_run(tmp_path):
+    hub = PlatformHub(
+        store_path=tmp_path / "platform.json",
+        community_plugin_dir=tmp_path / "plugins",
+        published_dir=tmp_path / "published",
+        browser_companion_dir=tmp_path / "companion",
+    )
+    workflow_id = hub.snapshot()["workflows"][0]["id"]
+
+    scheduled = hub.action(
+        "schedule_workflow",
+        {"workflow_id": workflow_id, "trigger_type": "schedule", "schedule": "hourly", "enabled": True},
+    )["result"]
+    scheduler = hub.action("run_due_workflows", {"ids": [workflow_id]})["result"]
+
+    assert scheduled["trigger"]["type"] == "schedule"
+    assert scheduled["next_run"]
+    assert scheduler["status"] == "completed"
+    assert scheduler["runs"][0]["workflow_id"] == workflow_id
+    assert hub.snapshot()["workflows"][0]["last_scheduled_run"] == scheduler["runs"][0]["id"]
+
+
+def test_quality_lab_uses_selected_dataset_and_regression_gate(tmp_path):
+    hub = PlatformHub(
+        store_path=tmp_path / "platform.json",
+        community_plugin_dir=tmp_path / "plugins",
+        published_dir=tmp_path / "published",
+        browser_companion_dir=tmp_path / "companion",
+    )
+    dataset = hub.action(
+        "save_evaluation_dataset",
+        {"name": "Strict Golden", "cases": [{"id": "strict-1", "input": "Summarize", "expected": "Grounded summary"}]},
+    )["result"]
+    result = hub.action(
+        "run_evaluation",
+        {"id": "eval-agent-hub", "agents": ["planner", "research"], "baseline": "planner", "challenger": "research", "dataset": dataset["id"], "min_score": 0.95, "max_regressions": 0},
+    )["result"]
+
+    assert result["run"]["dataset"] == dataset["id"]
+    assert result["evaluation"]["regression_gate"]["min_score"] == 0.95
+    assert result["run"]["gate"]["status"] == "failed"
+    assert result["evaluation"]["status"] == "regression"
+
+
 def test_document_ingestion_and_sandbox_artifacts(tmp_path):
     hub = PlatformHub(
         store_path=tmp_path / "platform.json",
@@ -1375,3 +1444,17 @@ def test_agent_management_lifecycle_and_run_controls(tmp_path):
     snapshot = hub.snapshot()
     assert not any(agent["id"] == "ops-agent" for agent in snapshot["agents"])
     assert any(run["id"] == run_id and run["status"] == "stopped" for run in snapshot["agent_runs"])
+
+
+def test_specialized_agent_team_is_seeded_with_distinct_capabilities(tmp_path):
+    hub = PlatformHub(store_path=tmp_path / "platform.json")
+    agents = {agent["id"]: agent for agent in hub.snapshot()["agents"]}
+
+    expected = {"orchestrator", "planner", "research", "execution", "review", "monitor"}
+    assert expected <= set(agents)
+    assert agents["orchestrator"]["parameters"]["role"] == "orchestrator"
+    assert agents["planner"]["parameters"]["role"] == "planner"
+    assert "web_search" in agents["research"]["tools"]
+    assert "sandbox:execute" in agents["execution"]["permissions"]
+    assert agents["review"]["model"] == "quality"
+    assert agents["monitor"]["model"] == "local"

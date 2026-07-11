@@ -42,6 +42,51 @@ INGESTION_DIR = project_path("data", "ingestion")
 SANDBOX_ARTIFACT_DIR = project_path("data", "sandbox_artifacts")
 AGENT_PACKAGE_DIR = project_path("data", "agent_packages")
 
+SPECIALIZED_AGENT_DEFAULTS = [
+    {
+        "id": "orchestrator", "name": "Orchestrator", "model": "quality",
+        "prompt": "Du koordinierst M.I.C.A-Agenten. Zerlege Ziele, weise Arbeit passend zu, beachte Abhängigkeiten und fordere Freigaben für riskante Schritte an.",
+        "tools": ["task_graph", "task_pipeline", "approval_flow"], "knowledge": ["local-documents", "obsidian-vault"],
+        "permissions": ["agents:execute", "workflows:execute", "artifacts:read"],
+        "parameters": {"temperature": 0.2, "max_tokens": 2200, "role": "orchestrator"},
+    },
+    {
+        "id": "planner", "name": "Planer", "model": "quality",
+        "prompt": "Du erstellst belastbare Pläne. Definiere Schritte, Abhängigkeiten, Risiken, Akzeptanzkriterien und den nächsten sicheren Schritt.",
+        "tools": ["task_graph", "create_note_action"], "knowledge": ["local-documents", "obsidian-vault"],
+        "permissions": ["workflows:write", "artifacts:write", "knowledge:read"],
+        "parameters": {"temperature": 0.35, "max_tokens": 1800, "role": "planner"},
+    },
+    {
+        "id": "research", "name": "Recherche", "model": "fast",
+        "prompt": "Du recherchierst präzise, vergleichst Quellen, kennzeichnest Unsicherheit und lieferst kompakte Ergebnisse mit Evidenz.",
+        "tools": ["web_search", "documents_search", "summarize_text"], "knowledge": ["local-documents", "obsidian-vault", "github-main"],
+        "permissions": ["tools:execute", "knowledge:read", "artifacts:read"],
+        "parameters": {"temperature": 0.25, "max_tokens": 1800, "role": "researcher"},
+    },
+    {
+        "id": "execution", "name": "Ausführung", "model": "fast",
+        "prompt": "Du setzt freigegebene Arbeitsschritte zuverlässig um. Arbeite reversibel, protokolliere Änderungen und stoppe bei unklaren oder riskanten Aktionen.",
+        "tools": ["run_sandbox", "create_note_action", "normalize_text"], "knowledge": ["local-documents", "github-main"],
+        "permissions": ["tools:execute", "artifacts:write", "sandbox:execute"],
+        "parameters": {"temperature": 0.15, "max_tokens": 2000, "role": "executor"},
+    },
+    {
+        "id": "review", "name": "Review", "model": "quality",
+        "prompt": "Du prüfst Ergebnisse gegen Anforderungen, Tests, Evidenz und Sicherheitsregeln. Melde konkrete Abweichungen und gib nur belegte Freigaben.",
+        "tools": ["evidence", "test_tool"], "knowledge": ["local-documents", "github-main"],
+        "permissions": ["tools:execute", "artifacts:read", "knowledge:read"],
+        "parameters": {"temperature": 0.1, "max_tokens": 1600, "role": "reviewer"},
+    },
+    {
+        "id": "monitor", "name": "Monitor", "model": "local",
+        "prompt": "Du überwachst Agent-Läufe, Kosten, Fehler, Ressourcen und Sicherheitsereignisse. Eskaliere Abweichungen klar und frühzeitig.",
+        "tools": ["aggregate_metrics", "healthcheck"], "knowledge": ["local-documents"],
+        "permissions": ["metrics:read", "artifacts:read", "agents:read"],
+        "parameters": {"temperature": 0.05, "max_tokens": 1200, "role": "monitor"},
+    },
+]
+
 
 ACTION_PERMISSIONS = {
     "prepare_solo_workspace": "agents:write",
@@ -88,6 +133,8 @@ ACTION_PERMISSIONS = {
     "save_workflow": "workflows:write",
     "edit_workflow_node": "workflows:write",
     "connect_workflow_nodes": "workflows:write",
+    "schedule_workflow": "workflows:write",
+    "run_due_workflows": "workflows:execute",
     "version_workflow": "workflows:write",
     "run_workflow": "workflows:execute",
     "resume_workflow_run": "workflows:execute",
@@ -439,6 +486,19 @@ class PlatformHub:
                 "updated_at": _now(),
             }
         ])
+        existing_agent_ids = {str(agent.get("id")) for agent in data["agents"] if isinstance(agent, dict)}
+        for specialized in SPECIALIZED_AGENT_DEFAULTS:
+            if specialized["id"] in existing_agent_ids:
+                continue
+            data["agents"].append(
+                {
+                    **specialized,
+                    "version": "1.0.0",
+                    "visibility": "private",
+                    "owner": "u-admin",
+                    "updated_at": _now(),
+                }
+            )
         data.setdefault("agent_packages", [])
         data.setdefault("marketplace", [
             {"id": "github-sync", "name": "GitHub Knowledge Sync", "kind": "connector", "installed": False, "enabled": False, "version": "1.0.0", "latest_version": "1.1.0", "trust": "community", "review_status": "pending", "checksum": "sha256:community-github-sync", "signature": "unsigned", "source_url": "https://plugins.mica.local/github-sync", "description": "Keeps repositories indexed for RAG.", "entrypoint": "github_sync"},
@@ -847,6 +907,9 @@ class PlatformHub:
             node_types = {str(node.get("type")) for node in nodes}
             workflow.setdefault("canvas", {"zoom": 1, "supports": []})
             workflow.setdefault("version", 1)
+            workflow.setdefault("trigger", {"type": "manual", "enabled": True})
+            workflow.setdefault("schedule", "manual")
+            workflow.setdefault("next_run", "")
             workflow.setdefault(
                 "versions",
                 [{"version": workflow.get("version", 1), "created_at": workflow.get("updated_at") or _now(), "nodes": nodes, "edges": workflow.get("edges", [])}],
@@ -1174,6 +1237,8 @@ class PlatformHub:
             "save_workflow": self._save_workflow,
             "edit_workflow_node": self._edit_workflow_node,
             "connect_workflow_nodes": self._connect_workflow_nodes,
+            "schedule_workflow": self._schedule_workflow,
+            "run_due_workflows": self._run_due_workflows,
             "version_workflow": self._version_workflow,
             "run_workflow": self._run_workflow,
             "resume_workflow_run": self._resume_workflow_run,
@@ -3222,6 +3287,9 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "version": int(payload.get("version") or 1),
             "versions": payload.get("versions") or [],
             "updated_at": _now(),
+            "trigger": payload.get("trigger", {"type": "manual", "enabled": True}),
+            "schedule": str(payload.get("schedule") or "manual"),
+            "next_run": payload.get("next_run", ""),
         }
         self._normalize_workflows({"workflows": [workflow]})
         return self._upsert("workflows", workflow)
@@ -3271,6 +3339,46 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         self._normalize_workflows({"workflows": [workflow]})
         self._snapshot_workflow_version(workflow, reason="edge-edit")
         return workflow
+
+    def _schedule_workflow(self, payload: dict[str, Any]) -> dict[str, Any]:
+        workflow = self._find_workflow(str(payload.get("workflow_id") or payload.get("id") or ""))
+        if not workflow:
+            return {"error": "workflow not found"}
+        schedule = str(payload.get("schedule") or "manual")
+        trigger_type = str(payload.get("trigger_type") or ("schedule" if schedule != "manual" else "manual"))
+        workflow["schedule"] = schedule
+        workflow["trigger"] = {
+            "type": trigger_type,
+            "enabled": bool(payload.get("enabled", True)),
+            "webhook_path": str(payload.get("webhook_path") or ""),
+            "event": str(payload.get("event") or ""),
+        }
+        workflow["next_run"] = self._next_sync_time(schedule) if workflow["trigger"]["enabled"] else ""
+        workflow["updated_at"] = _now()
+        self._snapshot_workflow_version(workflow, reason="schedule-update")
+        return workflow
+
+    def _run_due_workflows(self, payload: dict[str, Any]) -> dict[str, Any]:
+        now = datetime.now()
+        forced = {str(item) for item in _as_list(payload.get("ids"))}
+        runs = []
+        for workflow in self.data.get("workflows", []):
+            trigger = workflow.get("trigger") if isinstance(workflow.get("trigger"), dict) else {}
+            if not trigger.get("enabled", True):
+                continue
+            next_run = str(workflow.get("next_run") or "")
+            due = str(workflow.get("id")) in forced
+            if not due and next_run:
+                with contextlib.suppress(ValueError):
+                    due = datetime.fromisoformat(next_run) <= now
+            if not due:
+                continue
+            run = self._run_workflow({"workflow_id": workflow.get("id"), "max_steps": payload.get("max_steps", 25)})
+            if "error" not in run:
+                runs.append(run)
+                workflow["last_scheduled_run"] = run.get("id")
+                workflow["next_run"] = self._next_sync_time(str(workflow.get("schedule") or "manual"), _now())
+        return {"status": "completed", "checked": len(self.data.get("workflows", [])), "runs": runs, "completed_at": _now()}
 
     def _version_workflow(self, payload: dict[str, Any]) -> dict[str, Any]:
         workflow = self._find_workflow(str(payload.get("workflow_id") or payload.get("id") or ""))
@@ -3617,7 +3725,8 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             agents.append(f"{agents[0]}-variant")
         baseline = str(payload.get("baseline") or evaluation.get("baseline") or agents[0])
         challenger = str(payload.get("challenger") or evaluation.get("challenger") or agents[1])
-        dataset_id = str(evaluation.get("dataset") or "manual")
+        dataset_id = str(payload.get("dataset") or evaluation.get("dataset") or "manual")
+        evaluation["dataset"] = dataset_id
         dataset = next((item for item in self.data.get("evaluation_datasets", []) if item.get("id") == dataset_id), None)
         cases = dataset.get("cases", []) if dataset else [{"id": "manual-1", "input": "Manual check", "expected": "Good answer"}]
         case_results = []
@@ -3657,7 +3766,12 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             evaluation.setdefault("elo", {})[agent] = int(evaluation.setdefault("elo", {}).get(agent, 1200)) + delta
         regressions = sum(1 for item in case_results if item["regression"])
         score = round(sum(item["score"] for item in case_results) / max(1, len(case_results)), 3)
-        gate_config = evaluation.get("regression_gate", {"min_score": 0.8, "max_regressions": 0})
+        gate_config = {
+            **evaluation.get("regression_gate", {"min_score": 0.8, "max_regressions": 0}),
+            **({"min_score": float(payload["min_score"])} if payload.get("min_score") is not None else {}),
+            **({"max_regressions": int(payload["max_regressions"])} if payload.get("max_regressions") is not None else {}),
+        }
+        evaluation["regression_gate"] = gate_config
         min_score = float(gate_config.get("min_score", 0.8))
         max_regressions = int(gate_config.get("max_regressions", 0))
         gate_status = "passed" if score >= min_score and regressions <= max_regressions else "failed"
@@ -3703,18 +3817,45 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
     def _run_agent_chain(self, payload: dict[str, Any]) -> dict[str, Any]:
         parent_id = str(payload.get("agent_id") or "research-copilot")
         goal = str(payload.get("goal") or "Complete delegated task")
-        chain_agents = [
-            item
-            for item in self.data.get("subagents", [])
-            if item.get("parent") == parent_id or not item.get("parent")
-        ]
+        requested_ids = {str(item) for item in _as_list(payload.get("agent_ids")) if str(item)}
+        if requested_ids:
+            chain_agents = [
+                {
+                    "id": item.get("id"),
+                    "name": item.get("name"),
+                    "role": (item.get("parameters") or {}).get("role", item.get("visibility", "agent")),
+                }
+                for item in self.data.get("agents", [])
+                if str(item.get("id")) in requested_ids and str(item.get("id")) != parent_id
+            ]
+        else:
+            chain_agents = [
+                item
+                for item in self.data.get("subagents", [])
+                if item.get("parent") == parent_id or not item.get("parent")
+            ]
         if not chain_agents:
             return {"error": "no subagents available"}
+        max_tokens = max(0, int(payload.get("max_tokens") or 0))
+        max_cost = max(0.0, float(payload.get("max_cost") or 0.0))
         steps = []
         compact_parts = []
+        used_tokens = 0
+        used_cost = 0.0
+        budget_reason = ""
         for index, subagent in enumerate(chain_agents):
+            step_tokens = 310 + index * 50
+            step_cost = round(step_tokens * 0.000002, 6)
+            if max_tokens and used_tokens + step_tokens > max_tokens:
+                budget_reason = f"token budget exceeded before {subagent.get('name')}"
+                break
+            if max_cost and used_cost + step_cost > max_cost:
+                budget_reason = f"cost budget exceeded before {subagent.get('name')}"
+                break
             result = f"{subagent.get('name')} handled {subagent.get('role')} for: {goal}"
             compact_parts.append(str(subagent.get("name")))
+            used_tokens += step_tokens
+            used_cost = round(used_cost + step_cost, 6)
             steps.append(
                 {
                     "subagent_id": subagent.get("id"),
@@ -3731,9 +3872,10 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "id": f"chain-{uuid4().hex[:8]}",
             "agent_id": parent_id,
             "goal": goal,
-            "status": "completed",
+            "status": "budget_exceeded" if budget_reason else "completed",
             "steps": steps,
-            "compact_result": f"{' -> '.join(compact_parts)} completed and returned compact context.",
+            "compact_result": budget_reason or f"{' -> '.join(compact_parts)} completed and returned compact context.",
+            "budget": {"max_tokens": max_tokens, "max_cost": max_cost, "used_tokens": used_tokens, "used_cost": used_cost, "reason": budget_reason},
             "created_at": _now(),
         }
         self.data.setdefault("agent_chain_runs", []).insert(0, run)
@@ -3744,8 +3886,8 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
                 "model": "chain",
                 "user": str(payload.get("user", "u-admin")),
                 "workflow": "agent-chain",
-                "tokens": sum(step["tokens_in"] + step["tokens_out"] for step in steps),
-                "cost": 0.0,
+                "tokens": used_tokens,
+                "cost": used_cost,
                 "latency_ms": 320 + len(steps) * 80,
                 "tool_calls": len(steps),
             },

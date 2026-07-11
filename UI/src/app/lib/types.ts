@@ -837,6 +837,10 @@ export interface PlatformWorkflow {
   version?: number;
   versions?: Array<{ version: number; created_at: string; reason?: string; nodes: PlatformWorkflowNode[]; edges: string[][]; canvas?: Record<string, unknown> }>;
   status: string;
+  trigger?: { type: string; enabled: boolean; webhook_path?: string; event?: string };
+  schedule?: string;
+  next_run?: string;
+  last_scheduled_run?: string;
   updated_at?: string;
 }
 
@@ -1051,6 +1055,7 @@ export interface PlatformAgentChainRun {
   status: string;
   compact_result: string;
   created_at: string;
+  budget?: { max_tokens: number; max_cost: number; used_tokens: number; used_cost: number; reason?: string };
   steps: Array<{
     subagent_id: string;
     name: string;

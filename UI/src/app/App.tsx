@@ -174,17 +174,6 @@ function getValidViewId(value: string): ViewId {
 
 type MicaFaceMode = "idle" | "listening" | "thinking" | "speaking" | "muted";
 
-type MicaOutfit = "black" | "teal" | "plum";
-
-const MICA_OUTFITS: Array<{ id: MicaOutfit; label: string }> = [
-  { id: "black", label: "Schwarz" },
-  { id: "teal", label: "Teal" },
-  { id: "plum", label: "Plum" },
-];
-
-const MICA_OUTFIT_STORAGE_KEY = "mica.avatarOutfit";
-const MICA_OUTFIT_EVENT = "mica-avatar-outfit";
-
 function MicaHead({
   speaking,
   mode = speaking ? "speaking" : "idle",
@@ -194,123 +183,61 @@ function MicaHead({
   mode?: MicaFaceMode;
   compact?: boolean;
 }) {
-  const [frame, setFrame] = useState(0);
-  const [motionFrame, setMotionFrame] = useState(0);
-  const [outfit, setOutfit] = useState<MicaOutfit>(() => {
-    const saved = window.localStorage.getItem(MICA_OUTFIT_STORAGE_KEY);
-    return MICA_OUTFITS.some((item) => item.id === saved) ? (saved as MicaOutfit) : "black";
-  });
+  const humanDetails = ["glance-left", "glance-right", "soft-smile", "curious", "calm"] as const;
+  const [humanDetail, setHumanDetail] = useState<(typeof humanDetails)[number]>("calm");
 
   useEffect(() => {
-    if (!speaking) {
-      setFrame(0);
-      return;
-    }
-    const sequence = [1, 2, 1, 3, 5, 1, 4, 2];
-    let index = 0;
-    const timer = window.setInterval(() => {
-      setFrame(sequence[index % sequence.length]);
-      index += 1;
-    }, 120);
-    return () => window.clearInterval(timer);
-  }, [speaking]);
-
-  useEffect(() => {
-    const preload = new Image();
-    preload.src = "/avatars/mica-motion.webp";
-
-    let cancelled = false;
-    let nextMotionTimer = 0;
-    const frameTimers = new Set<number>();
-
-    const later = (callback: () => void, delay: number) => {
-      const timer = window.setTimeout(() => {
-        frameTimers.delete(timer);
-        if (!cancelled) callback();
-      }, delay);
-      frameTimers.add(timer);
+    if (compact) return;
+    const pickNextDetail = () => {
+      setHumanDetail((current) => {
+        const pool = humanDetails.filter((detail) => detail !== current);
+        return pool[Math.floor(Math.random() * pool.length)] ?? "calm";
+      });
     };
-
-    const scheduleMotion = () => {
-      nextMotionTimer = window.setTimeout(() => {
-        if (cancelled) return;
-        setMotionFrame(1);
-        later(() => setMotionFrame(2), 75);
-        later(() => setMotionFrame(1), 145);
-        later(() => setMotionFrame(0), 220);
-
-        if (!speaking && Math.random() > 0.55) {
-          later(() => setMotionFrame(3), 900);
-          later(() => setMotionFrame(0), 1750);
-        }
-        later(scheduleMotion, 2200);
-      }, 3200 + Math.random() * 3600);
-    };
-
-    scheduleMotion();
+    const firstTimer = window.setTimeout(pickNextDetail, 1800 + Math.random() * 2200);
+    const interval = window.setInterval(pickNextDetail, 6200 + Math.random() * 3800);
     return () => {
-      cancelled = true;
-      window.clearTimeout(nextMotionTimer);
-      frameTimers.forEach((timer) => window.clearTimeout(timer));
-      frameTimers.clear();
+      window.clearTimeout(firstTimer);
+      window.clearInterval(interval);
     };
-  }, [speaking]);
-
-  useEffect(() => {
-    const syncOutfit = (event: Event) => setOutfit((event as CustomEvent<MicaOutfit>).detail);
-    window.addEventListener(MICA_OUTFIT_EVENT, syncOutfit);
-    return () => window.removeEventListener(MICA_OUTFIT_EVENT, syncOutfit);
-  }, []);
-
-  const selectOutfit = (next: MicaOutfit) => {
-    window.localStorage.setItem(MICA_OUTFIT_STORAGE_KEY, next);
-    window.dispatchEvent(new CustomEvent<MicaOutfit>(MICA_OUTFIT_EVENT, { detail: next }));
-  };
-
-  const outfitRow = MICA_OUTFITS.findIndex((item) => item.id === outfit);
-  const showingMotion = motionFrame > 0;
-  const xPosition = showingMotion ? `${motionFrame * (100 / 3)}%` : `${frame * 20}%`;
-  const yPosition = `${Math.max(0, outfitRow) * 50}%`;
+  }, [compact]);
 
   return (
     <div
-      className={`mica-avatar mica-avatar-${mode} ${speaking ? "mica-avatar-speaking" : ""} relative aspect-square ${
+      className={`mica-face mica-orb mica-orb-${mode} mica-human-${humanDetail} ${speaking ? "mica-orb-speaking" : ""} relative flex aspect-square items-center justify-center ${
         compact
           ? "w-24"
           : "w-[min(27vw,342px)] min-w-[238px] max-w-[352px]"
       }`}
     >
+      <div className="mica-orb-halo absolute inset-[-7%] rounded-full" />
+      <div className="mica-orb-shell absolute inset-0 rounded-full" />
+      <div className="mica-orb-glass absolute inset-[4%] rounded-full" />
+      <div className="mica-orb-shade absolute inset-[10%] rounded-full" />
+      <div className="mica-cheek mica-cheek-left absolute rounded-full" />
+      <div className="mica-cheek mica-cheek-right absolute rounded-full" />
+      <div className="mica-brow mica-brow-left absolute" />
+      <div className="mica-brow mica-brow-right absolute" />
+      <div className="mica-nose-light absolute" />
+
+      <div className="relative mt-[5%] flex w-[45%] items-center justify-between">
+        {[0, 1].map((eye) => (
+          <div
+            key={eye}
+            className={`mica-orb-eye ${compact ? "h-5 w-5" : "h-[46px] w-[46px]"}`}
+          >
+            <span />
+            <i />
+          </div>
+        ))}
+      </div>
       <div
-        aria-label={`M.I.C.A Avatar, Outfit ${outfit}`}
-        className="mica-avatar-figure absolute inset-0 bg-no-repeat drop-shadow-[0_24px_38px_rgba(0,0,0,0.38)]"
-        role="img"
-        style={{
-          backgroundImage: showingMotion
-            ? 'url("/avatars/mica-motion.webp")'
-            : 'url("/avatars/mica-sprites.webp")',
-          backgroundPosition: `${xPosition} ${yPosition}`,
-          backgroundSize: showingMotion ? "400% 300%" : "600% 300%",
-        }}
+        className={`mica-orb-mouth absolute rounded-full ${
+          compact ? "bottom-[31%] h-1 w-8" : "bottom-[27%] h-[22px] w-[76px]"
+        }`}
       />
-      {!compact && (
-        <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 gap-1 rounded-full border border-white/15 bg-slate-950/65 p-1 backdrop-blur-md">
-          {MICA_OUTFITS.map((item) => (
-            <button
-              key={item.id}
-              aria-pressed={outfit === item.id}
-              className={`rounded-full px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.12em] transition ${
-                outfit === item.id
-                  ? "bg-cyan-300 text-slate-950"
-                  : "text-slate-200/70 hover:bg-white/10 hover:text-white"
-              }`}
-              onClick={() => selectOutfit(item.id)}
-              type="button"
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="mica-expression-line mica-expression-left absolute" />
+      <div className="mica-expression-line mica-expression-right absolute" />
     </div>
   );
 }
