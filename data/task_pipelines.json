@@ -5,7 +5,7 @@
       "goal": "Recherriere zu KI Entwicklung 2026",
       "status": "ready",
       "created_at": "2026-07-12T12:10:40.131815",
-      "updated_at": "2026-07-12T12:10:56.323668",
+      "updated_at": "2026-07-12T22:22:22.633051",
       "steps": [
         {
           "id": "step-1",
@@ -15,7 +15,13 @@
           "role": "planner",
           "expected_output": "A concise plan with dependencies and risk notes.",
           "requires_human_input": false,
-          "verification": []
+          "verification": [
+            {
+              "timestamp": "2026-07-12T22:22:18.177660",
+              "status": "passed",
+              "note": "Im Agent-Hub bestätigt"
+            }
+          ]
         },
         {
           "id": "step-2",
@@ -27,7 +33,13 @@
           "role": "planner",
           "expected_output": "A concise plan with dependencies and risk notes.",
           "requires_human_input": false,
-          "verification": []
+          "verification": [
+            {
+              "timestamp": "2026-07-12T22:22:18.905447",
+              "status": "passed",
+              "note": "Im Agent-Hub bestätigt"
+            }
+          ]
         },
         {
           "id": "step-3",
@@ -39,7 +51,13 @@
           "role": "executor",
           "expected_output": "A completed step result with evidence.",
           "requires_human_input": false,
-          "verification": []
+          "verification": [
+            {
+              "timestamp": "2026-07-12T22:22:19.482767",
+              "status": "passed",
+              "note": "Im Agent-Hub bestätigt"
+            }
+          ]
         },
         {
           "id": "step-4",
@@ -51,7 +69,13 @@
           "role": "reviewer",
           "expected_output": "Verification notes, failures, and readiness signal.",
           "requires_human_input": false,
-          "verification": []
+          "verification": [
+            {
+              "timestamp": "2026-07-12T22:22:22.633051",
+              "status": "passed",
+              "note": "Im Agent-Hub bestätigt"
+            }
+          ]
         }
       ],
       "requires_approval": false,
@@ -61,6 +85,26 @@
           "timestamp": "2026-07-12T12:10:40.131815",
           "status": "created",
           "note": "Pipeline created."
+        },
+        {
+          "timestamp": "2026-07-12T22:22:18.177660",
+          "status": "passed",
+          "note": "Verified step-1: Im Agent-Hub bestätigt"
+        },
+        {
+          "timestamp": "2026-07-12T22:22:18.905447",
+          "status": "passed",
+          "note": "Verified step-2: Im Agent-Hub bestätigt"
+        },
+        {
+          "timestamp": "2026-07-12T22:22:19.482767",
+          "status": "passed",
+          "note": "Verified step-3: Im Agent-Hub bestätigt"
+        },
+        {
+          "timestamp": "2026-07-12T22:22:22.633051",
+          "status": "passed",
+          "note": "Verified step-4: Im Agent-Hub bestätigt"
         }
       ],
       "budget": {
@@ -73,7 +117,7 @@
       "origin_relation": "",
       "budget_usage": {
         "completed_steps": 0,
-        "elapsed_minutes": 572,
+        "elapsed_minutes": 611,
         "agent_calls": 0
       },
       "budget_exceeded": true

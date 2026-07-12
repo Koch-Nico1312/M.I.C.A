@@ -49,6 +49,7 @@ class CacheManager:
             cache_dir: Directory for cache database
             default_ttl_hours: Default time-to-live in hours
         """
+        self._allow_pooling = cache_dir is None
         if cache_dir is None:
             cache_dir = project_path("data", "cache")
         self.cache_dir = Path(cache_dir)
@@ -76,7 +77,7 @@ class CacheManager:
         """Get a connection from the pool or create a new one."""
         from core.performance_flags import get_performance_flags
 
-        if get_performance_flags().is_enabled("db_connection_pooling"):
+        if self._allow_pooling and get_performance_flags().is_enabled("db_connection_pooling"):
             with self._pool_lock:
                 if self._connection_pool:
                     return self._connection_pool.pop()
@@ -99,13 +100,23 @@ class CacheManager:
         """Return a connection to the pool or close it."""
         from core.performance_flags import get_performance_flags
 
-        if get_performance_flags().is_enabled("db_connection_pooling"):
+        if self._allow_pooling and get_performance_flags().is_enabled("db_connection_pooling"):
             with self._pool_lock:
                 if len(self._connection_pool) < self._max_pool_size:
                     self._connection_pool.append(conn)
                     return
         
         conn.close()
+
+    def close(self) -> None:
+        """Close pooled SQLite connections so temporary stores can be removed safely."""
+        with self._pool_lock:
+            connections, self._connection_pool = self._connection_pool, []
+        for conn in connections:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
     def checkpoint_wal(self):
         """Checkpoint the WAL file to reclaim disk space."""

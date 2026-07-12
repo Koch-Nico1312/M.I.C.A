@@ -44,7 +44,7 @@ class ModelPolicy:
     def __init__(self, registry: ModelRegistry | None = None, config: Any | None = None):
         self.registry = registry or get_model_registry()
         self.config = config or self.registry.config
-        self._use_global_privacy_mode = config is None
+        self._use_global_privacy_mode = config is None and registry is None
 
     def detect_intent(
         self,
@@ -262,6 +262,8 @@ class ModelPolicy:
     def _cloud_allowed(self, sensitivity: Sensitivity) -> bool:
         if sensitivity == Sensitivity.SECRET:
             return False
+        if not self._use_global_privacy_mode:
+            return True
         try:
             from core.privacy_modes import get_privacy_mode_manager
 

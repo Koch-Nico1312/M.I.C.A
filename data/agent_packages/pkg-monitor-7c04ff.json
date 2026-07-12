@@ -1,0 +1,50 @@
+{
+  "format": "mica-agent-package/v1",
+  "exported_at": "2026-07-12T22:23:23",
+  "manifest": {
+    "agent_id": "monitor",
+    "name": "Monitor",
+    "version": "1.0.0",
+    "model": "local",
+    "prompt": "Du überwachst Agent-Läufe, Kosten, Fehler, Ressourcen und Sicherheitsereignisse. Eskaliere Abweichungen klar und frühzeitig.",
+    "tools": [
+      "aggregate_metrics",
+      "healthcheck"
+    ],
+    "knowledge": [
+      "local-documents"
+    ],
+    "parameters": {
+      "temperature": 0.05,
+      "max_tokens": 1200,
+      "role": "monitor"
+    },
+    "permissions": [
+      "metrics:read",
+      "artifacts:read",
+      "agents:read"
+    ],
+    "visibility": "private",
+    "owner": "u-admin",
+    "package_format": "mica-agent-package/v1",
+    "endpoints": {
+      "web_app": "/apps/monitor",
+      "embed": "/embed/monitor",
+      "rest": "/api/agents/monitor/invoke",
+      "mcp": "/mcp/monitor"
+    },
+    "publications": []
+  },
+  "runtime": {
+    "tool_count": 2,
+    "knowledge_count": 1,
+    "parameter_keys": [
+      "max_tokens",
+      "role",
+      "temperature"
+    ]
+  },
+  "id": "pkg-monitor-7c04ff",
+  "name": "Monitor Package",
+  "agent_id": "monitor"
+}

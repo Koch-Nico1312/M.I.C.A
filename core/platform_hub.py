@@ -414,7 +414,8 @@ def build_platform_state_store(path: Path) -> PlatformStateStore:
     json_store = JsonPlatformStateStore(path)
     backend = (os.environ.get("MICA_PLATFORM_STORE") or os.environ.get("JARVIS_PLATFORM_STORE", "json")).strip().lower()
     postgres_url = (os.environ.get("MICA_POSTGRES_URL") or os.environ.get("MICA_POSTGRES_URL", "")).strip()
-    if backend == "postgres" or (backend == "auto" and postgres_url):
+    use_auto_postgres = backend == "auto" and postgres_url and path.resolve() == STORE_PATH.resolve()
+    if backend == "postgres" or use_auto_postgres:
         if postgres_url:
             return PostgresPlatformStateStore(postgres_url, json_store)
     return json_store
@@ -1290,6 +1291,8 @@ class PlatformHub:
             "save_publish_policy": self._save_publish_policy,
             "issue_publish_api_key": self._issue_publish_api_key,
             "revoke_publish_api_key": self._revoke_publish_api_key,
+            "rotate_publish_api_key": self._rotate_publish_api_key,
+            "get_publication": self._get_publication,
             "check_deployment_readiness": self._check_deployment_readiness,
             "check_database_migrations": self._check_database_migrations,
             "save_user": self._save_user,
@@ -1326,6 +1329,41 @@ class PlatformHub:
             self._save()
             return {"error": result["error"], "result": _json_clone(result), "platform": self.snapshot()}
         result = handler(payload)
+        if action == "check_deployment_readiness" and isinstance(result, dict):
+            publication_id = str(payload.get("id") or payload.get("publication_id") or "")
+            publication = next(
+                (item for item in self.data.get("publishing", []) if item.get("id") == publication_id),
+                None,
+            )
+            if publication:
+                now = datetime.now()
+                expired_keys = []
+                for key in _as_list(publication.get("policy", {}).get("api_keys")):
+                    if not isinstance(key, dict) or not key.get("expires_at"):
+                        continue
+                    with contextlib.suppress(ValueError, TypeError):
+                        if datetime.fromisoformat(str(key["expires_at"])) <= now:
+                            expired_keys.append(str(key.get("key_id") or key.get("id") or ""))
+                result["expired_keys"] = expired_keys
+                if expired_keys:
+                    result.setdefault("warnings", []).append(f"{len(expired_keys)} expired API key(s)")
+        if payload.get("api_key") or payload.get("token"):
+            audit_result = result if isinstance(result, dict) else {"result": result}
+            audit_status = "completed"
+            if action == "check_deployment_readiness":
+                publication_id = str(payload.get("id") or payload.get("publication_id") or "")
+                if not any(item.get("id") == publication_id for item in self.data.get("publishing", [])):
+                    audit_result = {"error": "publication not found"}
+                    audit_status = "failed"
+            elif audit_result.get("error"):
+                audit_status = "failed"
+            self._record_invocation_audit(
+                str(payload.get("id") or payload.get("agent_id") or "platform"),
+                payload,
+                audit_result,
+                audit_status,
+                action=action,
+            )
         latency_ms = round((time.perf_counter() - started) * 1000, 2)
         if isinstance(result, dict) and "error" in result:
             self._record_audit_event(action, payload, status="error", permission=authorized["permission"], result=result)
@@ -1596,11 +1634,12 @@ class PlatformHub:
     def _hash_publish_api_key(self, api_key: str) -> str:
         return hashlib.sha256(api_key.encode("utf-8")).hexdigest()
 
-    def _record_invocation_audit(self, agent_id: str, payload: dict[str, Any], result: dict[str, Any], status: str) -> None:
+    def _record_invocation_audit(self, agent_id: str, payload: dict[str, Any], result: dict[str, Any], status: str, *, action: str = "invoke_agent") -> None:
         api_key = str(payload.get("api_key") or payload.get("token") or "")
         event = {
             "id": f"invoke-audit-{uuid4().hex[:8]}",
             "agent_id": agent_id,
+            "action": action,
             "status": status,
             "auth": self._active_publication_policy(agent_id).get("auth", "workspace"),
             "user": payload.get("user") or payload.get("user_id") or "anonymous",
@@ -1635,6 +1674,7 @@ class PlatformHub:
             "model": model,
             "tool": tool,
             "user": user,
+            "actor": user,
             "agent": agent,
             "workflow": workflow,
             "tokens": tokens,
@@ -1664,6 +1704,7 @@ class PlatformHub:
             "id": f"audit-{uuid4().hex[:8]}",
             "action": action,
             "user": user,
+            "actor": user,
             "permission": permission,
             "resource": resource,
             "status": status,
@@ -5067,6 +5108,14 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         publication["policy"] = self._normalize_publish_policy(str(publication.get("kind") or "web-app"), payload.get("policy") if isinstance(payload.get("policy"), dict) else payload)
         publication["updated_at"] = _now()
         return publication
+
+    def _get_publication(self, payload: dict[str, Any]) -> dict[str, Any]:
+        publication_id = str(payload.get("id") or payload.get("publication_id") or "")
+        publication = next(
+            (item for item in self.data.get("publishing", []) if item.get("id") == publication_id),
+            None,
+        )
+        return publication or {"error": "publication not found"}
 
     def _issue_publish_api_key(self, payload: dict[str, Any]) -> dict[str, Any]:
         publication_id = str(payload.get("id") or payload.get("publication_id") or "")

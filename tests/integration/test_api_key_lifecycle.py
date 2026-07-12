@@ -13,12 +13,26 @@ import pytest
 from core.platform_hub import PlatformHub
 
 
+class DirectResultHub:
+    """Expose PlatformHub action results directly for lifecycle contract tests."""
+
+    def __init__(self, hub):
+        self._hub = hub
+
+    def __getattr__(self, name):
+        return getattr(self._hub, name)
+
+    def action(self, name, payload):
+        response = self._hub.action(name, payload)
+        return response.get("result", response) if isinstance(response, dict) else response
+
+
 @pytest.fixture
 def temp_platform_hub(tmp_path):
     """Create a temporary platform hub for testing."""
     store_path = tmp_path / "platform_hub.json"
     hub = PlatformHub(store_path=store_path)
-    return hub
+    return DirectResultHub(hub)
 
 
 @pytest.fixture

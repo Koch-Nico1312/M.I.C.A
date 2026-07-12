@@ -434,16 +434,21 @@ export const AgentHubView = memo(function AgentHubView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [offline, setOffline] = useState(() => typeof navigator !== "undefined" && !navigator.onLine);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
   const [dashboardSettingsOpen, setDashboardSettingsOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [explorerMenuOpen, setExplorerMenuOpen] = useState(false);
+  const explorerMenuRef = useRef<HTMLDivElement | null>(null);
+  const explorerTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const explorerWasOpen = useRef(false);
   const [livePanel, setLivePanel] = useState<"terminal" | "output" | "events" | "problems">("terminal");
   const [taskAutomations, setTaskAutomations] = useState<AutomationsPayload>({ items: [], allowed_actions: [] });
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const [
         nextPlatform,
@@ -506,6 +511,17 @@ export const AgentHubView = memo(function AgentHubView() {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    const online = () => { setOffline(false); void load(); };
+    const offlineNow = () => setOffline(true);
+    window.addEventListener("online", online);
+    window.addEventListener("offline", offlineNow);
+    return () => {
+      window.removeEventListener("online", online);
+      window.removeEventListener("offline", offlineNow);
+    };
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -573,10 +589,38 @@ export const AgentHubView = memo(function AgentHubView() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const dialog = document.querySelector<HTMLElement>('[role="dialog"], [role="alertdialog"]');
+      const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]');
+      const dialog = dialogs[dialogs.length - 1];
+      const menu = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[role="menu"]');
+      if (menu && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+        const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
+        if (items.length) {
+          event.preventDefault();
+          const current = Math.max(0, items.indexOf(document.activeElement as HTMLElement));
+          const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : event.key === "ArrowDown" ? (current + 1) % items.length : (current - 1 + items.length) % items.length;
+          items[next].focus();
+        }
+      }
+      const tablist = (document.activeElement as HTMLElement | null)?.closest<HTMLElement>('[role="tablist"]');
+      if (tablist && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+        const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'));
+        if (tabs.length) {
+          event.preventDefault();
+          const current = Math.max(0, tabs.indexOf(document.activeElement as HTMLButtonElement));
+          const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : event.key === "ArrowRight" ? (current + 1) % tabs.length : (current - 1 + tabs.length) % tabs.length;
+          tabs[next].focus();
+          tabs[next].click();
+        }
+      }
       if (dialog && event.key === "Escape") {
         const close = dialog.querySelector<HTMLButtonElement>('button[aria-label="Schließen"], button[data-dialog-close]') || (dialog.getAttribute("role") === "alertdialog" ? dialog.querySelector<HTMLButtonElement>("button") : null);
-        if (close) { event.preventDefault(); close.click(); return; }
+        if (close) {
+          event.preventDefault();
+          const returnFocus = dialogReturnFocus.current || explorerTriggerRef.current;
+          close.click();
+          window.setTimeout(() => returnFocus?.focus(), 0);
+          return;
+        }
       }
       if (dialog && event.key === "Tab") {
         const focusable = Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"])')).filter((item) => item.offsetParent !== null);
@@ -606,6 +650,16 @@ export const AgentHubView = memo(function AgentHubView() {
   }, []);
 
   useEffect(() => {
+    if (explorerMenuOpen) {
+      explorerWasOpen.current = true;
+      window.setTimeout(() => explorerMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus(), 0);
+    } else if (explorerWasOpen.current) {
+      explorerWasOpen.current = false;
+      explorerTriggerRef.current?.focus();
+    }
+  }, [explorerMenuOpen]);
+
+  useEffect(() => {
     const focusNewestDialog = () => {
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"], [role="alertdialog"]');
       const dialog = dialogs[dialogs.length - 1];
@@ -613,7 +667,10 @@ export const AgentHubView = memo(function AgentHubView() {
         if (dialogWasOpen.current) dialogReturnFocus.current?.focus();
         dialogWasOpen.current = false; dialogReturnFocus.current = null; return;
       }
-      if (!dialogWasOpen.current) dialogReturnFocus.current = document.activeElement as HTMLElement | null;
+      if (!dialogWasOpen.current) {
+        const active = document.activeElement as HTMLElement | null;
+        dialogReturnFocus.current = active && active !== document.body ? active : explorerTriggerRef.current;
+      }
       dialogWasOpen.current = true;
       if (dialog.contains(document.activeElement)) return;
       window.setTimeout(() => dialog.querySelector<HTMLElement>('[autofocus], input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled)')?.focus(), 0);
@@ -1243,8 +1300,8 @@ export const AgentHubView = memo(function AgentHubView() {
         <div className="agent-hub-explorer">
           <div className="agent-hub-explorer-head">
             <span>EXPLORER</span>
-            <button title="Explorer-Aktionen" aria-label="Explorer-Aktionen" aria-expanded={explorerMenuOpen} aria-haspopup="menu" onClick={() => setExplorerMenuOpen((open) => !open)}>•••</button>
-            {explorerMenuOpen ? <div className="agent-hub-explorer-menu" role="menu" aria-label="Explorer-Schnellaktionen"><button role="menuitem" onClick={() => { setTab("tasks"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("mica:new-task")), 0); setExplorerMenuOpen(false); }}><Plus />Neue Aufgabe</button><button role="menuitem" onClick={() => { setTab("agents"); window.setTimeout(() => window.dispatchEvent(new CustomEvent("mica:new-agent")), 0); setExplorerMenuOpen(false); }}><Bot />Neuer Agent</button><button role="menuitem" onClick={() => { setCommandOpen(true); setExplorerMenuOpen(false); }}><Search />Alles durchsuchen</button><button role="menuitem" onClick={() => { setTab("hub"); setDashboardSettingsOpen(true); setExplorerMenuOpen(false); }}><SlidersHorizontal />Dashboard anpassen</button></div> : null}
+            <button ref={explorerTriggerRef} title="Explorer-Aktionen" aria-label="Explorer-Aktionen" aria-expanded={explorerMenuOpen} aria-haspopup="menu" onClick={() => setExplorerMenuOpen((open) => !open)}>•••</button>
+            {explorerMenuOpen ? <div ref={explorerMenuRef} className="agent-hub-explorer-menu" role="menu" aria-label="Explorer-Schnellaktionen"><button role="menuitem" onClick={() => { setTab("tasks"); setExplorerMenuOpen(false); window.setTimeout(() => { explorerTriggerRef.current?.focus(); window.dispatchEvent(new CustomEvent("mica:new-task")); }, 0); }}><Plus />Neue Aufgabe</button><button role="menuitem" onClick={() => { setTab("agents"); setExplorerMenuOpen(false); window.setTimeout(() => { explorerTriggerRef.current?.focus(); window.dispatchEvent(new CustomEvent("mica:new-agent")); }, 0); }}><Bot />Neuer Agent</button><button role="menuitem" onClick={() => { setCommandOpen(true); setExplorerMenuOpen(false); }}><Search />Alles durchsuchen</button><button role="menuitem" onClick={() => { setTab("hub"); setDashboardSettingsOpen(true); setExplorerMenuOpen(false); }}><SlidersHorizontal />Dashboard anpassen</button></div> : null}
           </div>
           <div className="agent-hub-workspace-name">
             <FolderTree />
@@ -1312,8 +1369,8 @@ export const AgentHubView = memo(function AgentHubView() {
           </div>
           <div className="agent-hub-nav-footer">
             <span>
-              <StatusDot status={error ? "blocked" : "active"} />
-              {error ? "Eingeschränkt" : "M.I.C.A verbunden"}
+              <StatusDot status={error || offline ? "blocked" : "active"} />
+              {offline ? "Offline" : error ? "Eingeschränkt" : "M.I.C.A verbunden"}
             </span>
             <small>
               {lastUpdated
@@ -1339,7 +1396,7 @@ export const AgentHubView = memo(function AgentHubView() {
           </div>
           <div className="agent-hub-notification-wrap">
             <button className={`agent-hub-notification-trigger ${notificationOpen ? "active" : ""}`} aria-label={`Benachrichtigungen ${unreadNotifications.length}`} aria-expanded={notificationOpen} aria-haspopup="dialog" onClick={() => setNotificationOpen((open) => !open)}><Bell />{unreadNotifications.length ? <b>{unreadNotifications.length}</b> : null}</button>
-            {notificationOpen ? <section className="agent-hub-notification-center" aria-label="Benachrichtigungszentrum"><header><span><strong>Benachrichtigungen</strong><small>{supervisorAutomation?.focus_mode ? "Fokusmodus · nur dringend" : `${unreadNotifications.length} ungelesen`}</small></span><button className={supervisorAutomation?.focus_mode ? "active" : ""} onClick={() => void configureSupervisorAutomation({ focus_mode: !supervisorAutomation?.focus_mode })}><Sparkles />Fokus</button></header><div>{visibleNotifications.slice(0, 8).map((item) => <article key={item.id} className={`priority-${item.priority} ${(supervisorAutomation?.read_ids || []).includes(item.id) ? "read" : ""}`}><i /><button onClick={() => void openNotification(item)}><strong>{item.title}</strong><small>{item.detail}</small></button><button aria-label={`${item.title} ausblenden`} onClick={() => void notificationAction("dismiss", { item_id: item.id })}><X /></button></article>)}{!visibleNotifications.length ? <Empty>{supervisorAutomation?.focus_mode ? "Keine dringenden Hinweise" : "Alles erledigt"}</Empty> : null}</div><footer><button disabled={!unreadNotifications.length} onClick={() => void notificationAction("read_all", { item_ids: visibleNotifications.map((item) => item.id) })}><CheckCircle2 />Alle gelesen</button><label>Ruhezeit<input aria-label="Ruhezeit beginnt" type="number" min="0" max="23" value={supervisorAutomation?.quiet_start ?? 22} onChange={(event) => void configureSupervisorAutomation({ quiet_start: Number(event.target.value) })} /><span>–</span><input aria-label="Ruhezeit endet" type="number" min="0" max="23" value={supervisorAutomation?.quiet_end ?? 7} onChange={(event) => void configureSupervisorAutomation({ quiet_end: Number(event.target.value) })} /></label></footer></section> : null}
+            {notificationOpen ? <section className="agent-hub-notification-center" role="dialog" aria-modal="false" aria-label="Benachrichtigungszentrum"><header><span><strong>Benachrichtigungen</strong><small>{supervisorAutomation?.focus_mode ? "Fokusmodus · nur dringend" : `${unreadNotifications.length} ungelesen`}</small></span><button className={supervisorAutomation?.focus_mode ? "active" : ""} onClick={() => void configureSupervisorAutomation({ focus_mode: !supervisorAutomation?.focus_mode })}><Sparkles />Fokus</button></header><div>{visibleNotifications.slice(0, 8).map((item) => <article key={item.id} className={`priority-${item.priority} ${(supervisorAutomation?.read_ids || []).includes(item.id) ? "read" : ""}`}><i /><button onClick={() => void openNotification(item)}><strong>{item.title}</strong><small title={item.detail}>{item.detail}</small></button><button aria-label={`${item.title} ausblenden`} onClick={() => void notificationAction("dismiss", { item_id: item.id })}><X /></button></article>)}{!visibleNotifications.length ? <Empty>{supervisorAutomation?.focus_mode ? "Keine dringenden Hinweise" : "Alles erledigt"}</Empty> : null}</div><footer><button disabled={!unreadNotifications.length} onClick={() => void notificationAction("read_all", { item_ids: visibleNotifications.map((item) => item.id) })}><CheckCircle2 />Alle gelesen</button><label>Ruhezeit<input aria-label="Ruhezeit beginnt" type="number" min="0" max="23" value={supervisorAutomation?.quiet_start ?? 22} onChange={(event) => void configureSupervisorAutomation({ quiet_start: Number(event.target.value) })} /><span>–</span><input aria-label="Ruhezeit endet" type="number" min="0" max="23" value={supervisorAutomation?.quiet_end ?? 7} onChange={(event) => void configureSupervisorAutomation({ quiet_end: Number(event.target.value) })} /></label></footer></section> : null}
           </div>
           <button
             className="agent-hub-command-trigger"
@@ -1364,17 +1421,18 @@ export const AgentHubView = memo(function AgentHubView() {
           </button>
           <button
             className="agent-hub-icon-button"
+            disabled={loading}
             onClick={() => void load()}
             title="Aktualisieren"
           >
-            <RefreshCw />
+            {loading ? <Loader2 className="agent-hub-spin" /> : <RefreshCw />}
           </button>
         </header>
-        {error ? (
+        {error || offline ? (
           <div className="agent-hub-error" role="alert">
             <AlertTriangle />
-            <span>{error} · Verbindung eingeschränkt, vorhandene Daten bleiben sichtbar.</span>
-            <button onClick={() => void load()}><RefreshCw />Erneut verbinden</button>
+            <span>{offline ? "Keine Netzwerkverbindung. Vorhandene Daten bleiben sichtbar; nach Wiederherstellung wird automatisch neu verbunden." : `${error} · Verbindung eingeschränkt, vorhandene Daten bleiben sichtbar.`}</span>
+            <button disabled={offline || loading} onClick={() => void load()}>{loading ? <Loader2 className="agent-hub-spin" /> : <RefreshCw />}Erneut verbinden</button>
           </div>
         ) : null}
 
@@ -1591,20 +1649,20 @@ export const AgentHubView = memo(function AgentHubView() {
               {dashboardWidgets.includes("activity") ? (
                 <div className="agent-hub-live">
                   <div className="agent-hub-terminal-tabs" role="tablist" aria-label="Live-Protokoll">
-                    <button role="tab" aria-selected={livePanel === "terminal"} className={livePanel === "terminal" ? "active" : ""} onClick={() => setLivePanel("terminal")}>
+                    <button role="tab" aria-controls="agent-hub-live-panel" aria-selected={livePanel === "terminal"} tabIndex={livePanel === "terminal" ? 0 : -1} className={livePanel === "terminal" ? "active" : ""} onClick={() => setLivePanel("terminal")}>
                       <Terminal />
                       TERMINAL
                     </button>
-                    <button role="tab" aria-selected={livePanel === "output"} className={livePanel === "output" ? "active" : ""} onClick={() => setLivePanel("output")}>OUTPUT</button>
-                    <button role="tab" aria-selected={livePanel === "events"} className={livePanel === "events" ? "active" : ""} onClick={() => setLivePanel("events")}>EVENT LOG</button>
-                    <button role="tab" aria-selected={livePanel === "problems"} className={livePanel === "problems" ? "active" : ""} onClick={() => setLivePanel("problems")}>
+                    <button role="tab" aria-controls="agent-hub-live-panel" aria-selected={livePanel === "output"} tabIndex={livePanel === "output" ? 0 : -1} className={livePanel === "output" ? "active" : ""} onClick={() => setLivePanel("output")}>OUTPUT</button>
+                    <button role="tab" aria-controls="agent-hub-live-panel" aria-selected={livePanel === "events"} tabIndex={livePanel === "events" ? 0 : -1} className={livePanel === "events" ? "active" : ""} onClick={() => setLivePanel("events")}>EVENT LOG</button>
+                    <button role="tab" aria-controls="agent-hub-live-panel" aria-selected={livePanel === "problems"} tabIndex={livePanel === "problems" ? 0 : -1} className={livePanel === "problems" ? "active" : ""} onClick={() => setLivePanel("problems")}>
                       PROBLEME{" "}
                       {actions.filter((item) => item.status === "error")
                         .length || ""}
                     </button>
                     <span>{selectedAgent.name} ▾</span>
                   </div>
-                  <div role="tabpanel" aria-live="polite"><ActivityTable actions={liveActions} /></div>
+                  <div id="agent-hub-live-panel" role="tabpanel" aria-live="polite"><ActivityTable actions={liveActions} /></div>
                   <div className="agent-hub-terminal-status">
                     <span>
                       <StatusDot status="active" />
@@ -2057,6 +2115,7 @@ function TasksView({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const createReturnFocus = useRef<HTMLElement | null>(null);
   const [newGoal, setNewGoal] = useState("");
   const [newSteps, setNewSteps] = useState("");
   const [verificationNote, setVerificationNote] = useState("");
@@ -2068,11 +2127,18 @@ function TasksView({
   const [scheduleTime, setScheduleTime] = useState("08:00");
   const [scheduleWeekday, setScheduleWeekday] = useState("0");
   const [scheduleOnce, setScheduleOnce] = useState("");
-  useEffect(() => {
-    const openTask = () => setCreateOpen(true);
-    window.addEventListener("mica:new-task", openTask);
-    return () => window.removeEventListener("mica:new-task", openTask);
+  const openCreate = useCallback(() => {
+    createReturnFocus.current = document.activeElement as HTMLElement | null;
+    setCreateOpen(true);
   }, []);
+  const closeCreate = useCallback(() => {
+    setCreateOpen(false);
+    window.setTimeout(() => createReturnFocus.current?.focus(), 0);
+  }, []);
+  useEffect(() => {
+    window.addEventListener("mica:new-task", openCreate);
+    return () => window.removeEventListener("mica:new-task", openCreate);
+  }, [openCreate]);
   const taskSchedules = automations.items.filter((item) => item.action === "task_pipeline");
   const visiblePipelines = pipelines.filter((pipeline) =>
     pipeline.goal.toLowerCase().includes(query.trim().toLowerCase()),
@@ -2115,7 +2181,7 @@ function TasksView({
     if (await onCreate(goal, steps)) {
       setNewGoal("");
       setNewSteps("");
-      setCreateOpen(false);
+      closeCreate();
     }
   };
   const currentStep = selected?.steps.find(
@@ -2137,7 +2203,7 @@ function TasksView({
         title="Aufgaben"
         subtitle="Planen, priorisieren, prüfen und kontrolliert abschließen"
       />
-      <div className="agent-hub-task-toolbar">
+      <div className="agent-hub-task-toolbar agent-hub-context-actions" aria-label="Aufgabenaktionen">
         <label>
           <Search />
           <input
@@ -2150,7 +2216,7 @@ function TasksView({
         <button onClick={() => setScheduleOpen(true)}><Clock3 />Zeitpläne {taskSchedules.length ? <b>{taskSchedules.length}</b> : null}</button>
         <button
           className="agent-hub-primary"
-          onClick={() => setCreateOpen(true)}
+          onClick={openCreate}
         >
           <Plus />
           Neue Aufgabe
@@ -2357,7 +2423,7 @@ function TasksView({
                   <p>Ziel und optionale Arbeitsschritte festlegen</p>
                 </span>
               </div>
-              <button onClick={() => setCreateOpen(false)} aria-label="Schließen">
+              <button onClick={closeCreate} aria-label="Schließen">
                 <X />
               </button>
             </header>
@@ -2382,7 +2448,7 @@ function TasksView({
               />
             </label>
             <footer>
-              <button onClick={() => setCreateOpen(false)}>Abbrechen</button>
+              <button onClick={closeCreate}>Abbrechen</button>
               <button
                 className="agent-hub-primary"
                 disabled={!newGoal.trim() || busy === "create-pipeline"}
@@ -2864,7 +2930,7 @@ function FleetOperations({
               </label>
             </div>
             {error ? (
-              <div className="agent-hub-error">
+              <div className="agent-hub-error" role="alert">
                 <AlertTriangle />
                 {error}
               </div>
@@ -2912,7 +2978,7 @@ function FleetOperations({
                 ))}
               </div>
               {latestChain.budget?.reason ? (
-                <div className="agent-hub-error">
+                <div className="agent-hub-error" role="alert">
                   <AlertTriangle />
                   {latestChain.budget.reason}
                 </div>
@@ -3110,7 +3176,7 @@ function QualityLab({
               </label>
             </div>
             {error ? (
-              <div className="agent-hub-error">
+              <div className="agent-hub-error" role="alert">
                 <AlertTriangle />
                 {error}
               </div>
@@ -3404,7 +3470,7 @@ function KnowledgeDeliveryCenter({
           ))}
         </nav>
         {error ? (
-          <div className="agent-hub-error">
+          <div className="agent-hub-error" role="alert">
             <AlertTriangle />
             {error}
           </div>
@@ -3992,7 +4058,7 @@ function RuntimeAccessCenter({
           ))}
         </nav>
         {error ? (
-          <div className="agent-hub-error">
+          <div className="agent-hub-error" role="alert">
             <AlertTriangle />
             {error}
           </div>
@@ -4466,7 +4532,7 @@ function CapabilityCenter({
           </label>
         </nav>
         {error ? (
-          <div className="agent-hub-error">
+          <div className="agent-hub-error" role="alert">
             <AlertTriangle />
             {error}
           </div>
@@ -4880,6 +4946,8 @@ function AgentsView({
   const [deliveryArtifactId, setDeliveryArtifactId] = useState("");
   const [showRuntime, setShowRuntime] = useState(false);
   const [showCenters, setShowCenters] = useState(false);
+  const centerMenuRef = useRef<HTMLDivElement | null>(null);
+  const centerTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [showCapabilities, setShowCapabilities] = useState(false);
   const [agentQuery, setAgentQuery] = useState("");
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
@@ -4896,6 +4964,18 @@ function AgentsView({
       window.removeEventListener("mica:open-delivery", openDelivery);
     };
   }, []);
+  useEffect(() => {
+    if (!showCenters) return;
+    centerMenuRef.current?.querySelector<HTMLButtonElement>('[role="menuitem"]')?.focus();
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowCenters(false);
+        window.setTimeout(() => centerTriggerRef.current?.focus(), 0);
+      }
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [showCenters]);
   if (!platform)
     return (
       <div className="agent-hub-view">
@@ -5020,10 +5100,13 @@ function AgentsView({
           title="Agenten"
           subtitle="Agenten erstellen, konfigurieren, ausführen und überwachen"
         />
-        <div>
+        <div className="agent-hub-context-actions" aria-label="Agentenaktionen">
           <div className="agent-manager-center-menu">
             <button
+              ref={centerTriggerRef}
               className={showCenters ? "active" : ""}
+              aria-expanded={showCenters}
+              aria-haspopup="menu"
               onClick={() => setShowCenters((open) => !open)}
             >
               <Boxes />
@@ -5031,7 +5114,7 @@ function AgentsView({
               <ChevronRight />
             </button>
             {showCenters ? (
-              <div role="menu" aria-label="Agent Center">
+              <div ref={centerMenuRef} role="menu" aria-label="Agent Center">
                 <button
                   role="menuitem"
                   onClick={() => {
@@ -5118,7 +5201,7 @@ function AgentsView({
         </div>
       </div>
       {error ? (
-        <div className="agent-hub-error">
+        <div className="agent-hub-error" role="alert">
           <AlertTriangle />
           {error}
           <button onClick={() => setError(null)}>
@@ -5843,7 +5926,7 @@ function WorkflowEditor({
               </button>
             </div>
             {error ? (
-              <div className="agent-hub-error">
+              <div className="agent-hub-error" role="alert">
                 <AlertTriangle />
                 {error}
               </div>
@@ -6073,7 +6156,7 @@ function FlowsView({
           title="Abläufe"
           subtitle="Aktive Crews, Task-Pipelines und Workflow-Graphen"
         />
-        <div>
+        <div className="agent-hub-context-actions" aria-label="Ablaufaktionen">
           <button onClick={() => setEditor({ open: true })}>
             <Plus />
             Workflow
@@ -6092,7 +6175,7 @@ function FlowsView({
         </div>
       </div>
       {flowError ? (
-        <div className="agent-hub-error">
+        <div className="agent-hub-error" role="alert">
           <AlertTriangle />
           {flowError}
         </div>
@@ -6180,11 +6263,16 @@ function ApprovalsView({
 }) {
   return (
     <div className="agent-hub-view">
-      <ViewHeader
-        icon={ShieldCheck}
-        title="Freigaben"
-        subtitle="Sicherheitsrelevante Aktionen mit verständlichen Konsequenzen"
-      />
+      <div className="agent-manager-header">
+        <ViewHeader
+          icon={ShieldCheck}
+          title="Freigaben"
+          subtitle="Sicherheitsrelevante Aktionen mit verständlichen Konsequenzen"
+        />
+        <div className="agent-hub-context-actions" aria-label="Freigabestatus">
+          <span className="agent-hub-context-count">{approvals.pending.length} offen</span>
+        </div>
+      </div>
       <div className="agent-hub-approval-list">
         {approvals.pending.map((item) => (
           <ApprovalCard
@@ -6246,12 +6334,13 @@ function ActivityView({ actions }: { actions: ActionRecordPayload[] }) {
       : actions.filter((item) => item.status.toLowerCase().includes(filter));
   return (
     <div className="agent-hub-view">
-      <ViewHeader
-        icon={Activity}
-        title="Aktivität"
-        subtitle="Ergebnisse, Kostenhinweise, Warnungen und Fehler in Echtzeit"
-      />
-      <div className="agent-hub-filterbar">
+      <div className="agent-manager-header">
+        <ViewHeader
+          icon={Activity}
+          title="Aktivität"
+          subtitle="Ergebnisse, Kostenhinweise, Warnungen und Fehler in Echtzeit"
+        />
+        <div className="agent-hub-filterbar agent-hub-context-actions" aria-label="Aktivität filtern">
         {[
           ["all", "Alle"],
           ["success", "Erfolg"],
@@ -6266,6 +6355,7 @@ function ActivityView({ actions }: { actions: ActionRecordPayload[] }) {
             {label}
           </button>
         ))}
+        </div>
       </div>
       <ActivityTable actions={visible} />
     </div>

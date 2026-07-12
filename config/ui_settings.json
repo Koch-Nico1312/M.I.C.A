@@ -18,7 +18,7 @@
     "theme": "dark"
   },
   "calendar": {
-    "enabled": true,
+    "enabled": false,
     "credentials_path": "./config/gmail_credentials.json",
     "token_path": "./config/calendar_token.json"
   },

@@ -58,6 +58,23 @@
   font-size: 8px;
 }
 .agent-hub-error > button svg { width: 11px; }
+.agent-hub-context-actions { align-items: center; flex-wrap: wrap; }
+.agent-hub-context-actions > button {
+  min-height: 32px;
+  border-radius: 8px;
+  font-size: 8px;
+}
+.agent-hub-context-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  color: #88a0aa;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .025);
+  font-size: 8px;
+}
 
 .agent-hub-shell button:focus-visible,
 .agent-hub-shell input:focus-visible,

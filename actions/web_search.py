@@ -2,6 +2,14 @@
 
 from core.model_runner import get_model_runner
 
+try:
+    from ddgs import DDGS
+except ImportError:
+    try:
+        from duckduckgo_search import DDGS
+    except ImportError:
+        DDGS = None  # type: ignore[assignment]
+
 
 def _gemini_search(query: str) -> str:
     text = get_model_runner().generate_text(
@@ -18,10 +26,8 @@ def _gemini_search(query: str) -> str:
 
 
 def _ddg_search(query: str, max_results: int = 6) -> list[dict]:
-    try:
-        from ddgs import DDGS
-    except ImportError:
-        from duckduckgo_search import DDGS
+    if DDGS is None:
+        raise RuntimeError("DuckDuckGo search backend is not installed.")
 
     results = []
     with DDGS() as ddgs:
