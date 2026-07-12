@@ -23,6 +23,10 @@ venv/
 logs/
 data/cache/
 data/memory_backups/
+data/project_state.json
+data/supervisor_automation.json
+data/project_snapshots/
+data/sandbox_artifacts/
 *.db
 
 # Build and distribution outputs

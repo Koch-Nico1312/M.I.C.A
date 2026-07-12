@@ -909,7 +909,28 @@ class MicaUI:
     def _automation_payload(self) -> Dict[str, Any]:
         from core.automation_scheduler import get_automation_scheduler
 
-        return get_automation_scheduler().list()
+        scheduler = get_automation_scheduler()
+        for item in scheduler.due():
+            if item.get("action") != "task_pipeline":
+                continue
+            try:
+                self._run_task_automation(item)
+                scheduler.record_run(str(item.get("id") or ""))
+            except Exception as exc:
+                scheduler.record_run(str(item.get("id") or ""), error=str(exc))
+        return scheduler.list()
+
+    @staticmethod
+    def _run_task_automation(item: Dict[str, Any]) -> Dict[str, Any]:
+        from agent.task_pipeline import get_task_pipeline_manager
+        from core.project_state import get_project_state_manager
+
+        parameters = item.get("parameters") if isinstance(item.get("parameters"), dict) else {}
+        goal = str(parameters.get("goal") or item.get("name") or "").strip()
+        steps = parameters.get("steps") if isinstance(parameters.get("steps"), list) else []
+        budget = get_project_state_manager().snapshot().get("run_budget", {})
+        pipeline = get_task_pipeline_manager().create_pipeline(goal, steps=[str(step) for step in steps], budget=budget)
+        return get_task_pipeline_manager().get_pipeline(pipeline.id) or {}
 
     def _automation_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         from core.automation_scheduler import get_automation_scheduler
@@ -924,12 +945,25 @@ class MicaUI:
                 payload.get("parameters") if isinstance(payload.get("parameters"), dict) else {},
             )
             return {"status": "created", "automation": item, "automations": scheduler.list()}
+        if action == "run":
+            automation_id = str(payload.get("automation_id") or "")
+            item = next((candidate for candidate in scheduler.list().get("items", []) if candidate.get("id") == automation_id), None)
+            if not item:
+                raise ValueError("unknown automation")
+            if item.get("action") != "task_pipeline":
+                raise ValueError("automation cannot be run from Agent Hub")
+            pipeline = self._run_task_automation(item)
+            scheduler.record_run(automation_id)
+            return {"status": "run", "pipeline": pipeline, "automations": scheduler.list(), "task_pipelines": self._task_pipelines_payload()}
         if action == "enable":
             item = scheduler.set_enabled(str(payload.get("automation_id") or ""), True)
             return {"status": "enabled", "automation": item, "automations": scheduler.list()}
         if action == "disable":
             item = scheduler.set_enabled(str(payload.get("automation_id") or ""), False)
             return {"status": "disabled", "automation": item, "automations": scheduler.list()}
+        if action == "delete":
+            item = scheduler.delete(str(payload.get("automation_id") or ""))
+            return {"status": "deleted", "automation": item, "automations": scheduler.list()}
         raise ValueError(f"unknown automation action: {action}")
 
     @_dashboard_section
@@ -970,6 +1004,191 @@ class MicaUI:
             workspace = manager.add_note(str(payload.get("workspace_id") or ""), str(payload.get("note") or ""))
             return {"status": "noted", "workspace": workspace, "project_workspaces": manager.snapshot()}
         raise ValueError(f"unknown project action: {action}")
+
+    @_dashboard_section
+    def _project_state_payload(self) -> Dict[str, Any]:
+        from core.project_state import get_project_state_manager
+
+        state = get_project_state_manager().snapshot()
+        workspaces = self._project_workspaces_payload()
+        pipelines = self._task_pipelines_payload()
+        approvals = self._approvals_payload()
+        platform = get_platform_hub().snapshot()
+        active_project = workspaces.get("active") if isinstance(workspaces, dict) else None
+        pipeline_items = pipelines.get("pipelines", []) if isinstance(pipelines, dict) else []
+        platform_agents = platform.get("agents", []) if isinstance(platform, dict) else []
+        platform_artifacts = platform.get("artifacts", []) if isinstance(platform, dict) else []
+        pipeline_ids = set(state.get("pipeline_ids", []))
+        agent_ids = set(state.get("agent_ids", []))
+        artifact_ids = set(state.get("artifact_ids", []))
+        linked_pipelines = [item for item in pipeline_items if item.get("id") in pipeline_ids]
+        linked_agents = [item for item in platform_agents if item.get("id") in agent_ids]
+        linked_artifacts = [item for item in platform_artifacts if item.get("id") in artifact_ids]
+        inbox: list[Dict[str, Any]] = []
+        pending = approvals.get("pending", []) if isinstance(approvals, dict) else []
+        if pending:
+            inbox.append({
+                "id": "pending-approvals", "priority": "urgent",
+                "title": f"{len(pending)} Freigabe(n) warten",
+                "detail": "Riskante Aktionen benötigen deine Entscheidung.",
+                "action": {"kind": "open_tab", "tab": "approvals", "label": "Prüfen"},
+            })
+        blocked = [item for item in pipeline_items if item.get("status") == "blocked" or item.get("requires_approval")]
+        if blocked:
+            inbox.append({
+                "id": "blocked-pipelines", "priority": "high",
+                "title": f"{len(blocked)} Aufgabe(n) blockiert",
+                "detail": str(blocked[0].get("goal") or "Blockierte Arbeit prüfen"),
+                "action": {"kind": "open_tab", "tab": "tasks", "label": "Öffnen"},
+            })
+        paused = [item for item in pipeline_items if item.get("status") == "paused"]
+        for item in paused[:2]:
+            inbox.append({
+                "id": f"resume-{item.get('id')}", "priority": "normal",
+                "title": "Pausierten Lauf fortsetzen",
+                "detail": str(item.get("goal") or item.get("id")),
+                "action": {"kind": "resume_pipeline", "pipeline_id": item.get("id"), "label": "Fortsetzen"},
+            })
+        limited = [item for item in linked_pipelines if item.get("status") == "budget_exceeded" or item.get("budget_exceeded")]
+        if limited:
+            inbox.append({
+                "id": "run-budget-reached", "priority": "high",
+                "title": f"{len(limited)} Laufgrenze(n) erreicht",
+                "detail": str(limited[0].get("goal") or "Laufgrenzen prüfen und bei Bedarf erhöhen"),
+                "action": {"kind": "open_tab", "tab": "tasks", "label": "Prüfen"},
+            })
+        failed_runs = [item for item in platform.get("agent_runs", []) if item.get("status") in {"failed", "stopped", "blocked"}]
+        if failed_runs:
+            inbox.append({
+                "id": "failed-agent-runs", "priority": "high",
+                "title": f"{len(failed_runs)} Agentenlauf/-läufe prüfen",
+                "detail": str(failed_runs[0].get("assignment") or "Fehlerursache und Logs ansehen"),
+                "action": {"kind": "open_tab", "tab": "agents", "label": "Logs"},
+            })
+        if not state.get("focus"):
+            inbox.append({
+                "id": "missing-focus", "priority": "low",
+                "title": "Projektfokus festlegen", "detail": "Mika priorisiert genauer mit einem klaren aktuellen Fokus.",
+                "action": {"kind": "focus", "label": "Festlegen"},
+            })
+        priority_order = {"urgent": 0, "high": 1, "normal": 2, "low": 3}
+        inbox.sort(key=lambda item: priority_order.get(str(item.get("priority")), 9))
+        return {
+            **state,
+            "active_project": active_project,
+            "pipelines": linked_pipelines,
+            "agents": linked_agents,
+            "artifacts": linked_artifacts,
+            "pending_approvals": len(approvals.get("pending", [])) if isinstance(approvals, dict) else 0,
+            "resume_available": bool(state.get("focus") or state.get("checkpoint") or linked_pipelines),
+            "inbox": inbox,
+            "inbox_generated_at": datetime.now().isoformat(),
+        }
+
+    def _project_state_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.project_state import get_project_state_manager
+
+        manager = get_project_state_manager()
+        action = str(payload.get("action") or "update")
+        if action == "update":
+            manager.update(payload)
+        elif action == "checkpoint":
+            manager.checkpoint(str(payload.get("note") or ""), focus=str(payload.get("focus") or ""))
+        elif action == "sync":
+            workspaces = self._project_workspaces_payload()
+            active = workspaces.get("active") if isinstance(workspaces, dict) else None
+            pipelines = self._task_pipelines_payload().get("active", [])
+            platform = get_platform_hub().snapshot()
+            manager.reconcile(
+                active_project_id=str((active or {}).get("id") or ""),
+                pipeline_ids=[str(item.get("id")) for item in pipelines if item.get("id")],
+                agent_ids=[str(item.get("id")) for item in platform.get("agents", []) if item.get("id")],
+                artifact_ids=[str(item.get("id")) for item in platform.get("artifacts", [])[:20] if item.get("id")],
+            )
+        else:
+            raise ValueError(f"unknown project state action: {action}")
+        return {"status": action, "project_state": self._project_state_payload()}
+
+    @_dashboard_section
+    def _supervisor_automation_payload(self) -> Dict[str, Any]:
+        from core.supervisor_automation import get_supervisor_automation_manager
+
+        return get_supervisor_automation_manager().snapshot()
+
+    def _supervisor_automation_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from core.supervisor_automation import get_supervisor_automation_manager
+
+        manager = get_supervisor_automation_manager()
+        action = str(payload.get("action") or "configure")
+        if action == "configure":
+            settings = manager.configure(payload)
+            return {"status": "configured", "settings": settings}
+        if action == "dismiss":
+            settings = manager.dismiss(str(payload.get("item_id") or ""))
+            return {"status": "dismissed", "settings": settings}
+        if action == "read":
+            settings = manager.mark_read(str(payload.get("item_id") or ""))
+            return {"status": "read", "settings": settings}
+        if action == "read_all":
+            raw_ids = payload.get("item_ids") if isinstance(payload.get("item_ids"), list) else []
+            settings = manager.mark_all_read([str(item) for item in raw_ids])
+            return {"status": "read_all", "settings": settings}
+        if action == "evaluate":
+            from core.system_notifications import notify
+
+            inbox = self._project_state_payload().get("inbox", [])
+            evaluation = manager.evaluate(inbox, notifier=notify)
+            return {"status": "evaluated", "evaluation": evaluation, "settings": evaluation["settings"]}
+        raise ValueError(f"unknown supervisor automation action: {action}")
+
+    @_dashboard_section
+    def _project_snapshots_payload(self) -> Dict[str, Any]:
+        from core.project_snapshots import get_project_snapshot_manager
+
+        return get_project_snapshot_manager().list()
+
+    def _project_snapshot_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        from agent.task_pipeline import get_task_pipeline_manager
+        from core.project_snapshots import get_project_snapshot_manager
+        from core.project_state import get_project_state_manager
+        from core.project_workspace import get_project_workspace_manager
+        from core.supervisor_automation import get_supervisor_automation_manager
+
+        manager = get_project_snapshot_manager()
+        action = str(payload.get("action") or "create")
+        if action == "create":
+            snapshot = manager.create(
+                str(payload.get("name") or "Agent-Hub Snapshot"),
+                {
+                    "project_state": get_project_state_manager().snapshot(),
+                    "supervisor_automation": get_supervisor_automation_manager().snapshot(),
+                    "project_workspaces": get_project_workspace_manager().snapshot(),
+                    "task_pipelines": {"pipelines": get_task_pipeline_manager().list_pipelines()},
+                },
+            )
+            return {"status": "created", "snapshot": snapshot, "snapshots": manager.list()}
+        if action == "export":
+            return {"status": "exported", "package": manager.export(str(payload.get("snapshot_id") or ""))}
+        if action == "import":
+            package = payload.get("package")
+            if not isinstance(package, dict):
+                raise ValueError("snapshot package is required")
+            imported = manager.import_package(package)
+            return {"status": "imported", "snapshot": imported, "snapshots": manager.list()}
+        if action == "restore":
+            data = manager.restore_payload(str(payload.get("snapshot_id") or ""))
+            get_project_workspace_manager().restore(data.get("project_workspaces", {}))
+            get_task_pipeline_manager().restore(data.get("task_pipelines", {}))
+            get_project_state_manager().update(data.get("project_state", {}))
+            get_supervisor_automation_manager().restore(data.get("supervisor_automation", {}))
+            return {
+                "status": "restored", "project_state": self._project_state_payload(),
+                "settings": self._supervisor_automation_payload(), "snapshots": manager.list(),
+            }
+        if action == "delete":
+            deleted = manager.delete(str(payload.get("snapshot_id") or ""))
+            return {"status": "deleted", "result": deleted, "snapshots": manager.list()}
+        raise ValueError(f"unknown project snapshot action: {action}")
 
     @_dashboard_section
     def _feedback_payload(self) -> Dict[str, Any]:
@@ -1584,11 +1803,21 @@ class MicaUI:
         if action == "create":
             raw_steps = payload.get("steps") or []
             steps = raw_steps if isinstance(raw_steps, list) else []
-            pipeline = manager.create_pipeline(str(payload.get("goal") or ""), steps=[str(step) for step in steps])
+            from core.project_state import get_project_state_manager
+            budget = get_project_state_manager().snapshot().get("run_budget", {})
+            pipeline = manager.create_pipeline(str(payload.get("goal") or ""), steps=[str(step) for step in steps], budget=budget)
             return {"status": "created", "pipeline": manager.get_pipeline(pipeline.id), "task_pipelines": self._task_pipelines_payload()}
         pipeline_id = str(payload.get("pipeline_id") or "")
         if action == "advance":
             pipeline = manager.advance(pipeline_id, note=str(payload.get("note") or ""))
+        elif action in {"duplicate", "rerun"}:
+            pipeline = manager.clone(pipeline_id, relation=action)
+        elif action == "delete":
+            pipeline = manager.delete(pipeline_id)
+        elif action == "retry_step":
+            pipeline = manager.retry_step(pipeline_id, str(payload.get("step_id") or ""), note=str(payload.get("note") or ""))
+        elif action == "rollback":
+            pipeline = manager.rollback_to_step(pipeline_id, str(payload.get("step_id") or ""), note=str(payload.get("note") or ""))
         elif action == "pause":
             pipeline = manager.pause(pipeline_id)
         elif action == "resume":
@@ -2499,6 +2728,12 @@ class MicaUI:
             return request._send_json(200, self._privacy_payload())  # type: ignore[attr-defined]
         if path == "/api/project-workspaces":
             return request._send_json(200, self._project_workspaces_payload())  # type: ignore[attr-defined]
+        if path == "/api/project-state":
+            return request._send_json(200, self._project_state_payload())  # type: ignore[attr-defined]
+        if path == "/api/supervisor-automation":
+            return request._send_json(200, self._supervisor_automation_payload())  # type: ignore[attr-defined]
+        if path == "/api/project-snapshots":
+            return request._send_json(200, self._project_snapshots_payload())  # type: ignore[attr-defined]
         if path == "/api/learning-feedback":
             return request._send_json(200, self._feedback_payload())  # type: ignore[attr-defined]
         if path == "/api/plugins":
@@ -2852,6 +3087,24 @@ class MicaUI:
                 return request._send_json(200, self._project_workspace_action(payload))  # type: ignore[attr-defined]
             except Exception as exc:
                 return request._send_json(400, {"error": str(exc), "project_workspaces": self._project_workspaces_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/project-state":
+            try:
+                return request._send_json(200, self._project_state_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "project_state": self._project_state_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/supervisor-automation":
+            try:
+                return request._send_json(200, self._supervisor_automation_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "settings": self._supervisor_automation_payload()})  # type: ignore[attr-defined]
+
+        if path == "/api/project-snapshots":
+            try:
+                return request._send_json(200, self._project_snapshot_action(payload))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"error": str(exc), "snapshots": self._project_snapshots_payload()})  # type: ignore[attr-defined]
 
         if path == "/api/learning-feedback":
             return request._send_json(200, self._feedback_action(payload))  # type: ignore[attr-defined]

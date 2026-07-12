@@ -580,6 +580,12 @@ export interface TaskPipeline {
   updated_at: string;
   steps: TaskPipelineStep[];
   requires_approval: boolean;
+  budget: { max_steps: number; max_minutes: number; max_agent_calls: number; stop_on_limit: boolean };
+  budget_usage: { completed_steps: number; elapsed_minutes: number; agent_calls: number };
+  budget_exceeded: boolean;
+  checkpoints: Array<{ timestamp: string; status: string; note: string }>;
+  origin_id: string;
+  origin_relation: "" | "duplicate" | "rerun";
 }
 
 export interface TaskPipelinesPayload {
@@ -624,6 +630,9 @@ export interface AutomationsPayload {
     enabled: boolean;
     last_run?: string | null;
     last_error?: string | null;
+    next_run?: string | null;
+    parameters?: { goal?: string; steps?: string[] };
+    created_at?: string;
   }>;
   allowed_actions: string[];
 }
@@ -648,6 +657,64 @@ export interface ProjectWorkspacesPayload {
     created_at: string;
   }>;
   active?: ProjectWorkspacesPayload["items"][number] | null;
+}
+
+export interface ProjectStatePayload {
+  version: number;
+  active_project_id: string;
+  objective: string;
+  focus: string;
+  status: string;
+  last_tab: "hub" | "tasks" | "agents" | "flows" | "approvals" | "activity";
+  pipeline_ids: string[];
+  agent_ids: string[];
+  artifact_ids: string[];
+  favorite_commands: string[];
+  recent_commands: string[];
+  saved_views: Record<string, { tab: ProjectStatePayload["last_tab"]; name?: string; query?: string; selected_id?: string }>;
+  dashboard_widgets: Array<"supervisor" | "approvals" | "runs" | "models" | "activity">;
+  run_budget: { max_steps: number; max_minutes: number; max_agent_calls: number; stop_on_limit: boolean };
+  checkpoint: string;
+  updated_at: string;
+  active_project?: ProjectWorkspacesPayload["active"] | null;
+  pipelines: TaskPipeline[];
+  agents: PlatformAgent[];
+  artifacts: PlatformArtifact[];
+  pending_approvals: number;
+  resume_available: boolean;
+  inbox: Array<{
+    id: string;
+    priority: "urgent" | "high" | "normal" | "low";
+    title: string;
+    detail: string;
+    action: { kind: "open_tab" | "resume_pipeline" | "focus"; label: string; tab?: ProjectStatePayload["last_tab"]; pipeline_id?: string };
+  }>;
+  inbox_generated_at: string;
+}
+
+export interface SupervisorAutomationPayload {
+  enabled: boolean;
+  desktop_notifications: boolean;
+  min_priority: "low" | "normal" | "high" | "urgent";
+  quiet_start: number;
+  quiet_end: number;
+  focus_mode: boolean;
+  read_ids: string[];
+  dismissed_ids: string[];
+  notified_signatures: string[];
+  last_evaluated_at: string;
+}
+
+export interface ProjectSnapshotsPayload {
+  format: string;
+  items: Array<{
+    id: string;
+    name: string;
+    created_at: string;
+    scope: string[];
+    pipeline_count: number;
+    workspace_count: number;
+  }>;
 }
 
 export interface LearningFeedbackPayload {
@@ -730,6 +797,13 @@ export interface PlatformAgent {
   visibility: string;
   owner: string;
   updated_at?: string;
+  runtime_profile?: {
+    id: string;
+    active: boolean;
+    model_intent: string;
+    allowed_tools: string[];
+    expected_output: string;
+  };
 }
 
 export interface PlatformAgentPackage {
@@ -1112,10 +1186,12 @@ export interface PlatformArtifact {
   kind: string;
   content: string;
   version?: number;
-  versions?: Array<{ version: number; created_at: string; content: string }>;
+  versions?: Array<{ version: number; created_at: string; content: string; note?: string; agent_id?: string; run_id?: string }>;
   render_status?: string;
   dependencies?: string[];
   created_by?: string;
+  agent_id?: string;
+  run_id?: string;
   last_render?: { artifact_id: string; kind: string; version: number; status: string; mime: string; preview: string; updated_at: string };
   updated_at: string;
 }

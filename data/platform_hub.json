@@ -198,7 +198,19 @@
       "version": "1.0.0",
       "visibility": "private",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-11T21:47:15",
+      "runtime_profile": {
+        "id": "orchestrator",
+        "active": true,
+        "model_intent": "tool_planning",
+        "allowed_tools": [
+          "task_graph",
+          "task_pipeline",
+          "approval_flow",
+          "generated_code"
+        ],
+        "expected_output": "A delegated plan with owners, dependencies, gates, and completion evidence."
+      }
     },
     {
       "id": "planner",
@@ -226,7 +238,18 @@
       "version": "1.0.0",
       "visibility": "private",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-11T21:47:15",
+      "runtime_profile": {
+        "id": "planner",
+        "active": true,
+        "model_intent": "tool_planning",
+        "allowed_tools": [
+          "task_graph",
+          "create_note_action",
+          "generated_code"
+        ],
+        "expected_output": "A concise plan with risks, acceptance criteria, and the next safe step."
+      }
     },
     {
       "id": "research",
@@ -258,7 +281,19 @@
       "visibility": "team",
       "owner": "u-admin",
       "updated_at": "2026-07-12T12:05:43",
-      "shared_at": "2026-07-11T22:13:33"
+      "shared_at": "2026-07-11T22:13:33",
+      "runtime_profile": {
+        "id": "research",
+        "active": true,
+        "model_intent": "research",
+        "allowed_tools": [
+          "web_search",
+          "documents_search",
+          "summarize_text",
+          "generated_code"
+        ],
+        "expected_output": "A source-grounded finding with uncertainty and a compact handoff."
+      }
     },
     {
       "id": "execution",
@@ -287,7 +322,19 @@
       "version": "1.0.0",
       "visibility": "private",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-11T21:47:15",
+      "runtime_profile": {
+        "id": "execution",
+        "active": true,
+        "model_intent": "code_edit",
+        "allowed_tools": [
+          "run_sandbox",
+          "create_note_action",
+          "normalize_text",
+          "generated_code"
+        ],
+        "expected_output": "A concrete result, changed artifacts, and verification evidence."
+      }
     },
     {
       "id": "review",
@@ -315,7 +362,18 @@
       "version": "1.0.0",
       "visibility": "private",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-11T21:47:15",
+      "runtime_profile": {
+        "id": "review",
+        "active": true,
+        "model_intent": "code_review",
+        "allowed_tools": [
+          "evidence",
+          "test_tool",
+          "generated_code"
+        ],
+        "expected_output": "Prioritized findings or a proof-backed approval."
+      }
     },
     {
       "id": "monitor",
@@ -342,7 +400,18 @@
       "version": "1.0.0",
       "visibility": "private",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-11T21:47:15",
+      "runtime_profile": {
+        "id": "monitor",
+        "active": true,
+        "model_intent": "summary",
+        "allowed_tools": [
+          "aggregate_metrics",
+          "healthcheck",
+          "generated_code"
+        ],
+        "expected_output": "A short operational status with anomalies and the next safe action."
+      }
     }
   ],
   "agent_packages": [],
@@ -830,7 +899,8 @@
       "schema": {
         "type": "object"
       },
-      "test_result": "Deferred MCP tool loaded into registry"
+      "test_result": "Deferred MCP tool loaded into registry",
+      "test_parameters": {}
     }
   ],
   "mcp": {
@@ -1262,6 +1332,86 @@
   ],
   "metrics": [
     {
+      "id": "metric-43a1041b",
+      "action": "delete_artifact",
+      "scope": "artifact-temp-versioned-artifact",
+      "model": "platform",
+      "tool": "delete_artifact",
+      "user": "u-admin",
+      "agent": "artifact-temp-versioned-artifact",
+      "workflow": "platform",
+      "tokens": 214,
+      "cost": 0.000428,
+      "latency_ms": 0.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:43"
+    },
+    {
+      "id": "metric-6a7e0051",
+      "action": "restore_artifact_version",
+      "scope": "artifact-temp-versioned-artifact",
+      "model": "platform",
+      "tool": "restore_artifact_version",
+      "user": "u-admin",
+      "agent": "artifact-temp-versioned-artifact",
+      "workflow": "platform",
+      "tokens": 217,
+      "cost": 0.000434,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:18"
+    },
+    {
+      "id": "metric-1bbb0967",
+      "action": "version_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "version_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 201,
+      "cost": 0.000402,
+      "latency_ms": 0.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:07"
+    },
+    {
+      "id": "metric-36b3c701",
+      "action": "link_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "link_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 141,
+      "cost": 0.000282,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:06"
+    },
+    {
+      "id": "metric-291cdeb4",
+      "action": "create_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "create_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 159,
+      "cost": 0.000318,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:49:53"
+    },
+    {
       "id": "metric-bf6f0db2",
       "action": "install_marketplace_item",
       "scope": "github-sync",
@@ -1602,6 +1752,86 @@
   ],
   "metric_events": [
     {
+      "id": "metric-43a1041b",
+      "action": "delete_artifact",
+      "scope": "artifact-temp-versioned-artifact",
+      "model": "platform",
+      "tool": "delete_artifact",
+      "user": "u-admin",
+      "agent": "artifact-temp-versioned-artifact",
+      "workflow": "platform",
+      "tokens": 214,
+      "cost": 0.000428,
+      "latency_ms": 0.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:43"
+    },
+    {
+      "id": "metric-6a7e0051",
+      "action": "restore_artifact_version",
+      "scope": "artifact-temp-versioned-artifact",
+      "model": "platform",
+      "tool": "restore_artifact_version",
+      "user": "u-admin",
+      "agent": "artifact-temp-versioned-artifact",
+      "workflow": "platform",
+      "tokens": 217,
+      "cost": 0.000434,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:18"
+    },
+    {
+      "id": "metric-1bbb0967",
+      "action": "version_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "version_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 201,
+      "cost": 0.000402,
+      "latency_ms": 0.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:07"
+    },
+    {
+      "id": "metric-36b3c701",
+      "action": "link_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "link_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 141,
+      "cost": 0.000282,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:06"
+    },
+    {
+      "id": "metric-291cdeb4",
+      "action": "create_artifact",
+      "scope": "research",
+      "model": "platform",
+      "tool": "create_artifact",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 159,
+      "cost": 0.000318,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T21:49:53"
+    },
+    {
       "id": "metric-bf6f0db2",
       "action": "install_marketplace_item",
       "scope": "github-sync",
@@ -1907,6 +2137,51 @@
     }
   ],
   "audit_events": [
+    {
+      "id": "audit-b9ed82a3",
+      "action": "delete_artifact",
+      "user": "u-admin",
+      "permission": "artifacts:write",
+      "resource": "delete_artifact:artifact-temp-versioned-artifact",
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:43"
+    },
+    {
+      "id": "audit-8ff4b142",
+      "action": "restore_artifact_version",
+      "user": "u-admin",
+      "permission": "artifacts:write",
+      "resource": "restore_artifact_version:artifact-temp-versioned-artifact",
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:18"
+    },
+    {
+      "id": "audit-4c1bed3c",
+      "action": "version_artifact",
+      "user": "u-admin",
+      "permission": "artifacts:write",
+      "resource": "agent:research",
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:07"
+    },
+    {
+      "id": "audit-80ca843a",
+      "action": "link_artifact",
+      "user": "u-admin",
+      "permission": "artifacts:write",
+      "resource": "agent:research",
+      "status": "ok",
+      "timestamp": "2026-07-12T21:50:06"
+    },
+    {
+      "id": "audit-08b2cc24",
+      "action": "create_artifact",
+      "user": "u-admin",
+      "permission": "artifacts:write",
+      "resource": "agent:research",
+      "status": "ok",
+      "timestamp": "2026-07-12T21:49:53"
+    },
     {
       "id": "audit-79a21cda",
       "action": "install_marketplace_item",
@@ -2445,13 +2720,18 @@
         {
           "version": 1,
           "created_at": "2026-06-29T22:32:50",
-          "content": "<section>Live metrics</section>"
+          "content": "<section>Live metrics</section>",
+          "note": "",
+          "agent_id": "",
+          "run_id": ""
         }
       ],
       "render_status": "ready",
       "updated_at": "2026-06-29T22:32:50",
       "dependencies": [],
-      "created_by": "u-admin"
+      "created_by": "u-admin",
+      "agent_id": "",
+      "run_id": ""
     },
     {
       "id": "artifact-flow",
@@ -2463,13 +2743,18 @@
         {
           "version": 1,
           "created_at": "2026-06-29T22:32:50",
-          "content": "flowchart LR\nA-->B"
+          "content": "flowchart LR\nA-->B",
+          "note": "",
+          "agent_id": "",
+          "run_id": ""
         }
       ],
       "render_status": "ready",
       "updated_at": "2026-06-29T22:32:50",
       "dependencies": [],
-      "created_by": "u-admin"
+      "created_by": "u-admin",
+      "agent_id": "",
+      "run_id": ""
     }
   ],
   "sandbox": {
@@ -3085,7 +3370,7 @@
     "pairing_codes": [],
     "sessions": []
   },
-  "updated_at": "2026-07-12T12:07:50",
+  "updated_at": "2026-07-12T21:50:43",
   "invocations": [],
   "agent_runs": [],
   "secret_references": [

@@ -358,13 +358,17 @@ class AgentExecutor:
         goal: str,
         speak: Callable | None = None,
         cancel_flag: threading.Event | None = None,
+        allowed_tools: set[str] | None = None,
+        system_prompt: str = "",
+        model_intent: str = "summary",
     ) -> str:
         print(f"\n[Executor] 🎯 Goal: {goal}")
 
         replan_attempts = 0
         completed_steps = []
         step_results = {}
-        plan = create_plan(goal)
+        planning_goal = f"Role instructions: {system_prompt}\n\n{goal}" if system_prompt else goal
+        plan = create_plan(planning_goal)
 
         while True:
             steps = plan.get("steps", [])
@@ -391,6 +395,12 @@ class AgentExecutor:
                 params = step.get("parameters", {})
 
                 params = _inject_context(params, tool, step_results, goal=goal)
+
+                if allowed_tools is not None and tool not in allowed_tools:
+                    allowed = ", ".join(sorted(allowed_tools))
+                    raise PermissionError(
+                        f"Role tool policy blocked '{tool}'. Allowed tools: {allowed}"
+                    )
 
                 print(f"\n[Executor] ▶️ Step {step_num}: [{tool}] {desc}")
 
@@ -482,7 +492,7 @@ class AgentExecutor:
                     break
 
             if success:
-                return self._summarize(goal, completed_steps, speak)
+                return self._summarize(goal, completed_steps, speak, model_intent=model_intent, system_prompt=system_prompt)
 
             if replan_attempts >= self.MAX_REPLAN_ATTEMPTS:
                 msg = f"Task failed after {replan_attempts} replan attempts, sir."
@@ -496,10 +506,10 @@ class AgentExecutor:
             replan_attempts += 1
             plan = replan(goal, completed_steps, failed_step, failed_error)
 
-    def _summarize(self, goal: str, completed_steps: list, speak: Callable | None) -> str:
+    def _summarize(self, goal: str, completed_steps: list, speak: Callable | None, *, model_intent: str = "summary", system_prompt: str = "") -> str:
         fallback = f"All done, sir. Completed {len(completed_steps)} steps for: {goal[:60]}."
         try:
-            model = get_routed_model(intent="summary")
+            model = get_routed_model(intent=model_intent, system_instruction=system_prompt)
             steps_str = "\n".join(f"- {s.get('description', '')}" for s in completed_steps)
             prompt = (
                 f'User goal: "{goal}"\n'

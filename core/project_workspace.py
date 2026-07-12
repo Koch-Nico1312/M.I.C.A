@@ -66,6 +66,21 @@ class ProjectWorkspaceManager:
         active = next((item for item in items if item.get("active")), None)
         return {"items": items, "active": active}
 
+    def restore(self, snapshot: dict[str, Any]) -> dict[str, Any]:
+        raw_items = snapshot.get("items", []) if isinstance(snapshot, dict) else []
+        restored: dict[str, ProjectWorkspace] = {}
+        allowed = ProjectWorkspace.__dataclass_fields__
+        for raw in raw_items:
+            if not isinstance(raw, dict) or not raw.get("id"):
+                continue
+            item = ProjectWorkspace(**{key: value for key, value in raw.items() if key in allowed})
+            restored[item.id] = item
+        if restored and not any(item.active for item in restored.values()):
+            next(iter(restored.values())).active = True
+        self._workspaces = restored
+        self._save()
+        return self.snapshot()
+
     def _require(self, workspace_id: str) -> ProjectWorkspace:
         item = self._workspaces.get(workspace_id)
         if not item:

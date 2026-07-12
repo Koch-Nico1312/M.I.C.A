@@ -22,6 +22,7 @@ from typing import Any
 from uuid import uuid4
 
 from core.paths import project_path
+from agent.role_profiles import ROLE_PROFILES
 
 try:  # Optional at import time, required for RS256 OIDC verification.
     from cryptography.exceptions import InvalidSignature
@@ -148,6 +149,9 @@ ACTION_PERMISSIONS = {
     "configure_extraction": "knowledge:write",
     "create_artifact": "artifacts:write",
     "version_artifact": "artifacts:write",
+    "restore_artifact_version": "artifacts:write",
+    "link_artifact": "artifacts:write",
+    "delete_artifact": "artifacts:write",
     "render_artifact": "artifacts:read",
     "run_sandbox": "sandbox:execute",
     "publish_agent": "agents:publish",
@@ -508,6 +512,16 @@ class PlatformHub:
                     "updated_at": _now(),
                 }
             )
+        for agent in data["agents"]:
+            profile = ROLE_PROFILES.get(str(agent.get("id")))
+            if profile:
+                agent["runtime_profile"] = {
+                    "id": profile.id,
+                    "active": True,
+                    "model_intent": profile.model_intent,
+                    "allowed_tools": list(profile.allowed_tools),
+                    "expected_output": profile.expected_output,
+                }
         data.setdefault("agent_packages", [])
         data.setdefault("marketplace", [
             {"id": "github-sync", "name": "GitHub Knowledge Sync", "kind": "connector", "installed": False, "enabled": False, "version": "1.0.0", "latest_version": "1.1.0", "trust": "community", "review_status": "pending", "checksum": "sha256:community-github-sync", "signature": "unsigned", "source_url": "https://plugins.mica.local/github-sync", "description": "Keeps repositories indexed for RAG.", "entrypoint": "github_sync"},
@@ -841,6 +855,12 @@ class PlatformHub:
             artifact.setdefault("render_status", "ready")
             artifact.setdefault("dependencies", [])
             artifact.setdefault("created_by", "u-admin")
+            artifact.setdefault("agent_id", "")
+            artifact.setdefault("run_id", "")
+            for version in artifact.get("versions", []):
+                version.setdefault("note", "")
+                version.setdefault("agent_id", artifact.get("agent_id", ""))
+                version.setdefault("run_id", artifact.get("run_id", ""))
 
     def _normalize_sandbox(self, data: dict[str, Any]) -> None:
         sandbox = data.setdefault("sandbox", {})
@@ -1261,6 +1281,9 @@ class PlatformHub:
             "configure_extraction": self._configure_extraction,
             "create_artifact": self._create_artifact,
             "version_artifact": self._version_artifact,
+            "restore_artifact_version": self._restore_artifact_version,
+            "link_artifact": self._link_artifact,
+            "delete_artifact": self._delete_artifact,
             "render_artifact": self._render_artifact,
             "run_sandbox": self._run_sandbox,
             "publish_agent": self._publish_agent,
@@ -4417,10 +4440,12 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             "kind": payload.get("kind", "note"),
             "content": content,
             "version": 1,
-            "versions": [{"version": 1, "created_at": _now(), "content": content}],
+            "versions": [{"version": 1, "created_at": _now(), "content": content, "note": str(payload.get("note") or "Erstellt"), "agent_id": str(payload.get("agent_id") or ""), "run_id": str(payload.get("run_id") or "")}],
             "render_status": "ready",
             "dependencies": _as_list(payload.get("dependencies")),
             "created_by": payload.get("user") or payload.get("user_id") or "u-admin",
+            "agent_id": str(payload.get("agent_id") or ""),
+            "run_id": str(payload.get("run_id") or ""),
             "updated_at": _now(),
         }
         return self._upsert("artifacts", artifact)
@@ -4434,10 +4459,50 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         next_version = int(artifact.get("version", 1)) + 1
         artifact["content"] = content
         artifact["version"] = next_version
-        artifact.setdefault("versions", []).insert(0, {"version": next_version, "created_at": _now(), "content": content})
+        agent_id = str(payload.get("agent_id", artifact.get("agent_id", "")) or "")
+        run_id = str(payload.get("run_id", artifact.get("run_id", "")) or "")
+        artifact["agent_id"] = agent_id
+        artifact["run_id"] = run_id
+        artifact.setdefault("versions", []).insert(0, {"version": next_version, "created_at": _now(), "content": content, "note": str(payload.get("note") or "Neue Version"), "agent_id": agent_id, "run_id": run_id})
         artifact["versions"] = artifact["versions"][:25]
         artifact["render_status"] = "ready"
         artifact["updated_at"] = _now()
+        return artifact
+
+    def _restore_artifact_version(self, payload: dict[str, Any]) -> dict[str, Any]:
+        artifact_id = str(payload.get("id") or payload.get("artifact_id") or "")
+        artifact = next((item for item in self.data.get("artifacts", []) if item.get("id") == artifact_id), None)
+        if not artifact:
+            return {"error": "artifact not found"}
+        target_version = int(payload.get("version") or 0)
+        source = next((item for item in artifact.get("versions", []) if int(item.get("version", 0)) == target_version), None)
+        if not source:
+            return {"error": "artifact version not found"}
+        return self._version_artifact({
+            "id": artifact_id,
+            "content": source.get("content", ""),
+            "note": f"Version {target_version} wiederhergestellt",
+            "agent_id": source.get("agent_id", artifact.get("agent_id", "")),
+            "run_id": source.get("run_id", artifact.get("run_id", "")),
+        })
+
+    def _link_artifact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        artifact_id = str(payload.get("id") or payload.get("artifact_id") or "")
+        artifact = next((item for item in self.data.get("artifacts", []) if item.get("id") == artifact_id), None)
+        if not artifact:
+            return {"error": "artifact not found"}
+        artifact["agent_id"] = str(payload.get("agent_id") or "")
+        artifact["run_id"] = str(payload.get("run_id") or "")
+        artifact["updated_at"] = _now()
+        return artifact
+
+    def _delete_artifact(self, payload: dict[str, Any]) -> dict[str, Any]:
+        artifact_id = str(payload.get("id") or payload.get("artifact_id") or "")
+        artifacts = self.data.get("artifacts", [])
+        artifact = next((item for item in artifacts if item.get("id") == artifact_id), None)
+        if not artifact:
+            return {"error": "artifact not found"}
+        self.data["artifacts"] = [item for item in artifacts if item.get("id") != artifact_id]
         return artifact
 
     def _render_artifact(self, payload: dict[str, Any]) -> dict[str, Any]:

@@ -22,7 +22,10 @@ import type {
   PluginsPayload,
   PrivacyPayload,
   ProjectAwarenessPayload,
+  ProjectStatePayload,
+  ProjectSnapshotsPayload,
   ProjectWorkspacesPayload,
+  SupervisorAutomationPayload,
   ReliabilityPayload,
   PlatformPayload,
   ResumePayload,
@@ -1073,6 +1076,9 @@ export const micaApi = {
   getAutomations: () => requestJson<AutomationsPayload>("/api/automations"),
   getPrivacy: () => requestJson<PrivacyPayload>("/api/privacy"),
   getProjectWorkspaces: () => requestJson<ProjectWorkspacesPayload>("/api/project-workspaces"),
+  getProjectState: () => requestJson<ProjectStatePayload>("/api/project-state"),
+  getSupervisorAutomation: () => requestJson<SupervisorAutomationPayload>("/api/supervisor-automation"),
+  getProjectSnapshots: () => requestJson<ProjectSnapshotsPayload>("/api/project-snapshots"),
   getLearningFeedback: () => requestJson<LearningFeedbackPayload>("/api/learning-feedback"),
   getPlugins: () => requestJson<PluginsPayload>("/api/plugins"),
   getOSIntegrations: () => requestJson<OSIntegrationsPayload>("/api/os-integrations"),
@@ -1138,7 +1144,7 @@ export const micaApi = {
       body: JSON.stringify(payload),
     }),
   automationAction: (payload: Record<string, unknown>) =>
-    requestJson<Record<string, unknown>>("/api/automations", {
+    requestJson<{ status: string; automation?: AutomationsPayload["items"][number]; automations: AutomationsPayload; task_pipelines?: TaskPipelinesPayload }>("/api/automations", {
       method: "POST",
       body: JSON.stringify(payload),
     }),
@@ -1149,6 +1155,21 @@ export const micaApi = {
     }),
   projectWorkspaceAction: (payload: Record<string, unknown>) =>
     requestJson<Record<string, unknown>>("/api/project-workspaces", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  projectStateAction: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; project_state: ProjectStatePayload }>("/api/project-state", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  supervisorAutomationAction: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; settings: SupervisorAutomationPayload }>("/api/supervisor-automation", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  projectSnapshotAction: (payload: Record<string, unknown>) =>
+    requestJson<{ status: string; snapshots?: ProjectSnapshotsPayload; package?: Record<string, unknown>; project_state?: ProjectStatePayload; settings?: SupervisorAutomationPayload }>("/api/project-snapshots", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

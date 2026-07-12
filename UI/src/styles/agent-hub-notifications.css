@@ -1,0 +1,33 @@
+.agent-hub-notification-wrap { position: relative; }
+.agent-hub-notification-trigger { position: relative; display: grid; place-items: center; width: 36px; height: 36px; color: var(--muted-foreground); background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.08); border-radius: 8px; }
+.agent-hub-notification-trigger:hover,.agent-hub-notification-trigger.active { color: #a8efea; border-color: rgba(77,225,210,.28); }
+.agent-hub-notification-trigger svg { width: 14px; }
+.agent-hub-notification-trigger b { position: absolute; top: -4px; right: -4px; display: grid; place-items: center; min-width: 16px; height: 16px; padding: 0 3px; color: #07131c; background: #55ddd5; border: 2px solid #07131c; border-radius: 9px; font-size: 7px; }
+.agent-hub-notification-center { position: absolute; z-index: 80; top: 43px; right: 0; width: min(370px,calc(100vw - 24px)); overflow: hidden; color: var(--foreground); background: rgba(5,17,25,.985); border: 1px solid rgba(77,225,210,.2); border-radius: 12px; box-shadow: 0 22px 70px rgba(0,0,0,.55); backdrop-filter: blur(18px); }
+.agent-hub-notification-center > header { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; border-bottom: 1px solid rgba(255,255,255,.07); }
+.agent-hub-notification-center > header > span { display: grid; gap: 2px; }
+.agent-hub-notification-center > header strong { font-size: 10px; }
+.agent-hub-notification-center > header small { color: #657c88; font-size: 7px; }
+.agent-hub-notification-center > header button { display: flex; align-items: center; gap: 4px; padding: 5px 7px; color: #708893; border: 1px solid rgba(255,255,255,.07); border-radius: 6px; font-size: 7px; }
+.agent-hub-notification-center > header button.active { color: #f1ca6c; background: rgba(241,202,108,.07); border-color: rgba(241,202,108,.2); }
+.agent-hub-notification-center > header svg { width: 10px; }
+.agent-hub-notification-center > div { max-height: 330px; overflow: auto; padding: 5px 9px; }
+.agent-hub-notification-center article { display: grid; grid-template-columns: 5px minmax(0,1fr) 25px; align-items: center; gap: 7px; min-height: 52px; border-bottom: 1px solid rgba(255,255,255,.045); }
+.agent-hub-notification-center article.read { opacity: .55; }
+.agent-hub-notification-center article > i { width: 4px; height: 28px; border-radius: 3px; background: #607986; }
+.agent-hub-notification-center article.priority-urgent > i { background: #f06d77; }
+.agent-hub-notification-center article.priority-high > i { background: #e9ab54; }
+.agent-hub-notification-center article.priority-normal > i { background: #4ed8d2; }
+.agent-hub-notification-center article > button:nth-child(2) { display: grid; min-width: 0; gap: 3px; padding: 7px 0; text-align: left; }
+.agent-hub-notification-center article strong,.agent-hub-notification-center article small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agent-hub-notification-center article strong { color: #c9dadd; font-size: 8px; }
+.agent-hub-notification-center article small { color: #657c88; font-size: 7px; }
+.agent-hub-notification-center article > button:last-child { display: grid; place-items: center; width: 24px; height: 24px; color: #58707c; border-radius: 5px; }
+.agent-hub-notification-center article > button:last-child:hover { color: #ef8992; background: rgba(239,97,112,.07); }
+.agent-hub-notification-center article > button:last-child svg { width: 10px; }
+.agent-hub-notification-center > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-top: 1px solid rgba(255,255,255,.07); }
+.agent-hub-notification-center > footer button { display: flex; align-items: center; gap: 4px; color: #78aaa9; font-size: 7px; }
+.agent-hub-notification-center > footer button svg { width: 10px; }
+.agent-hub-notification-center > footer label { display: flex; align-items: center; gap: 4px; color: #657c88; font-size: 6px; }
+.agent-hub-notification-center > footer input { width: 34px; height: 24px; padding: 0 3px; color: #aabfc3; background: #07151e; border: 1px solid rgba(255,255,255,.08); border-radius: 5px; text-align: center; font-size: 7px; }
+@media(max-width:760px){.agent-hub-notification-center{position:fixed;top:70px;right:7px;left:7px;width:auto}}

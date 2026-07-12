@@ -62,7 +62,21 @@
           "status": "created",
           "note": "Pipeline created."
         }
-      ]
+      ],
+      "budget": {
+        "max_steps": 8,
+        "max_minutes": 60,
+        "max_agent_calls": 20,
+        "stop_on_limit": true
+      },
+      "origin_id": "",
+      "origin_relation": "",
+      "budget_usage": {
+        "completed_steps": 0,
+        "elapsed_minutes": 572,
+        "agent_calls": 0
+      },
+      "budget_exceeded": true
     }
   ]
 }

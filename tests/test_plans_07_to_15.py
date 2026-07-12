@@ -59,6 +59,21 @@ def test_automation_scheduler_allows_only_safe_actions(tmp_path):
         raise AssertionError("unsafe automation action accepted")
 
 
+def test_task_automation_tracks_next_run_toggle_and_delete(tmp_path):
+    scheduler = AutomationScheduler(path=tmp_path / "automations.json")
+    item = scheduler.create(
+        "Morning research", "task_pipeline", "daily:08:00",
+        {"goal": "Research updates", "steps": ["Search", "Summarize"]},
+    )
+
+    assert item["next_run"]
+    assert item["action"] == "task_pipeline"
+    assert scheduler.set_enabled(item["id"], False)["enabled"] is False
+    assert scheduler.set_enabled(item["id"], True)["enabled"] is True
+    assert scheduler.delete(item["id"])["id"] == item["id"]
+    assert scheduler.list()["items"] == []
+
+
 def test_plugin_manifest_status(tmp_path):
     plugin_dir = tmp_path / "example"
     plugin_dir.mkdir()

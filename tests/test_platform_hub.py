@@ -1189,6 +1189,20 @@ def test_artifact_versioning_and_rendering(tmp_path):
     assert rendered["artifact_id"] == created["id"]
 
 
+def test_artifact_links_and_restore_create_auditable_version(tmp_path):
+    hub = PlatformHub(store_path=tmp_path / "platform.json")
+    created = hub.action("create_artifact", {"title": "Linked result", "content": "v1", "agent_id": "research", "run_id": "run-1"})["result"]
+    hub.action("version_artifact", {"id": created["id"], "content": "v2", "note": "Revised", "agent_id": "review", "run_id": "run-2"})
+    linked = hub.action("link_artifact", {"id": created["id"], "agent_id": "research", "run_id": "pipe-7"})["result"]
+    restored = hub.action("restore_artifact_version", {"id": created["id"], "version": 1})["result"]
+
+    assert linked["run_id"] == "pipe-7"
+    assert restored["content"] == "v1"
+    assert restored["version"] == 3
+    assert restored["versions"][0]["note"] == "Version 1 wiederhergestellt"
+    assert hub.action("delete_artifact", {"id": created["id"]})["result"]["id"] == created["id"]
+
+
 def test_openapi_execution_plan_and_mcp_deferred_loading(tmp_path):
     hub = PlatformHub(
         store_path=tmp_path / "platform.json",

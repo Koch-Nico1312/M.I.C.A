@@ -21,6 +21,7 @@ import google.generativeai as genai
 
 from agent.executor import AgentExecutor
 from agent.planner import create_plan
+from agent.role_profiles import get_role_profile
 
 
 class AgentType(Enum):
@@ -47,6 +48,7 @@ class AgentTask:
     status: str = "pending"
     result: Optional[str] = None
     error: Optional[str] = None
+    profile_id: str = ""
 
 
 @dataclass
@@ -59,6 +61,9 @@ class AgentResult:
     result: Optional[str] = None
     error: Optional[str] = None
     execution_time: float = 0.0
+    profile_id: str = ""
+    model_intent: str = ""
+    allowed_tools: tuple[str, ...] = ()
 
 
 @dataclass
@@ -114,10 +119,11 @@ class CrewFlow:
 class SubAgent:
     """A specialized sub-agent for handling specific task types."""
 
-    def __init__(self, agent_type: AgentType, speak: Callable | None = None):
+    def __init__(self, agent_type: AgentType, speak: Callable | None = None, profile_id: str = ""):
         self.agent_type = agent_type
         self.speak = speak
         self.executor = AgentExecutor()
+        self.profile = get_role_profile(profile_id, agent_type=agent_type.value)
 
     def execute_task(self, task: AgentTask) -> AgentResult:
         """Execute a delegated task."""
@@ -129,8 +135,17 @@ class SubAgent:
             if self.speak:
                 self.speak(f"Delegating to {self.agent_type.value} agent.")
 
-            # Execute using the standard executor
-            result = self.executor.execute(goal=task.goal, speak=self.speak)
+            delegated_goal = (
+                f"{self.profile.system_prompt}\n\nDelegated goal: {task.goal}\n"
+                f"Context: {task.context}\nExpected output: {self.profile.expected_output}"
+            )
+            result = self.executor.execute(
+                goal=delegated_goal,
+                speak=self.speak,
+                allowed_tools=set(self.profile.allowed_tools),
+                system_prompt=self.profile.system_prompt,
+                model_intent=self.profile.model_intent,
+            )
 
             execution_time = time.time() - start_time
 
@@ -140,6 +155,9 @@ class SubAgent:
                 success=True,
                 result=result,
                 execution_time=execution_time,
+                profile_id=self.profile.id,
+                model_intent=self.profile.model_intent,
+                allowed_tools=self.profile.allowed_tools,
             )
 
         except Exception as e:
@@ -153,6 +171,9 @@ class SubAgent:
                 success=False,
                 error=error_msg,
                 execution_time=execution_time,
+                profile_id=self.profile.id,
+                model_intent=self.profile.model_intent,
+                allowed_tools=self.profile.allowed_tools,
             )
 
 
@@ -269,6 +290,7 @@ class MultiAgentOrchestrator:
                 agent_type=role.agent_type,
                 goal=f"{task.description}\nExpected output: {task.expected_output}".strip(),
                 context=f"Crew goal: {flow.goal}\nRole: {role.name}\nBackstory: {role.backstory}",
+                profile_id={"planner": "planner", "reviewer": "review"}.get(role.name.lower(), ""),
             )
             result = self.execute_task_sync(delegated)
             task.status = "completed" if result.success else "failed"
@@ -476,7 +498,7 @@ class MultiAgentOrchestrator:
 
     def execute_task_sync(self, task: AgentTask) -> AgentResult:
         """Execute a task synchronously."""
-        agent = SubAgent(task.agent_type, self.speak)
+        agent = SubAgent(task.agent_type, self.speak, task.profile_id)
         return agent.execute_task(task)
 
     def execute_all_async(
@@ -535,6 +557,9 @@ class MultiAgentOrchestrator:
                 "result": result.result,
                 "error": result.error,
                 "execution_time": result.execution_time,
+                "profile_id": result.profile_id,
+                "model_intent": result.model_intent,
+                "allowed_tools": list(result.allowed_tools),
             }
         elif task_id in self.active_tasks:
             task = self.active_tasks[task_id]
@@ -542,6 +567,7 @@ class MultiAgentOrchestrator:
                 "task_id": task_id,
                 "status": task.status,
                 "agent_type": task.agent_type.value,
+                "profile_id": task.profile_id or get_role_profile(agent_type=task.agent_type.value).id,
                 "goal": task.goal,
             }
         else:
