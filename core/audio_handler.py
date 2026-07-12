@@ -21,7 +21,7 @@ from core.performance_flags import get_performance_flags
 
 try:
     import sounddevice as sd
-except ImportError:
+except (ImportError, OSError):
     sd = None
 
 logger = get_logger(__name__)
@@ -93,8 +93,8 @@ class AudioHandler:
         """Ensure sounddevice is available."""
         if sd is None:
             raise RuntimeError(
-                "sounddevice is not installed. Install dependencies with "
-                "'pip install -r requirements.txt'."
+                "Audio is unavailable. Install the PortAudio system library "
+                "and dependencies from requirements.txt."
             )
 
     def set_speaking(self, value: bool) -> None:

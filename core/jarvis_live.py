@@ -59,7 +59,7 @@ if TYPE_CHECKING:
 
 try:
     import sounddevice as sd
-except ImportError:
+except (ImportError, OSError):
     sd = None
 
 logger = get_logger(__name__)

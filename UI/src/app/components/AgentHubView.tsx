@@ -216,11 +216,23 @@ export const AgentHubView = memo(function AgentHubView() {
     finally { setBusy(null); }
   };
 
-  const pipelineAction = async (pipeline: TaskPipeline, action: string) => {
+  const pipelineAction = async (pipeline: TaskPipeline, action: string, payload: Record<string, unknown> = {}) => {
     setBusy(pipeline.id);
-    try { const result = await micaApi.taskPipelineAction({ action, pipeline_id: pipeline.id }); setPipelines({ ...result.task_pipelines, pipelines: result.task_pipelines?.pipelines ?? [], active: result.task_pipelines?.active ?? [] }); setError(null); }
+    try { const result = await micaApi.taskPipelineAction({ action, pipeline_id: pipeline.id, ...payload }); setPipelines({ ...result.task_pipelines, pipelines: result.task_pipelines?.pipelines ?? [], active: result.task_pipelines?.active ?? [] }); setError(null); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "Pipeline-Aktion fehlgeschlagen."); }
     finally { setBusy(null); }
+  };
+
+  const createPipeline = async (nextGoal: string, steps: string[]) => {
+    setBusy("create-pipeline"); setError(null);
+    try {
+      const result = await micaApi.taskPipelineAction({ action: "create", goal: nextGoal, steps });
+      setPipelines({ ...result.task_pipelines, pipelines: result.task_pipelines?.pipelines ?? [], active: result.task_pipelines?.active ?? [] });
+      return true;
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Aufgabe konnte nicht erstellt werden.");
+      return false;
+    } finally { setBusy(null); }
   };
 
   const decideApproval = async (item: ApprovalPayload, approve: boolean) => {
@@ -290,7 +302,7 @@ export const AgentHubView = memo(function AgentHubView() {
               <div className="agent-hub-live"><div className="agent-hub-terminal-tabs"><button className="active"><Terminal />TERMINAL</button><button>OUTPUT</button><button>EVENT LOG</button><button onClick={() => setTab("activity")}>PROBLEME {actions.filter((item) => item.status === "error").length || ""}</button><span>{selectedAgent.name} ▾</span></div><ActivityTable actions={actions.slice(0, 5)} /><div className="agent-hub-terminal-status"><span><StatusDot status="active" />Agenten online {agents.filter((agent) => agent.status !== "blocked").length}/{agents.length}</span><span>UTF-8</span><span>M.I.C.A · Connected</span></div></div>
             </div>
           ) : null}
-          {tab === "tasks" ? <TasksView pipelines={pipelines.pipelines} busy={busy} onAction={pipelineAction} /> : null}
+          {tab === "tasks" ? <TasksView pipelines={pipelines.pipelines} busy={busy} onAction={pipelineAction} onCreate={createPipeline} /> : null}
           {tab === "agents" ? <AgentsView platform={platform} selected={selectedAgentId} onSelect={setSelectedAgentId} onPlatform={setPlatform} /> : null}
           {tab === "flows" ? <FlowsView pipelines={pipelines.pipelines} platform={platform} busy={busy} onAction={pipelineAction} onPlatform={setPlatform} /> : null}
           {tab === "approvals" ? <ApprovalsView approvals={approvals} busy={busy} onDecide={decideApproval} /> : null}
@@ -304,14 +316,39 @@ export const AgentHubView = memo(function AgentHubView() {
 
 function ViewHeader({ icon: Icon, title, subtitle }: { icon: typeof Activity; title: string; subtitle: string }) { return <header className="agent-hub-view-header"><div><Icon /><span><h2>{title}</h2><p>{subtitle}</p></span></div></header>; }
 
-function TasksView({ pipelines, busy, onAction }: { pipelines: TaskPipeline[]; busy: string | null; onAction: (pipeline: TaskPipeline, action: string) => void }) {
+function TasksView({ pipelines, busy, onAction, onCreate }: {
+  pipelines: TaskPipeline[];
+  busy: string | null;
+  onAction: (pipeline: TaskPipeline, action: string, payload?: Record<string, unknown>) => void;
+  onCreate: (goal: string, steps: string[]) => Promise<boolean>;
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newGoal, setNewGoal] = useState("");
+  const [newSteps, setNewSteps] = useState("");
+  const [verificationNote, setVerificationNote] = useState("");
+  const visiblePipelines = pipelines.filter((pipeline) => pipeline.goal.toLowerCase().includes(query.trim().toLowerCase()));
+  const selected = pipelines.find((pipeline) => pipeline.id === selectedId) ?? null;
   const columns = [
-    { id: "backlog", title: "Backlog", items: pipelines.filter((p) => p.status === "ready") },
-    { id: "active", title: "Aktiv", items: pipelines.filter((p) => p.status === "running" || p.status === "paused") },
-    { id: "review", title: "Review", items: pipelines.filter((p) => p.status === "blocked" || p.requires_approval) },
-    { id: "done", title: "Erledigt", items: pipelines.filter((p) => p.status === "completed") },
+    { id: "backlog", title: "Backlog", items: visiblePipelines.filter((p) => p.status === "ready") },
+    { id: "active", title: "Aktiv", items: visiblePipelines.filter((p) => p.status === "running" || p.status === "paused") },
+    { id: "review", title: "Review", items: visiblePipelines.filter((p) => p.status === "blocked" || p.requires_approval) },
+    { id: "done", title: "Erledigt", items: visiblePipelines.filter((p) => p.status === "completed") },
   ];
-  return <div className="agent-hub-view"><ViewHeader icon={KanbanSquare} title="Aufgaben" subtitle="Alle Aufträge und ihr aktueller Arbeitsstand" /><div className="agent-hub-kanban">{columns.map((column) => <section key={column.id}><div className="agent-hub-section-title"><span>{column.title}</span><b>{column.items.length}</b></div>{column.items.map((pipeline) => <article key={pipeline.id} className="agent-hub-task-card"><div className="agent-hub-row-between"><strong>{pipeline.goal}</strong>{["running", "paused"].includes(pipeline.status) ? <button className="agent-hub-icon-button" disabled={busy === pipeline.id} title={pipeline.status === "paused" ? "Fortsetzen" : "Pausieren"} onClick={() => onAction(pipeline, pipeline.status === "paused" ? "resume" : "pause")}>{pipeline.status === "paused" ? <Play /> : <Pause />}</button> : null}</div><p>{pipeline.steps.filter((step) => step.status === "completed").length}/{pipeline.steps.length} Schritte erledigt</p><div className="agent-hub-progress"><span style={{ width: `${progressFor(pipeline)}%` }} /></div>{pipeline.requires_approval ? <small><ShieldCheck />Freigabe erforderlich</small> : null}</article>)}{!column.items.length ? <Empty>Keine Aufgaben</Empty> : null}</section>)}</div></div>;
+  const create = async () => {
+    const goal = newGoal.trim(); if (!goal) return;
+    const steps = newSteps.split("\n").map((step) => step.trim()).filter(Boolean);
+    if (await onCreate(goal, steps)) { setNewGoal(""); setNewSteps(""); setCreateOpen(false); }
+  };
+  const currentStep = selected?.steps.find((step) => !["completed", "passed"].includes(step.status));
+  return <div className="agent-hub-view agent-hub-tasks-view">
+    <ViewHeader icon={KanbanSquare} title="Aufgaben" subtitle="Planen, priorisieren, prüfen und kontrolliert abschließen" />
+    <div className="agent-hub-task-toolbar"><label><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Aufgaben filtern…" /></label><span>{visiblePipelines.length} Aufgaben</span><button className="agent-hub-primary" onClick={() => setCreateOpen(true)}><Plus />Neue Aufgabe</button></div>
+    <div className="agent-hub-kanban">{columns.map((column) => <section key={column.id}><div className="agent-hub-section-title"><span>{column.title}</span><b>{column.items.length}</b></div>{column.items.map((pipeline) => <article key={pipeline.id} className={`agent-hub-task-card ${selectedId === pipeline.id ? "active" : ""}`} onClick={() => setSelectedId(pipeline.id)}><div className="agent-hub-row-between"><strong>{pipeline.goal}</strong>{["running", "paused"].includes(pipeline.status) ? <button className="agent-hub-icon-button" disabled={busy === pipeline.id} title={pipeline.status === "paused" ? "Fortsetzen" : "Pausieren"} onClick={(event) => { event.stopPropagation(); onAction(pipeline, pipeline.status === "paused" ? "resume" : "pause"); }}>{pipeline.status === "paused" ? <Play /> : <Pause />}</button> : null}</div><p>{pipeline.steps.filter((step) => step.status === "completed").length}/{pipeline.steps.length} Schritte erledigt</p><div className="agent-hub-progress"><span style={{ width: `${progressFor(pipeline)}%` }} /></div>{pipeline.requires_approval ? <small><ShieldCheck />Freigabe erforderlich</small> : null}</article>)}{!column.items.length ? <Empty>Keine Aufgaben</Empty> : null}</section>)}</div>
+    {selected ? <div className="agent-hub-task-drawer" role="dialog" aria-modal="true" aria-label="Aufgabendetails"><header><div><ListChecks /><span><h3>{selected.goal}</h3><p>{selected.id} · {statusLabel(selected.status)} · aktualisiert {new Date(selected.updated_at).toLocaleString("de-AT")}</p></span></div><button aria-label="Schließen" onClick={() => setSelectedId(null)}><X /></button></header><div className="agent-hub-task-step-list">{selected.steps.map((step, index) => <article key={step.id} className={step.id === currentStep?.id ? "current" : ""}><b>{step.status === "completed" ? <Check /> : index + 1}</b><span><strong>{step.title}</strong><small>{step.depends_on.length ? `Abhängig von ${step.depends_on.join(", ")}` : "Keine Abhängigkeiten"}</small>{step.verification.slice(-1).map((item) => <em key={item.timestamp}>{item.status}: {item.note || "ohne Notiz"}</em>)}</span>{step.status !== "completed" ? <div><button disabled={busy === selected.id} onClick={() => onAction(selected, "verify", { step_id: step.id, status: "passed", note: verificationNote || "Im Agent-Hub bestätigt" })}><ShieldCheck />Prüfen</button></div> : <CheckCircle2 />}</article>)}</div><footer><label>Prüfnotiz<input value={verificationNote} onChange={(event) => setVerificationNote(event.target.value)} placeholder="Evidenz oder Entscheidung…" /></label><div>{["running", "paused"].includes(selected.status) ? <button disabled={busy === selected.id} onClick={() => onAction(selected, selected.status === "paused" ? "resume" : "pause")}>{selected.status === "paused" ? <Play /> : <Pause />}{selected.status === "paused" ? "Fortsetzen" : "Pausieren"}</button> : null}<button className="agent-hub-primary" disabled={busy === selected.id || selected.status === "completed"} onClick={() => onAction(selected, "advance", { note: verificationNote || "Im Agent-Hub fortgesetzt" })}><ChevronRight />Nächster Schritt</button></div></footer></div> : null}
+    {createOpen ? <div className="agent-manager-modal" role="dialog" aria-modal="true" aria-label="Neue Aufgabe"><div className="agent-hub-task-create"><header><div><Plus /><span><h3>Neue Aufgabe</h3><p>Ziel und optionale Arbeitsschritte festlegen</p></span></div><button onClick={() => setCreateOpen(false)}><X /></button></header><label>Ziel<input autoFocus value={newGoal} onChange={(event) => setNewGoal(event.target.value)} placeholder="Was soll erreicht werden?" /></label><label>Schritte <small>eine Zeile pro Schritt</small><textarea rows={7} value={newSteps} onChange={(event) => setNewSteps(event.target.value)} placeholder={"Kontext analysieren\nErgebnis erstellen\nQualität prüfen"} /></label><footer><button onClick={() => setCreateOpen(false)}>Abbrechen</button><button className="agent-hub-primary" disabled={!newGoal.trim() || busy === "create-pipeline"} onClick={() => void create()}>{busy === "create-pipeline" ? <Loader2 className="agent-hub-spin" /> : <Play />}Aufgabe anlegen</button></footer></div></div> : null}
+  </div>;
 }
 
 type AgentDraft = {

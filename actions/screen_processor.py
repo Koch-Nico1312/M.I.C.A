@@ -12,7 +12,14 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-import sounddevice as sd
+
+try:
+    import sounddevice as sd
+    _SOUND_IMPORT_ERROR: Exception | None = None
+except (ImportError, OSError) as exc:
+    # PortAudio is optional for screen analysis and may be absent in headless CI.
+    sd = None
+    _SOUND_IMPORT_ERROR = exc
 
 try:
     import cv2
@@ -373,6 +380,12 @@ class _VisionSession:
             raise
 
     async def _play_loop(self) -> None:
+        if sd is None:
+            detail = f": {_SOUND_IMPORT_ERROR}" if _SOUND_IMPORT_ERROR else ""
+            raise RuntimeError(
+                "Vision audio playback is unavailable because no PortAudio "
+                f"backend could be loaded{detail}"
+            )
         stream = sd.RawOutputStream(
             samplerate=_RECEIVE_SAMPLE_RATE,
             channels=_CHANNELS,
