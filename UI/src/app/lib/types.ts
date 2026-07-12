@@ -1220,6 +1220,8 @@ export interface PlatformPayload {
   groups: Array<{ id: string; name: string; members: string[] }>;
   roles: Array<{ id: string; permissions: string[] }>;
   acls: Array<Record<string, unknown>>;
+  secret_references?: Array<{ id: string; name: string; env_var: string; scope: string; status: string; updated_at: string }>;
+  integration_checks?: Array<{ id: string; category: string; integration_id: string; status: string; detail: string; checked_at: string }>;
   audit_events?: PlatformAuditEvent[];
   agents: PlatformAgent[];
   agent_runs?: PlatformAgentRun[];

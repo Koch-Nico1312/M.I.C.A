@@ -35,6 +35,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { Button } from "./components/ui/button";
+import { AgentHubView } from "./components/AgentHubView";
 import { getMicaBackgroundUrl } from "./lib/backgrounds";
 import { micaApi } from "./lib/api";
 import type { ArtifactPanelItem, ChatSession, DashboardResponse } from "./lib/types";
@@ -45,7 +46,6 @@ const VoiceChatView = lazy(() => import("./components/VoiceChatView").then((modu
 const ChatsView = lazy(() => import("./components/ChatsView").then((module) => ({ default: module.ChatsView })));
 const SettingsModal = lazy(() => import("./components/SettingsModal").then((module) => ({ default: module.SettingsModal })));
 const IntelligenceCenterView = lazy(() => import("./components/IntelligenceCenterView").then((module) => ({ default: module.IntelligenceCenterView })));
-const AgentHubView = lazy(() => import("./components/AgentHubView").then((module) => ({ default: module.AgentHubView })));
 
 type ViewId =
   | "command-center"
@@ -1119,7 +1119,7 @@ export default function App() {
 
           <div className="workspace-switcher" role="group" aria-label="Arbeitsbereich auswählen">
             <button type="button" className={workspace === "main" ? "active" : ""} onClick={() => handleWorkspaceChange("main")}>Main</button>
-            <button type="button" className={workspace === "agent-hub" ? "active" : ""} onMouseEnter={() => void import("./components/AgentHubView")} onFocus={() => void import("./components/AgentHubView")} onClick={() => handleWorkspaceChange("agent-hub")}>Agent-Hub</button>
+            <button type="button" className={workspace === "agent-hub" ? "active" : ""} onClick={() => handleWorkspaceChange("agent-hub")}>Agent-Hub</button>
           </div>
 
           <div className={`reference-top-pills ${workspace === "agent-hub" ? "workspace-main-controls-hidden" : ""}`}>
@@ -1216,9 +1216,7 @@ export default function App() {
 
         {workspace === "agent-hub" ? (
           <div className="agent-hub-host">
-            <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-cyan-100/70">Agent-Hub wird geladen…</div>}>
-              <ViewErrorBoundary viewKey="agent-hub"><AgentHubView /></ViewErrorBoundary>
-            </Suspense>
+            <ViewErrorBoundary viewKey="agent-hub"><AgentHubView /></ViewErrorBoundary>
           </div>
         ) : (
         <div className={`reference-main-grid ${isArtifactPanelOpen ? "reference-main-grid-open" : "reference-main-grid-closed"}`}>

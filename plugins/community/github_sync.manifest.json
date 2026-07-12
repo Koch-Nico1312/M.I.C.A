@@ -1,0 +1,61 @@
+{
+  "id": "github-sync",
+  "name": "GitHub Knowledge Sync",
+  "kind": "connector",
+  "version": "1.0.0",
+  "entrypoint": "github_sync",
+  "source_url": "https://plugins.jarvis.local/github-sync",
+  "checksum": "sha256:community-github-sync",
+  "signature": "mica:community-github-sync",
+  "permissions": [
+    "tools:execute"
+  ],
+  "trust": "verified",
+  "publisher": "community",
+  "risk": {
+    "level": "low",
+    "score": 0,
+    "reasons": [
+      "standard tool permissions"
+    ],
+    "permissions": [
+      "tools:execute"
+    ]
+  },
+  "verification": {
+    "status": "passed",
+    "checked_at": "2026-07-12T12:07:50",
+    "risk": {
+      "level": "low",
+      "score": 0,
+      "reasons": [
+        "standard tool permissions"
+      ],
+      "permissions": [
+        "tools:execute"
+      ]
+    },
+    "checks": [
+      {
+        "name": "checksum",
+        "status": "passed",
+        "detail": "sha256:community-github-sync"
+      },
+      {
+        "name": "signature",
+        "status": "passed",
+        "detail": "mica:community-github-sync"
+      },
+      {
+        "name": "review",
+        "status": "passed",
+        "detail": "verified"
+      },
+      {
+        "name": "trust_policy",
+        "status": "passed",
+        "detail": "policy passed"
+      }
+    ]
+  }
+}

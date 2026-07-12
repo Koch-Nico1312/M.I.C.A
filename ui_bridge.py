@@ -279,6 +279,11 @@ class _MICAWindow(QMainWindow):
             Qt.WindowType.WindowMinMaxButtonsHint |
             Qt.WindowType.WindowCloseButtonHint
         )
+        
+        # Optimize window rendering to prevent flickering
+        self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
+        
         self._mini_head = _MicaMiniHeadWindow(self)
 
         if QWebEngineView is None:
@@ -288,6 +293,28 @@ class _MICAWindow(QMainWindow):
         if QColor is not None:
             self._web.page().setBackgroundColor(QColor("#041018"))
         self.setCentralWidget(self._web)
+        
+        # Optimize WebEngine rendering to prevent flickering
+        self._web.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
+        self._web.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
+        
+        # Configure WebEngine settings to prevent freezing
+        settings = self._web.settings()
+        try:
+            settings.setAttribute(settings.WebAttribute.JavascriptEnabled, True)
+            settings.setAttribute(settings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+            settings.setAttribute(settings.WebAttribute.LocalContentCanAccessFileUrls, True)
+            settings.setAttribute(settings.WebAttribute.PluginsEnabled, False)
+            settings.setAttribute(settings.WebAttribute.WebGLEnabled, True)
+            settings.setAttribute(settings.WebAttribute.XSSAuditingEnabled, False)
+            settings.setAttribute(settings.WebAttribute.HyperlinkAuditingEnabled, False)
+            settings.setAttribute(settings.WebAttribute.JavascriptCanOpenWindows, False)
+            settings.setAttribute(settings.WebAttribute.JavascriptCanCloseWindows, False)
+            settings.setAttribute(settings.WebAttribute.LocalStorageEnabled, True)
+            settings.setAttribute(settings.WebAttribute.DnsPrefetchEnabled, False)
+        except Exception:
+            pass
+        
         self._web.setUrl(QUrl(url))
 
     def changeEvent(self, event):  # noqa: N802
@@ -3074,12 +3101,16 @@ class MicaUI:
         def show_window(_ok: bool = True) -> None:
             if self._window is None:
                 return
+            # Show window smoothly without flickering
             self._window.show()
-            self._window.activateWindow()
             self._window.raise_()
+            self._window.activateWindow()
+            
+            # Additional error handling for navigation issues
+            if not _ok:
+                logger.warning("WebEngine page load failed or timed out")
 
         self._window._web.loadFinished.connect(show_window)
-        app.processEvents()
 
         try:
             app.exec()

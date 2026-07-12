@@ -89,7 +89,8 @@
         "identity:write",
         "scim:write",
         "audit:read",
-        "read"
+        "read",
+        "secrets:write"
       ]
     },
     {
@@ -134,6 +135,17 @@
           "access": "owner"
         }
       ]
+    },
+    {
+      "resource": "agent:research",
+      "subjects": [
+        {
+          "type": "group",
+          "id": "personal",
+          "access": "execute"
+        }
+      ],
+      "updated_at": "2026-07-11T22:13:33"
     }
   ],
   "agents": [
@@ -224,7 +236,8 @@
       "tools": [
         "web_search",
         "documents_search",
-        "summarize_text"
+        "summarize_text",
+        "weather_lookup"
       ],
       "knowledge": [
         "local-documents",
@@ -242,9 +255,10 @@
         "role": "researcher"
       },
       "version": "1.0.0",
-      "visibility": "private",
+      "visibility": "team",
       "owner": "u-admin",
-      "updated_at": "2026-07-11T21:47:15"
+      "updated_at": "2026-07-12T12:05:43",
+      "shared_at": "2026-07-11T22:13:33"
     },
     {
       "id": "execution",
@@ -337,14 +351,14 @@
       "id": "github-sync",
       "name": "GitHub Knowledge Sync",
       "kind": "connector",
-      "installed": false,
-      "enabled": false,
+      "installed": true,
+      "enabled": true,
       "version": "1.0.0",
       "latest_version": "1.1.0",
-      "trust": "community",
-      "review_status": "pending",
+      "trust": "verified",
+      "review_status": "verified",
       "checksum": "sha256:community-github-sync",
-      "signature": "unsigned",
+      "signature": "mica:community-github-sync",
       "source_url": "https://plugins.jarvis.local/github-sync",
       "description": "Keeps repositories indexed for RAG.",
       "entrypoint": "github_sync",
@@ -379,25 +393,23 @@
         }
       },
       "risk": {
-        "level": "medium",
-        "score": 3,
+        "level": "low",
+        "score": 0,
         "reasons": [
-          "community trust",
-          "unsigned"
+          "standard tool permissions"
         ],
         "permissions": [
           "tools:execute"
         ]
       },
       "verification": {
-        "status": "failed",
-        "checked_at": "2026-06-29T22:32:50",
+        "status": "passed",
+        "checked_at": "2026-07-12T12:07:50",
         "risk": {
-          "level": "medium",
-          "score": 3,
+          "level": "low",
+          "score": 0,
           "reasons": [
-            "community trust",
-            "unsigned"
+            "standard tool permissions"
           ],
           "permissions": [
             "tools:execute"
@@ -411,21 +423,28 @@
           },
           {
             "name": "signature",
-            "status": "failed",
-            "detail": "unsigned"
+            "status": "passed",
+            "detail": "mica:community-github-sync"
           },
           {
             "name": "review",
-            "status": "failed",
-            "detail": "pending"
+            "status": "passed",
+            "detail": "verified"
           },
           {
             "name": "trust_policy",
-            "status": "failed",
-            "detail": "review required; signature required"
+            "status": "passed",
+            "detail": "policy passed"
           }
         ]
-      }
+      },
+      "reviewed_by": "u-admin",
+      "reviewed_at": "2026-07-12T12:07:07",
+      "review_notes": "Im Capability Center geprüft",
+      "installed_at": "2026-07-12T12:07:50",
+      "artifact_path": "plugins\\community\\github_sync.py",
+      "install_source": "https://plugins.jarvis.local/github-sync",
+      "manifest_path": "plugins\\community\\github_sync.manifest.json"
     },
     {
       "id": "docling-ingest",
@@ -629,7 +648,94 @@
     ],
     "updated_at": "2026-06-29T22:32:50"
   },
-  "marketplace_audit": [],
+  "marketplace_audit": [
+    {
+      "id": "market-6587c33f",
+      "action": "install",
+      "item_id": "github-sync",
+      "status": "completed",
+      "details": {
+        "artifact_path": "plugins\\community\\github_sync.py",
+        "risk": {
+          "level": "low",
+          "score": 0,
+          "reasons": [
+            "standard tool permissions"
+          ],
+          "permissions": [
+            "tools:execute"
+          ]
+        }
+      },
+      "timestamp": "2026-07-12T12:07:50"
+    },
+    {
+      "id": "market-a3218638",
+      "action": "verify",
+      "item_id": "github-sync",
+      "status": "passed",
+      "details": {
+        "verification": {
+          "status": "passed",
+          "checked_at": "2026-07-12T12:07:09",
+          "risk": {
+            "level": "low",
+            "score": 1,
+            "reasons": [
+              "community trust"
+            ],
+            "permissions": [
+              "tools:execute"
+            ]
+          },
+          "checks": [
+            {
+              "name": "checksum",
+              "status": "passed",
+              "detail": "sha256:community-github-sync"
+            },
+            {
+              "name": "signature",
+              "status": "passed",
+              "detail": "mica:community-github-sync"
+            },
+            {
+              "name": "review",
+              "status": "passed",
+              "detail": "approved"
+            },
+            {
+              "name": "trust_policy",
+              "status": "passed",
+              "detail": "policy passed"
+            }
+          ]
+        }
+      },
+      "timestamp": "2026-07-12T12:07:09"
+    },
+    {
+      "id": "market-a7087ff6",
+      "action": "review",
+      "item_id": "github-sync",
+      "status": "completed",
+      "details": {
+        "verdict": "approved",
+        "risk": {
+          "level": "medium",
+          "score": 3,
+          "reasons": [
+            "community trust",
+            "unsigned"
+          ],
+          "permissions": [
+            "tools:execute"
+          ]
+        }
+      },
+      "timestamp": "2026-07-12T12:07:07"
+    }
+  ],
   "tools": [
     {
       "id": "tool-openapi-weather",
@@ -644,8 +750,16 @@
           }
         }
       },
-      "test_result": "Ready",
-      "test_parameters": {}
+      "test_result": "GET ",
+      "test_parameters": {},
+      "last_request_plan": {
+        "method": "GET",
+        "url": "",
+        "path": "",
+        "query": {},
+        "headers": {},
+        "body": null
+      }
     },
     {
       "id": "tool-custom-summarize",
@@ -705,14 +819,58 @@
         "type": "object",
         "properties": {}
       }
+    },
+    {
+      "id": "tool-mcp-local-files-search",
+      "name": "mcp_local_files_search",
+      "kind": "mcp",
+      "status": "ready",
+      "server_id": "local",
+      "description": "Deferred local file search",
+      "schema": {
+        "type": "object"
+      },
+      "test_result": "Deferred MCP tool loaded into registry"
     }
   ],
   "mcp": {
     "deferred": true,
     "last_query": "",
+    "tools": [
+      {
+        "server_id": "local",
+        "name": "mcp_local_files_search",
+        "description": "Deferred local file search",
+        "parameters": {
+          "type": "object"
+        },
+        "loaded": true
+      },
+      {
+        "server_id": "local",
+        "name": "mcp_local_notes_create",
+        "description": "Deferred notes/artifact creator",
+        "parameters": {
+          "type": "object"
+        },
+        "loaded": false
+      }
+    ],
     "servers": [],
-    "tools": [],
-    "loaded_tools": []
+    "loaded_tools": [
+      {
+        "id": "tool-mcp-local-files-search",
+        "name": "mcp_local_files_search",
+        "kind": "mcp",
+        "status": "ready",
+        "server_id": "local",
+        "description": "Deferred local file search",
+        "schema": {
+          "type": "object"
+        },
+        "test_result": "Deferred MCP tool loaded into registry"
+      }
+    ]
   },
   "workflows": [
     {
@@ -1104,6 +1262,214 @@
   ],
   "metrics": [
     {
+      "id": "metric-bf6f0db2",
+      "action": "install_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "install_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 484,
+      "cost": 0.000968,
+      "latency_ms": 3.64,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:50"
+    },
+    {
+      "id": "metric-6d3ffbe9",
+      "action": "verify_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "verify_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 134,
+      "cost": 0.000268,
+      "latency_ms": 0.07,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:09"
+    },
+    {
+      "id": "metric-723725ea",
+      "action": "review_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "review_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 442,
+      "cost": 0.000884,
+      "latency_ms": 0.08,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:07"
+    },
+    {
+      "id": "metric-6ff551ea",
+      "action": "load_mcp_tool",
+      "scope": "load_mcp_tool",
+      "model": "platform",
+      "tool": "load_mcp_tool",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 73,
+      "cost": 0.000146,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:45"
+    },
+    {
+      "id": "metric-e34b265d",
+      "action": "discover_mcp_tools",
+      "scope": "discover_mcp_tools",
+      "model": "platform",
+      "tool": "discover_mcp_tools",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 102,
+      "cost": 0.000204,
+      "latency_ms": 850.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:00"
+    },
+    {
+      "id": "metric-a20108c5",
+      "action": "save_agent",
+      "scope": "research",
+      "model": "fast",
+      "tool": "save_agent",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 313,
+      "cost": 0.000626,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "metric-8df07d6c",
+      "action": "test_tool",
+      "scope": "tool-openapi-weather",
+      "model": "platform",
+      "tool": "test_tool",
+      "user": "u-admin",
+      "agent": "tool-openapi-weather",
+      "workflow": "platform",
+      "tokens": 91,
+      "cost": 0.000182,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "metric-e2faad1d",
+      "action": "delete_secret_reference",
+      "scope": "runtime-qa",
+      "model": "platform",
+      "tool": "delete_secret_reference",
+      "user": "u-admin",
+      "agent": "runtime-qa",
+      "workflow": "platform",
+      "tokens": 14,
+      "cost": 2.8e-05,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "metric-0e7f66c4",
+      "action": "share_agent",
+      "scope": "research",
+      "model": "platform",
+      "tool": "share_agent",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 221,
+      "cost": 0.000442,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "metric-417b2086",
+      "action": "save_secret_reference",
+      "scope": "save_secret_reference",
+      "model": "platform",
+      "tool": "save_secret_reference",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 60,
+      "cost": 0.00012,
+      "latency_ms": 0.16,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:14"
+    },
+    {
+      "id": "metric-8e63c12f",
+      "action": "test_integration",
+      "scope": "local-documents",
+      "model": "platform",
+      "tool": "test_integration",
+      "user": "u-admin",
+      "agent": "local-documents",
+      "workflow": "platform",
+      "tokens": 57,
+      "cost": 0.000114,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:12:54"
+    },
+    {
+      "id": "metric-c37702ef",
+      "action": "check_deployment_readiness",
+      "scope": "check_deployment_readiness",
+      "model": "platform",
+      "tool": "check_deployment_readiness",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 506,
+      "cost": 0.001012,
+      "latency_ms": 17.88,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:35"
+    },
+    {
+      "id": "metric-6c7b4ece",
+      "action": "search_knowledge",
+      "scope": "search_knowledge",
+      "model": "platform",
+      "tool": "search_knowledge",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 166,
+      "cost": 0.000332,
+      "latency_ms": 0.59,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:12"
+    },
+    {
       "id": "metric-021fe25c",
       "action": "run_evaluation",
       "scope": "eval-support",
@@ -1236,6 +1602,214 @@
   ],
   "metric_events": [
     {
+      "id": "metric-bf6f0db2",
+      "action": "install_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "install_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 484,
+      "cost": 0.000968,
+      "latency_ms": 3.64,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:50"
+    },
+    {
+      "id": "metric-6d3ffbe9",
+      "action": "verify_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "verify_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 134,
+      "cost": 0.000268,
+      "latency_ms": 0.07,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:09"
+    },
+    {
+      "id": "metric-723725ea",
+      "action": "review_marketplace_item",
+      "scope": "github-sync",
+      "model": "platform",
+      "tool": "review_marketplace_item",
+      "user": "u-admin",
+      "agent": "github-sync",
+      "workflow": "platform",
+      "tokens": 442,
+      "cost": 0.000884,
+      "latency_ms": 0.08,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:07"
+    },
+    {
+      "id": "metric-6ff551ea",
+      "action": "load_mcp_tool",
+      "scope": "load_mcp_tool",
+      "model": "platform",
+      "tool": "load_mcp_tool",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 73,
+      "cost": 0.000146,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:45"
+    },
+    {
+      "id": "metric-e34b265d",
+      "action": "discover_mcp_tools",
+      "scope": "discover_mcp_tools",
+      "model": "platform",
+      "tool": "discover_mcp_tools",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 102,
+      "cost": 0.000204,
+      "latency_ms": 850.03,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:00"
+    },
+    {
+      "id": "metric-a20108c5",
+      "action": "save_agent",
+      "scope": "research",
+      "model": "fast",
+      "tool": "save_agent",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 313,
+      "cost": 0.000626,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "metric-8df07d6c",
+      "action": "test_tool",
+      "scope": "tool-openapi-weather",
+      "model": "platform",
+      "tool": "test_tool",
+      "user": "u-admin",
+      "agent": "tool-openapi-weather",
+      "workflow": "platform",
+      "tokens": 91,
+      "cost": 0.000182,
+      "latency_ms": 0.05,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "metric-e2faad1d",
+      "action": "delete_secret_reference",
+      "scope": "runtime-qa",
+      "model": "platform",
+      "tool": "delete_secret_reference",
+      "user": "u-admin",
+      "agent": "runtime-qa",
+      "workflow": "platform",
+      "tokens": 14,
+      "cost": 2.8e-05,
+      "latency_ms": 0.04,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "metric-0e7f66c4",
+      "action": "share_agent",
+      "scope": "research",
+      "model": "platform",
+      "tool": "share_agent",
+      "user": "u-admin",
+      "agent": "research",
+      "workflow": "platform",
+      "tokens": 221,
+      "cost": 0.000442,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "metric-417b2086",
+      "action": "save_secret_reference",
+      "scope": "save_secret_reference",
+      "model": "platform",
+      "tool": "save_secret_reference",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 60,
+      "cost": 0.00012,
+      "latency_ms": 0.16,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:14"
+    },
+    {
+      "id": "metric-8e63c12f",
+      "action": "test_integration",
+      "scope": "local-documents",
+      "model": "platform",
+      "tool": "test_integration",
+      "user": "u-admin",
+      "agent": "local-documents",
+      "workflow": "platform",
+      "tokens": 57,
+      "cost": 0.000114,
+      "latency_ms": 0.06,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:12:54"
+    },
+    {
+      "id": "metric-c37702ef",
+      "action": "check_deployment_readiness",
+      "scope": "check_deployment_readiness",
+      "model": "platform",
+      "tool": "check_deployment_readiness",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 506,
+      "cost": 0.001012,
+      "latency_ms": 17.88,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:35"
+    },
+    {
+      "id": "metric-6c7b4ece",
+      "action": "search_knowledge",
+      "scope": "search_knowledge",
+      "model": "platform",
+      "tool": "search_knowledge",
+      "user": "u-admin",
+      "agent": "platform",
+      "workflow": "platform",
+      "tokens": 166,
+      "cost": 0.000332,
+      "latency_ms": 0.59,
+      "tool_calls": 1,
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:12"
+    },
+    {
       "id": "metric-021fe25c",
       "action": "run_evaluation",
       "scope": "eval-support",
@@ -1334,6 +1908,123 @@
   ],
   "audit_events": [
     {
+      "id": "audit-79a21cda",
+      "action": "install_marketplace_item",
+      "user": "u-admin",
+      "permission": "tools:write",
+      "resource": "install_marketplace_item:github-sync",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:50"
+    },
+    {
+      "id": "audit-43c83461",
+      "action": "verify_marketplace_item",
+      "user": "u-admin",
+      "permission": "tools:write",
+      "resource": "verify_marketplace_item",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:09"
+    },
+    {
+      "id": "audit-4e870104",
+      "action": "review_marketplace_item",
+      "user": "u-admin",
+      "permission": "tools:write",
+      "resource": "review_marketplace_item:github-sync",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:07:07"
+    },
+    {
+      "id": "audit-62e1f1bc",
+      "action": "load_mcp_tool",
+      "user": "u-admin",
+      "permission": "tools:write",
+      "resource": "load_mcp_tool:tool-mcp-local-files-search",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:45"
+    },
+    {
+      "id": "audit-ae189509",
+      "action": "discover_mcp_tools",
+      "user": "u-admin",
+      "permission": "tools:read",
+      "resource": "discover_mcp_tools",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:06:00"
+    },
+    {
+      "id": "audit-5cc23c22",
+      "action": "save_agent",
+      "user": "u-admin",
+      "permission": "agents:write",
+      "resource": "save_agent:research",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "audit-9971a8cf",
+      "action": "test_tool",
+      "user": "u-admin",
+      "permission": "tools:execute",
+      "resource": "test_tool:tool-openapi-weather",
+      "status": "ok",
+      "timestamp": "2026-07-12T12:05:43"
+    },
+    {
+      "id": "audit-769e7a5f",
+      "action": "delete_secret_reference",
+      "user": "u-admin",
+      "permission": "secrets:write",
+      "resource": "delete_secret_reference:runtime-qa",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "audit-59d69132",
+      "action": "share_agent",
+      "user": "u-admin",
+      "permission": "agents:share",
+      "resource": "agent:research",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:33"
+    },
+    {
+      "id": "audit-4c469a2c",
+      "action": "save_secret_reference",
+      "user": "u-admin",
+      "permission": "secrets:write",
+      "resource": "save_secret_reference:runtime-qa",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:13:14"
+    },
+    {
+      "id": "audit-ba4e59f2",
+      "action": "test_integration",
+      "user": "u-admin",
+      "permission": "tools:execute",
+      "resource": "test_integration:integration-ef506097",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:12:54"
+    },
+    {
+      "id": "audit-5f1fe135",
+      "action": "check_deployment_readiness",
+      "user": "u-admin",
+      "permission": "agents:publish",
+      "resource": "check_deployment_readiness",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:35"
+    },
+    {
+      "id": "audit-2b4fcae9",
+      "action": "search_knowledge",
+      "user": "u-admin",
+      "permission": "knowledge:write",
+      "resource": "search_knowledge:ksearch-7477017f",
+      "status": "ok",
+      "timestamp": "2026-07-11T22:05:12"
+    },
+    {
       "id": "audit-2a9d9975",
       "action": "run_evaluation",
       "user": "u-admin",
@@ -1395,13 +2086,14 @@
       "target": "Documents",
       "uri": "Documents",
       "status": "synced",
-      "last_sync": "2026-06-29T22:32:50",
-      "rag": "hybrid: bm25 + vector + reranker",
+      "last_sync": "2026-07-11T22:05:12",
+      "rag": "hybrid: bm25 + vector + cross-encoder reranker",
       "vector_db": "chroma",
       "schedule": "watch",
       "connector_status": "ready",
       "watch_mode": true,
-      "next_sync": "watching"
+      "next_sync": "watching",
+      "last_run_id": "ksync-326d0381"
     },
     {
       "id": "obsidian-vault",
@@ -1474,10 +2166,241 @@
       "next_sync": "2026-06-29T23:32:50"
     }
   ],
-  "knowledge_runs": [],
+  "knowledge_runs": [
+    {
+      "id": "ksync-326d0381",
+      "source_id": "local-documents",
+      "source": "Folder",
+      "target": "Documents",
+      "status": "completed",
+      "started_at": "2026-07-11T22:05:12",
+      "completed_at": "2026-07-11T22:05:12",
+      "phases": [
+        {
+          "name": "fetch",
+          "status": "completed",
+          "items": 2,
+          "latency_ms": 31
+        },
+        {
+          "name": "extract",
+          "status": "completed",
+          "items": 2,
+          "latency_ms": 57
+        },
+        {
+          "name": "bm25_index",
+          "status": "completed",
+          "items": 31,
+          "latency_ms": 22
+        },
+        {
+          "name": "vector_index",
+          "status": "completed",
+          "items": 2,
+          "latency_ms": 41
+        },
+        {
+          "name": "cross_encoder_rerank_ready",
+          "status": "completed",
+          "items": 1,
+          "latency_ms": 9
+        }
+      ],
+      "rag": "hybrid: bm25 + vector + cross-encoder reranker",
+      "vector_db": "chroma",
+      "documents": 2,
+      "chunks": 2,
+      "index": {
+        "bm25_terms": 31,
+        "vectors": 2,
+        "reranker": "cross-encoder:local-simulated"
+      }
+    }
+  ],
   "knowledge_scheduler_runs": [],
-  "knowledge_indexes": {},
-  "knowledge_searches": [],
+  "knowledge_indexes": {
+    "local-documents": {
+      "source_id": "local-documents",
+      "documents": [
+        {
+          "id": "doc-documents-overview",
+          "name": "Documents Overview",
+          "text": "Documents from Folder at Documents contains M.I.C.A knowledge, sync status, connector metadata, and retrieval examples.",
+          "source_uri": "Documents"
+        },
+        {
+          "id": "doc-documents-ops",
+          "name": "Documents Operations",
+          "text": "Hybrid RAG for Documents uses BM25 keyword matching, vector search in chroma, and cross encoder reranking.",
+          "source_uri": "Documents"
+        }
+      ],
+      "chunks": [
+        {
+          "id": "doc-documents-overview-chunk-1",
+          "document_id": "doc-documents-overview",
+          "source_id": "local-documents",
+          "text": "Documents from Folder at Documents contains M.I.C.A knowledge, sync status, connector metadata, and retrieval examples.",
+          "tokens": 15,
+          "metadata": {
+            "name": "Documents Overview",
+            "source_uri": "Documents"
+          }
+        },
+        {
+          "id": "doc-documents-ops-chunk-2",
+          "document_id": "doc-documents-ops",
+          "source_id": "local-documents",
+          "text": "Hybrid RAG for Documents uses BM25 keyword matching, vector search in chroma, and cross encoder reranking.",
+          "tokens": 16,
+          "metadata": {
+            "name": "Documents Operations",
+            "source_uri": "Documents"
+          }
+        }
+      ],
+      "bm25": {
+        "a": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "and": [
+          "doc-documents-overview-chunk-1",
+          "doc-documents-ops-chunk-2"
+        ],
+        "at": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "c": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "connector": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "contains": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "documents": [
+          "doc-documents-overview-chunk-1",
+          "doc-documents-ops-chunk-2"
+        ],
+        "examples": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "folder": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "from": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "i": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "knowledge": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "m": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "metadata": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "retrieval": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "status": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "sync": [
+          "doc-documents-overview-chunk-1"
+        ],
+        "bm25": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "chroma": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "cross": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "encoder": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "for": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "hybrid": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "in": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "keyword": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "matching": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "rag": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "reranking": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "search": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "uses": [
+          "doc-documents-ops-chunk-2"
+        ],
+        "vector": [
+          "doc-documents-ops-chunk-2"
+        ]
+      },
+      "vectors": {
+        "doc-documents-overview-chunk-1": [
+          0.2812,
+          0.1204,
+          0.9444
+        ],
+        "doc-documents-ops-chunk-2": [
+          0.25,
+          0.8405,
+          1.0
+        ]
+      },
+      "reranker": "cross-encoder:local-simulated",
+      "vector_db": "chroma",
+      "updated_at": "2026-07-11T22:05:12"
+    }
+  },
+  "knowledge_searches": [
+    {
+      "id": "ksearch-7477017f",
+      "query": "hybrid vector reranker",
+      "source_ids": [
+        "local-documents"
+      ],
+      "status": "completed",
+      "retrieval": "hybrid:bm25+vector+cross-encoder-rerank",
+      "results": [
+        {
+          "source_id": "local-documents",
+          "chunk_id": "doc-documents-ops-chunk-2",
+          "document_id": "doc-documents-ops",
+          "text": "Hybrid RAG for Documents uses BM25 keyword matching, vector search in chroma, and cross encoder reranking.",
+          "bm25_score": 0.6667,
+          "vector_score": 0.6968,
+          "rerank_score": 0.6781,
+          "metadata": {
+            "name": "Documents Operations",
+            "source_uri": "Documents"
+          }
+        }
+      ],
+      "created_at": "2026-07-11T22:05:12"
+    }
+  ],
   "extraction": {
     "engines": [
       "Docling",
@@ -1651,10 +2574,51 @@
     },
     "migrations": {
       "directory": "deploy/postgres/migrations",
+      "catalog": [
+        {
+          "id": "001_platform_hub",
+          "file": "deploy\\postgres\\migrations\\001_platform_hub.sql",
+          "checksum": "f07474a81df9b5e961a11ba9b09998dd2953b0ef14309e7bdfeecd2a60fb8e58",
+          "size_bytes": 8210,
+          "tables": [
+            "platform_acls",
+            "platform_agents",
+            "platform_artifacts",
+            "platform_companion_sessions",
+            "platform_groups",
+            "platform_knowledge_indexes",
+            "platform_knowledge_searches",
+            "platform_knowledge_sources",
+            "platform_marketplace_items",
+            "platform_metric_events",
+            "platform_publications",
+            "platform_roles",
+            "platform_snapshots",
+            "platform_sso_events",
+            "platform_sso_sessions",
+            "platform_state",
+            "platform_tools",
+            "platform_users",
+            "platform_workflow_runs",
+            "platform_workflows"
+          ],
+          "indexes": [
+            "idx_platform_artifacts_kind",
+            "idx_platform_metric_events_agent",
+            "idx_platform_metric_events_created_at",
+            "idx_platform_publications_agent",
+            "idx_platform_workflow_runs_workflow"
+          ],
+          "status": "pending"
+        }
+      ],
       "applied": [],
-      "pending": [],
-      "catalog": [],
-      "last_check": null
+      "pending": [
+        "001_platform_hub"
+      ],
+      "missing_files": [],
+      "last_check": "2026-07-11T22:05:35",
+      "status": "pending"
     },
     "redis": "compose+helm-ready",
     "storage": "persistent-volume+s3/minio-ready",
@@ -1667,8 +2631,332 @@
       "storage_backend": "JARVIS_STORAGE_BACKEND"
     },
     "readiness": {
-      "status": "unknown",
-      "checks": []
+      "status": "ready",
+      "checks": [
+        {
+          "name": "Dockerfile",
+          "status": "ready",
+          "detail": "Container image build file"
+        },
+        {
+          "name": "docker-compose.yml",
+          "status": "ready",
+          "detail": "Compose stack for Postgres/Redis/MinIO"
+        },
+        {
+          "name": "Postgres schema",
+          "status": "ready",
+          "detail": "Platform hub SQL migration"
+        },
+        {
+          "name": "Postgres migrations",
+          "status": "ready",
+          "detail": "1 migration(s), 1 pending"
+        },
+        {
+          "name": "Helm chart",
+          "status": "ready",
+          "detail": "Kubernetes release chart"
+        },
+        {
+          "name": "Helm values",
+          "status": "ready",
+          "detail": "Configurable production values"
+        },
+        {
+          "name": "Published artifact dir",
+          "status": "ready",
+          "detail": "Persistent published app storage"
+        },
+        {
+          "name": "State persistence",
+          "status": "ready",
+          "detail": "postgres:fallback-json"
+        },
+        {
+          "name": "env:postgres",
+          "status": "ready",
+          "detail": "JARVIS_POSTGRES_URL"
+        },
+        {
+          "name": "env:redis",
+          "status": "ready",
+          "detail": "JARVIS_REDIS_URL"
+        },
+        {
+          "name": "env:s3_endpoint",
+          "status": "ready",
+          "detail": "JARVIS_S3_ENDPOINT"
+        },
+        {
+          "name": "env:s3_bucket",
+          "status": "ready",
+          "detail": "JARVIS_S3_BUCKET"
+        },
+        {
+          "name": "env:storage_backend",
+          "status": "ready",
+          "detail": "JARVIS_STORAGE_BACKEND"
+        },
+        {
+          "name": "dockerfile:non_root_user",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "dockerfile:healthcheck",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "dockerfile:port_8080",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "dockerfile:persistent_dirs",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:mica_service",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:postgres_service",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:redis_service",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:minio_service",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:migration_mount",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:health_dependencies",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:persistent_volumes",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:env_urls",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:env_substitution",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:resource_limits",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "compose:replica_hint",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:persistence_values",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:autoscaling_values",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:env_config",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:secret_values",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:pod_security_context",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:container_security_context",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:resource_values",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:migration_configmap",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:migration_mount",
+          "status": "ready",
+          "detail": "configured"
+        },
+        {
+          "name": "helm:hpa_template",
+          "status": "ready",
+          "detail": "configured"
+        }
+      ],
+      "checked_at": "2026-07-11T22:05:35",
+      "target": "production",
+      "validation": {
+        "status": "ready",
+        "checks": [
+          {
+            "name": "dockerfile:non_root_user",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "dockerfile:healthcheck",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "dockerfile:port_8080",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "dockerfile:persistent_dirs",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:mica_service",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:postgres_service",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:redis_service",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:minio_service",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:migration_mount",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:health_dependencies",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:persistent_volumes",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:env_urls",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:env_substitution",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:resource_limits",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "compose:replica_hint",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:persistence_values",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:autoscaling_values",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:env_config",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:secret_values",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:pod_security_context",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:container_security_context",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:resource_values",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:migration_configmap",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:migration_mount",
+            "status": "ready",
+            "detail": "configured"
+          },
+          {
+            "name": "helm:hpa_template",
+            "status": "ready",
+            "detail": "configured"
+          }
+        ],
+        "checked_at": "2026-07-11T22:05:35"
+      }
     }
   },
   "identity_providers": [
@@ -1797,7 +3085,43 @@
     "pairing_codes": [],
     "sessions": []
   },
-  "updated_at": "2026-07-11T21:56:47",
+  "updated_at": "2026-07-12T12:07:50",
   "invocations": [],
-  "agent_runs": []
+  "agent_runs": [],
+  "secret_references": [
+    {
+      "id": "gemini-api",
+      "name": "Gemini API",
+      "env_var": "GEMINI_API_KEY",
+      "scope": "models",
+      "status": "configured",
+      "updated_at": "2026-07-11T22:12:36"
+    },
+    {
+      "id": "github-token",
+      "name": "GitHub Token",
+      "env_var": "GITHUB_TOKEN",
+      "scope": "connectors",
+      "status": "missing",
+      "updated_at": "2026-07-11T22:12:36"
+    },
+    {
+      "id": "agent-token",
+      "name": "Agent API Token",
+      "env_var": "MICA_AGENT_TOKEN",
+      "scope": "publishing",
+      "status": "configured",
+      "updated_at": "2026-07-11T22:12:36"
+    }
+  ],
+  "integration_checks": [
+    {
+      "id": "integration-ef506097",
+      "category": "knowledge",
+      "integration_id": "local-documents",
+      "status": "ready",
+      "detail": "Folder · ready",
+      "checked_at": "2026-07-11T22:12:54"
+    }
+  ]
 }

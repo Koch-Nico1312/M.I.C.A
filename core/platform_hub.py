@@ -158,6 +158,9 @@ ACTION_PERMISSIONS = {
     "check_deployment_readiness": "agents:publish",
     "check_database_migrations": "agents:publish",
     "save_user": "users:write",
+    "save_secret_reference": "secrets:write",
+    "delete_secret_reference": "secrets:write",
+    "test_integration": "tools:execute",
     "aggregate_metrics": "metrics:read",
     "list_workspace_files": "artifacts:read",
     "read_workspace_file": "artifacts:read",
@@ -193,6 +196,7 @@ ROLE_PERMISSION_DEFAULTS = {
         "artifacts:write",
         "sandbox:execute",
         "metrics:read",
+        "secrets:write",
         "identity:write",
         "scim:write",
         "audit:read",
@@ -467,6 +471,11 @@ class PlatformHub:
         data.setdefault("roles", [
             {"id": role_id, "permissions": permissions}
             for role_id, permissions in ROLE_PERMISSION_DEFAULTS.items()
+        ])
+        data.setdefault("secret_references", [
+            {"id": "gemini-api", "name": "Gemini API", "env_var": "GEMINI_API_KEY", "scope": "models", "status": "configured" if os.environ.get("GEMINI_API_KEY") else "missing", "updated_at": _now()},
+            {"id": "github-token", "name": "GitHub Token", "env_var": "GITHUB_TOKEN", "scope": "connectors", "status": "configured" if os.environ.get("GITHUB_TOKEN") else "missing", "updated_at": _now()},
+            {"id": "agent-token", "name": "Agent API Token", "env_var": "MICA_AGENT_TOKEN", "scope": "publishing", "status": "configured" if os.environ.get("MICA_AGENT_TOKEN") else "missing", "updated_at": _now()},
         ])
         self._merge_default_role_permissions(data)
         data.setdefault("acls", [
@@ -1261,6 +1270,9 @@ class PlatformHub:
             "check_deployment_readiness": self._check_deployment_readiness,
             "check_database_migrations": self._check_database_migrations,
             "save_user": self._save_user,
+            "save_secret_reference": self._save_secret_reference,
+            "delete_secret_reference": self._delete_secret_reference,
+            "test_integration": self._test_integration,
             "aggregate_metrics": self._aggregate_metrics_action,
             "list_workspace_files": self._list_workspace_files,
             "read_workspace_file": self._read_workspace_file,
@@ -2140,6 +2152,60 @@ class PlatformHub:
             "groups": _as_list(payload.get("groups")),
         }
         return self._upsert("users", user)
+
+    def _save_secret_reference(self, payload: dict[str, Any]) -> dict[str, Any]:
+        name = str(payload.get("name") or "Secret Reference").strip()
+        env_var = str(payload.get("env_var") or "").strip().upper()
+        if not re.fullmatch(r"[A-Z][A-Z0-9_]{1,127}", env_var):
+            return {"error": "env_var must be an uppercase environment variable name"}
+        reference = {
+            "id": str(payload.get("id") or _slug(name)),
+            "name": name,
+            "env_var": env_var,
+            "scope": str(payload.get("scope") or "workspace"),
+            "status": "configured" if os.environ.get(env_var) else "missing",
+            "updated_at": _now(),
+        }
+        return self._upsert("secret_references", reference)
+
+    def _delete_secret_reference(self, payload: dict[str, Any]) -> dict[str, Any]:
+        reference_id = str(payload.get("id") or "")
+        references = self.data.setdefault("secret_references", [])
+        before = len(references)
+        self.data["secret_references"] = [item for item in references if item.get("id") != reference_id]
+        return {"id": reference_id, "deleted": len(self.data["secret_references"]) < before}
+
+    def _test_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        category = str(payload.get("category") or "knowledge")
+        integration_id = str(payload.get("id") or "")
+        status = "unavailable"
+        detail = "Integration not found"
+        if category == "knowledge":
+            item = next((source for source in self.data.get("knowledge", []) if source.get("id") == integration_id), None)
+            if item:
+                status = "ready" if item.get("connector_status") in {"ready", "connected"} else "needs-setup"
+                detail = f"{item.get('source')} · {item.get('connector_status', 'unknown')}"
+        elif category == "identity":
+            item = next((provider for provider in self.data.get("identity_providers", []) if provider.get("id") == integration_id), None)
+            if item:
+                tested = self._test_identity_provider({"id": integration_id})
+                status = "ready" if tested.get("status") in {"ready", "connected", "passed"} else str(tested.get("status") or "needs-setup")
+                detail = str(tested.get("message") or tested.get("type") or item.get("type") or "Identity provider")
+        elif category == "marketplace":
+            item = next((entry for entry in self.data.get("marketplace", []) if entry.get("id") == integration_id), None)
+            if item:
+                status = "ready" if item.get("installed") and item.get("enabled") else "needs-setup"
+                detail = f"{item.get('kind')} · {'enabled' if item.get('enabled') else 'disabled'}"
+        elif category == "mcp":
+            servers = self.data.get("mcp", {}).get("servers", [])
+            item = next((entry for entry in servers if str(entry.get("id") or entry.get("name")) == integration_id), None)
+            if item:
+                status = "ready" if item.get("status") in {"ready", "connected", "active"} else "needs-setup"
+                detail = str(item.get("status") or "registered")
+        check = {"id": f"integration-{uuid4().hex[:8]}", "category": category, "integration_id": integration_id, "status": status, "detail": detail, "checked_at": _now()}
+        self.data.setdefault("integration_checks", []).insert(0, check)
+        self.data["integration_checks"] = self.data["integration_checks"][:100]
+        return check
 
     def _save_group(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = str(payload.get("name") or "New Group")

@@ -1458,3 +1458,38 @@ def test_specialized_agent_team_is_seeded_with_distinct_capabilities(tmp_path):
     assert "sandbox:execute" in agents["execution"]["permissions"]
     assert agents["review"]["model"] == "quality"
     assert agents["monitor"]["model"] == "local"
+
+
+def test_secret_references_never_persist_values(tmp_path, monkeypatch):
+    monkeypatch.setenv("MICA_TEST_CONNECTOR_TOKEN", "top-secret-value")
+    hub = PlatformHub(store_path=tmp_path / "platform.json")
+
+    saved = hub.action(
+        "save_secret_reference",
+        {"name": "Test Connector", "env_var": "MICA_TEST_CONNECTOR_TOKEN", "scope": "connectors"},
+    )["result"]
+    snapshot = hub.snapshot()
+    persisted = json.loads((tmp_path / "platform.json").read_text(encoding="utf-8"))
+
+    assert saved["status"] == "configured"
+    assert saved["env_var"] == "MICA_TEST_CONNECTOR_TOKEN"
+    assert "top-secret-value" not in json.dumps(snapshot)
+    assert "top-secret-value" not in json.dumps(persisted)
+    deleted = hub.action("delete_secret_reference", {"id": saved["id"]})["result"]
+    assert deleted["deleted"] is True
+
+
+def test_integration_health_checks_are_persisted(tmp_path):
+    hub = PlatformHub(store_path=tmp_path / "platform.json")
+    source = hub.action(
+        "save_knowledge_source",
+        {"id": "docs-connector", "source": "Folder", "target": "Docs", "connector_status": "ready"},
+    )["result"]
+
+    check = hub.action("test_integration", {"category": "knowledge", "id": source["id"]})["result"]
+    missing = hub.action("test_integration", {"category": "mcp", "id": "missing-server"})["result"]
+
+    assert check["status"] == "ready"
+    assert check["integration_id"] == source["id"]
+    assert missing["status"] == "unavailable"
+    assert hub.snapshot()["integration_checks"][0]["integration_id"] == "missing-server"
