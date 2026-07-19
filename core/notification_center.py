@@ -89,6 +89,15 @@ class NotificationCenter:
                 counts[event.status] = counts.get(event.status, 0) + 1
             return {"counts": counts, "events": [asdict(item) for item in reversed(self._events)]}
 
+    def dismiss(self, event_id: str) -> bool:
+        with self._lock:
+            event = next((item for item in self._events if item.id == event_id), None)
+            if event is None:
+                return False
+            event.status = "dismissed"
+            self._save()
+            return True
+
     def _finish(self, event_id: str, *, delivered: bool, error: str | None = None) -> None:
         with self._lock:
             event = next((item for item in self._events if item.id == event_id), None)
