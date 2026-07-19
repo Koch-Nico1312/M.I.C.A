@@ -96,6 +96,7 @@ def _get_action_module(action_name: str):
             "weather_report": "actions.weather_report",
             "web_search": "actions.web_search",
             "youtube_video": "actions.youtube_video",
+            "video_production": "actions.video_production",
         }
         
         if action_name in action_map:

@@ -415,6 +415,27 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "video_production",
+        "description": "Plans and runs an approval-gated, self-evaluating local video production pipeline.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "status | setup_preview | create | list | get | plan | approve | reject | run_stage | evaluate | finalize"},
+                "project_id": {"type": "STRING"},
+                "source_dir": {"type": "STRING"},
+                "name": {"type": "STRING"},
+                "strategy": {"type": "STRING"},
+                "specifications": {"type": "OBJECT"},
+                "stage": {"type": "STRING", "description": "transcribe | pack | preview | render"},
+                "passed": {"type": "BOOLEAN"},
+                "issues": {"type": "ARRAY", "items": {"type": "STRING"}},
+                "evidence": {"type": "OBJECT"},
+                "final_path": {"type": "STRING"},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "pi_coding_agent",
         "description": (
             "Delegates coding tasks to the Pi coding agent inside the configured Docker sandbox. "

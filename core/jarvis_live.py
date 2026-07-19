@@ -1237,6 +1237,7 @@ class MicaLive:
             weather_action,
             web_search_action,
             youtube_video,
+            video_production,
         )
 
         if name == "save_memory":
@@ -1378,6 +1379,12 @@ class MicaLive:
             elif name == "dev_agent":
                 r = await loop.run_in_executor(
                     None, lambda: dev_agent(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "video_production":
+                r = await loop.run_in_executor(
+                    None, lambda: video_production(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 

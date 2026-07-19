@@ -280,6 +280,11 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None = None) -> st
 
         return youtube_video(parameters=parameters, player=None) or "Done."
 
+    elif tool == "video_production":
+        from actions.video_production import video_production
+
+        return video_production(parameters=parameters, player=None, speak=speak) or "Done."
+
     elif tool == "weather_report":
         from actions.weather_report import weather_action
 

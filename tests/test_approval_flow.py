@@ -237,3 +237,10 @@ def test_codebase_memory_read_write_and_delete_risks_are_separate():
     assert flow.classify_risk("codebase_memory", "architecture") == RiskLevel.LOW
     assert flow.classify_risk("codebase_memory", "index") == RiskLevel.MEDIUM
     assert flow.classify_risk("codebase_memory", "delete_project") == RiskLevel.HIGH
+
+
+def test_video_production_planning_is_low_risk_but_execution_needs_approval():
+    flow = ApprovalFlow()
+
+    assert flow.classify_risk("video_production", "plan") == RiskLevel.LOW
+    assert flow.classify_risk("video_production", "run_stage") == RiskLevel.MEDIUM

@@ -89,6 +89,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"code", "mcp", "knowledge-graph", "local"},
     ),
+    "video_production": ToolMetadata(
+        name="video_production",
+        description="Approval-gated local video production and verification pipeline",
+        risk_level="medium",
+        requires_confirmation=True,
+        reversible=False,
+        tags={"video", "ffmpeg", "production", "local"},
+    ),
     "weather_report": ToolMetadata(
         name="weather_report",
         description="Provides weather information",

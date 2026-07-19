@@ -419,6 +419,12 @@ class ApprovalFlow:
             if action_lower == "delete_project":
                 return RiskLevel.HIGH
 
+        if tool_lower == "video_production":
+            if action_lower in {"status", "setup_preview", "list", "get", "create", "plan"}:
+                return RiskLevel.LOW
+            if action_lower in {"approve", "reject", "run_stage", "evaluate", "finalize"}:
+                return RiskLevel.MEDIUM
+
         # Check tool-level classification
         for tool_pattern, risk_level in self.RISK_CLASSIFICATION.items():
             if tool_pattern in tool_lower:
