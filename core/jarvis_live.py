@@ -322,7 +322,7 @@ class MicaLive:
         self.voice_mode = get_voice_conversation_mode()
         from core.wake_word import get_wake_word_detector
 
-        self.wake_word_detector = get_wake_word_detector()
+        self._wake_word_detector_provider = get_wake_word_detector
         self.vscode = get_vscode_bridge()
         self.cross_device = get_cross_device()
         self.obsidian_bridge = get_obsidian_bridge()
@@ -1836,7 +1836,7 @@ class MicaLive:
                 not self.ui.muted
                 and not mica_speaking
                 and self.voice_mode.waiting_for_wakeword()
-                and self.wake_word_detector.process_pcm(data)
+                and self._wake_word_detector_provider().process_pcm(data)
             ):
                 self.voice_mode.activate_wakeword()
             if self.voice_mode.should_capture_audio(self.ui.muted, mica_speaking):

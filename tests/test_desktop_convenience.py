@@ -56,6 +56,19 @@ def test_porcupine_adapter_processes_real_detector_frames():
     assert detector.process_pcm(b"\x01\x00\x02\x00\x03\x00\x04\x00") is True
 
 
+def test_runtime_detector_provider_observes_reconfiguration(monkeypatch):
+    import core.wake_word as wake_word
+
+    first = WakeWordDetector(model_path="")
+    second = WakeWordDetector(model_path="")
+    monkeypatch.setattr(wake_word, "_detector", first)
+    provider = wake_word.get_wake_word_detector
+
+    assert provider() is first
+    monkeypatch.setattr(wake_word, "_detector", second)
+    assert provider() is second
+
+
 def test_user_facing_reminder_and_youtube_dialog_use_mica_name():
     reminder_source = (Path(__file__).parents[1] / "actions" / "reminder.py").read_text(encoding="utf-8")
     youtube_source = (Path(__file__).parents[1] / "actions" / "youtube_video.py").read_text(encoding="utf-8")
