@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from core.app_autostart import AppAutostartManager
 from core.assistant_identity import AssistantIdentityManager
 from core.wake_word import WakeWordDetector
@@ -52,3 +54,12 @@ def test_porcupine_adapter_processes_real_detector_frames():
     detector._model = FakePorcupine()
 
     assert detector.process_pcm(b"\x01\x00\x02\x00\x03\x00\x04\x00") is True
+
+
+def test_user_facing_reminder_and_youtube_dialog_use_mica_name():
+    reminder_source = (Path(__file__).parents[1] / "actions" / "reminder.py").read_text(encoding="utf-8")
+    youtube_source = (Path(__file__).parents[1] / "actions" / "youtube_video.py").read_text(encoding="utf-8")
+
+    assert "M.I.C.A Reminder" in reminder_source
+    assert "J.A.R.V.I.S Reminder" not in reminder_source
+    assert 'askstring("M.I.C.A"' in youtube_source
