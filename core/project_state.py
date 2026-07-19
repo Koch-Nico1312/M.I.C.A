@@ -71,6 +71,7 @@ class ProjectState:
     acceptance_criteria: list[dict[str, Any]] = field(default_factory=list)
     decisions: list[dict[str, Any]] = field(default_factory=list)
     evidence: list[dict[str, Any]] = field(default_factory=list)
+    last_handover: dict[str, Any] = field(default_factory=dict)
     updated_at: str = field(default_factory=_now)
 
 
@@ -130,6 +131,8 @@ class ProjectStateManager:
                 self._state.decisions = self._normalize_decisions(payload["decisions"])
             if "evidence" in payload and isinstance(payload["evidence"], list):
                 self._state.evidence = self._normalize_evidence(payload["evidence"])
+            if "last_handover" in payload and isinstance(payload["last_handover"], dict):
+                self._state.last_handover = self._normalize_handover(payload["last_handover"])
             if isinstance(payload.get("acceptance_criterion"), dict):
                 self._upsert_criterion(payload["acceptance_criterion"])
             if isinstance(payload.get("decision"), dict):
@@ -138,6 +141,7 @@ class ProjectStateManager:
                 self._append_evidence(payload["evidence_record"])
             self._state.updated_at = _now()
             self._save()
+            self._touch_changed_sections(payload)
             return self.snapshot()
 
     def checkpoint(self, note: str, *, focus: str = "") -> dict[str, Any]:
@@ -270,6 +274,7 @@ class ProjectStateManager:
             self._state.acceptance_criteria = self._normalize_criteria(self._state.acceptance_criteria)
             self._state.decisions = self._normalize_decisions(self._state.decisions)
             self._state.evidence = self._normalize_evidence(self._state.evidence)
+            self._state.last_handover = self._normalize_handover(self._state.last_handover)
         except Exception:
             self._state = ProjectState()
 
@@ -394,6 +399,41 @@ class ProjectStateManager:
         item = normalized[0]
         self._state.evidence = [*self._state.evidence, item][-MAX_STATE_RECORDS:]
         return item
+
+    @staticmethod
+    def _normalize_handover(raw: dict[str, Any]) -> dict[str, Any]:
+        if not raw:
+            return {}
+        return {
+            "session_id": str(raw.get("session_id") or ""),
+            "summary": str(raw.get("summary") or "").strip(),
+            "open_ends": [str(item) for item in raw.get("open_ends", []) if item][:20],
+            "recent_files": [str(item) for item in raw.get("recent_files", []) if item][:20],
+            "created_at": str(raw.get("created_at") or _now()),
+        }
+
+    def _touch_changed_sections(self, payload: dict[str, Any]) -> None:
+        if self.path != PROJECT_STATE_PATH:
+            return
+        sections: list[str] = []
+        if "current_state" in payload:
+            sections.append("current_state")
+        if any(key in payload for key in ("status", "focus", "checkpoint")):
+            sections.append("project_status")
+        if "ideal_state" in payload:
+            sections.append("ideal_state")
+        if isinstance(payload.get("telos"), dict):
+            sections.extend(f"telos.{key}" for key in payload["telos"])
+        if not sections:
+            return
+        try:
+            from core.memory_freshness import get_memory_freshness_manager
+
+            freshness = get_memory_freshness_manager()
+            for section in dict.fromkeys(sections):
+                freshness.touch(section, reason="personal state updated")
+        except Exception:
+            return
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

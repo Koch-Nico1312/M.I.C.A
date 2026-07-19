@@ -41,12 +41,14 @@ class SessionContextManager:
         max_tool_results: int = 25,
         max_sessions: int = 40,
         history_path: Path | None = None,
+        lifecycle_hooks: Any | None = None,
     ):
         self.max_messages = max_messages
         self.max_tool_results = max_tool_results
         self.max_sessions = max_sessions
 
         self._history_path = history_path or CHAT_HISTORY_PATH
+        self._lifecycle_hooks = lifecycle_hooks
         self._messages: Deque[Dict[str, Any]] = deque(maxlen=max_messages)
         self._tool_results: Deque[Dict[str, Any]] = deque(maxlen=max_tool_results)
         self._sessions: Deque[Dict[str, Any]] = deque(maxlen=max_sessions)
@@ -226,6 +228,13 @@ class SessionContextManager:
         self._tool_results.clear()
         self._activity.clear()
         self._session_start = datetime.now()
+        if self._lifecycle_hooks is not None:
+            try:
+                self._current_session["memory_lifecycle"] = self._lifecycle_hooks.on_session_start(
+                    self._current_session
+                )
+            except Exception as exc:
+                logger.warning("[Session] Memory start hook failed open: %s", exc)
         logger.info("[Session] New session started: %s", session_id)
         self._save_history()
         return self._current_session
@@ -253,6 +262,12 @@ class SessionContextManager:
             session["summary"] = summary
         elif not session.get("summary"):
             session["summary"] = self._build_session_summary(session)
+
+        if self._lifecycle_hooks is not None:
+            try:
+                session["memory_lifecycle"] = self._lifecycle_hooks.on_session_end(session)
+            except Exception as exc:
+                logger.warning("[Session] Memory end hook failed open: %s", exc)
 
         try:
             from memory.conversation_compression import get_compressor
@@ -450,7 +465,13 @@ class SessionContextManager:
         Build a context summary string for injection into the system prompt.
         """
         with self._lock:
-            if not self._messages and not self._tool_results:
+            lifecycle = (
+                self._current_session.get("memory_lifecycle", {})
+                if self._current_session
+                else {}
+            )
+            stale_sections = list(lifecycle.get("stale_sections", []))
+            if not self._messages and not self._tool_results and not stale_sections:
                 return ""
 
             lines: List[str] = []
@@ -459,6 +480,12 @@ class SessionContextManager:
                 f"Session reconnection #{self._reconnect_count}. Continue as if uninterrupted."
             )
             lines.append("")
+
+            if stale_sections:
+                lines.append("Personal context requiring review:")
+                lines.extend(f"  - Stale: {section}" for section in stale_sections[:10])
+                lines.append("Treat stale context as uncertain and ask for confirmation when it affects the task.")
+                lines.append("")
 
             if self._messages:
                 lines.append("Recent conversation:")
@@ -712,5 +739,9 @@ def get_session_manager() -> SessionContextManager:
     if _session_manager is None:
         with _manager_lock:
             if _session_manager is None:
-                _session_manager = SessionContextManager()
+                from core.memory_lifecycle import get_memory_lifecycle_hooks
+
+                _session_manager = SessionContextManager(
+                    lifecycle_hooks=get_memory_lifecycle_hooks()
+                )
     return _session_manager
