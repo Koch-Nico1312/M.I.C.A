@@ -229,3 +229,11 @@ def test_agent_reach_diagnostics_are_low_risk_but_transcription_is_medium():
     assert flow.classify_risk("agent_reach", "capabilities") == RiskLevel.LOW
     assert flow.classify_risk("agent_reach", "check_update") == RiskLevel.LOW
     assert flow.classify_risk("agent_reach", "transcribe") == RiskLevel.MEDIUM
+
+
+def test_codebase_memory_read_write_and_delete_risks_are_separate():
+    flow = ApprovalFlow()
+
+    assert flow.classify_risk("codebase_memory", "architecture") == RiskLevel.LOW
+    assert flow.classify_risk("codebase_memory", "index") == RiskLevel.MEDIUM
+    assert flow.classify_risk("codebase_memory", "delete_project") == RiskLevel.HIGH

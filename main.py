@@ -64,6 +64,7 @@ def _get_action_module(action_name: str):
         
         action_map = {
             "agent_reach": "actions.agent_reach",
+            "codebase_memory": "actions.codebase_memory",
             "advanced_knowledge": "actions.advanced_knowledge",
             "browser_agent": "actions.browser_agent",
             "browser_control": "actions.browser_control",

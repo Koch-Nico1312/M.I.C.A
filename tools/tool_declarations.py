@@ -129,6 +129,34 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "codebase_memory",
+        "description": (
+            "Uses the optional local codebase-memory MCP server for repository indexing, "
+            "architecture, structural search, call tracing, and change-impact analysis."
+        ),
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {
+                    "type": "STRING",
+                    "description": (
+                        "status | setup_preview | enable | disable | connect | projects | index | "
+                        "architecture | search | trace | impact | query | adr | ingest_traces | delete_project"
+                    ),
+                },
+                "project": {"type": "STRING", "description": "Indexed project name"},
+                "repo_path": {"type": "STRING", "description": "Repository path for indexing"},
+                "query": {"type": "STRING", "description": "Code search or Cypher query"},
+                "symbol": {"type": "STRING", "description": "Function or qualified symbol name"},
+                "operation": {"type": "STRING", "description": "Read-only MCP operation"},
+                "arguments": {"type": "OBJECT", "description": "Operation-specific arguments"},
+                "mode": {"type": "STRING", "description": "Index or ADR mode"},
+                "persistence": {"type": "BOOLEAN", "description": "Persist shared graph artifact"},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "weather_report",
         "description": "Gives the weather report to user",
         "parameters": {

@@ -401,6 +401,24 @@ class ApprovalFlow:
             if action_lower in {"run", "transcribe"}:
                 return RiskLevel.MEDIUM
 
+        if tool_lower == "codebase_memory":
+            if action_lower in {
+                "status",
+                "setup_preview",
+                "connect",
+                "projects",
+                "architecture",
+                "search",
+                "trace",
+                "impact",
+                "query",
+            }:
+                return RiskLevel.LOW
+            if action_lower in {"enable", "disable", "index", "adr", "ingest_traces"}:
+                return RiskLevel.MEDIUM
+            if action_lower == "delete_project":
+                return RiskLevel.HIGH
+
         # Check tool-level classification
         for tool_pattern, risk_level in self.RISK_CLASSIFICATION.items():
             if tool_pattern in tool_lower:

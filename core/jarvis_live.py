@@ -1209,6 +1209,7 @@ class MicaLive:
             browser_agent,
             browser_control,
             calendar_manager,
+            codebase_memory,
             code_helper,
             computer_control,
             computer_settings,
@@ -1465,6 +1466,12 @@ class MicaLive:
             elif name == "agent_reach":
                 r = await loop.run_in_executor(
                     None, lambda: agent_reach(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "codebase_memory":
+                r = await loop.run_in_executor(
+                    None, lambda: codebase_memory(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 

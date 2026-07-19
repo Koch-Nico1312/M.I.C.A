@@ -54,6 +54,7 @@ class ActionLoader:
             "web_search": "actions.web_search",
             "crawl_url": "actions.web_crawl",
             "agent_reach": "actions.agent_reach",
+            "codebase_memory": "actions.codebase_memory",
             "computer_control": "actions.computer_control",
             "game_updater": "actions.game_updater",
             "gmail_manager": "actions.gmail_manager",

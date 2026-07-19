@@ -81,6 +81,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"agent-reach", "cli", "capabilities", "external"},
     ),
+    "codebase_memory": ToolMetadata(
+        name="codebase_memory",
+        description="Local structural code graph, architecture, tracing, and change-impact gateway",
+        risk_level="medium",
+        requires_confirmation=True,
+        reversible=False,
+        tags={"code", "mcp", "knowledge-graph", "local"},
+    ),
     "weather_report": ToolMetadata(
         name="weather_report",
         description="Provides weather information",

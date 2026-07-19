@@ -6,6 +6,16 @@
       "url": "http://localhost:8000",
       "enabled": false,
       "timeout": 10
+    },
+    "codebase_memory": {
+      "name": "Codebase Memory",
+      "transport": "stdio",
+      "command": "codebase-memory-mcp",
+      "args": [],
+      "env": {},
+      "enabled": false,
+      "timeout": 120,
+      "description": "Optional local AST/LSP knowledge graph for M.I.C.A coding agents"
     }
   }
 }

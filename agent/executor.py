@@ -311,6 +311,11 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None = None) -> st
 
         return flight_finder(parameters=parameters, player=None, speak=speak) or "Done."
 
+    elif tool == "codebase_memory":
+        from actions.codebase_memory import codebase_memory
+
+        return codebase_memory(parameters=parameters, player=None, speak=speak) or "Done."
+
     elif tool.startswith("mcp_"):
         try:
             from core.mcp_client import get_mcp_client
