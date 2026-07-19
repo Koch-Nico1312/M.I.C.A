@@ -61,7 +61,15 @@ class TaskPipelineManager:
         self._pipelines: dict[str, TaskPipeline] = {}
         self._load()
 
-    def create_pipeline(self, goal: str, steps: list[str] | None = None, budget: dict[str, Any] | None = None) -> TaskPipeline:
+    def create_pipeline(
+        self,
+        goal: str,
+        steps: list[str] | None = None,
+        budget: dict[str, Any] | None = None,
+        *,
+        origin_id: str = "",
+        origin_relation: str = "",
+    ) -> TaskPipeline:
         goal = str(goal or "").strip()
         if not goal:
             raise ValueError("goal is required")
@@ -91,6 +99,8 @@ class TaskPipelineManager:
             requires_approval=self._looks_risky(goal),
             checkpoints=[VerificationRecord(timestamp=now, status="created", note="Pipeline created.")],
             budget=normalized_budget,
+            origin_id=str(origin_id or ""),
+            origin_relation=str(origin_relation or ""),
         )
         with self._lock:
             self._pipelines[pipeline.id] = pipeline
@@ -177,9 +187,9 @@ class TaskPipelineManager:
                 source.goal,
                 steps=[step.title for step in source.steps],
                 budget=dict(source.budget),
+                origin_id=source.id,
+                origin_relation=relation,
             )
-            clone.origin_id = source.id
-            clone.origin_relation = relation
             clone.checkpoints.append(VerificationRecord(
                 timestamp=_now(), status=relation,
                 note="Lauf erneut gestartet." if relation == "rerun" else "Aufgabe dupliziert.",

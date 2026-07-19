@@ -2,7 +2,7 @@
 MCP CLIENT - MODEL CONTEXT PROTOCOL
 ===================================
 Implements the Model Context Protocol for external tool server integration.
-Allows Mark-XXXIX to connect to external MCP servers and use their tools.
+Allows M.I.C.A to connect to external MCP servers and use their tools.
 """
 
 from __future__ import annotations

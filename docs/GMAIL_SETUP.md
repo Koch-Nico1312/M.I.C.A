@@ -1,12 +1,12 @@
 # Gmail API Setup Guide
 
-This guide explains how to set up Gmail API integration for JARVIS.
+This guide explains how to set up Gmail API integration for M.I.C.A.
 
 ## Prerequisites
 
 1. A Google Account with Gmail enabled
 2. Python 3.11 or higher
-3. JARVIS installed with the Gmail dependencies
+3. M.I.C.A installed with the Gmail dependencies
 
 ## Step 1: Enable Gmail API
 
@@ -29,25 +29,25 @@ This guide explains how to set up Gmail API integration for JARVIS.
    - Save and continue
 4. Create OAuth client ID:
    - Application type: **Desktop application**
-   - Name: **JARVIS Gmail**
+   - Name: **M.I.C.A Gmail**
    - Click **Create**
 5. Download the JSON file (it will be named something like `credentials.json`)
 
-## Step 3: Configure JARVIS
+## Step 3: Configure M.I.C.A
 
 1. Rename the downloaded JSON file to `gmail_credentials.json`
-2. Move it to the `config/` directory in your JARVIS installation:
+2. Move it to the `config/` directory in your M.I.C.A installation:
    ```
-   mv ~/Downloads/credentials.json /path/to/Mark-XXXIX/config/gmail_credentials.json
+   mv ~/Downloads/credentials.json /path/to/M.I.C.A/config/gmail_credentials.json
    ```
 3. Enable Gmail in your configuration:
-   
+
    **Option A: Using .env file**
    ```bash
    # Edit .env
    GMAIL_ENABLED=true
    ```
-   
+
    **Option B: Using config.yaml**
    ```yaml
    gmail:
@@ -58,10 +58,10 @@ This guide explains how to set up Gmail API integration for JARVIS.
 
 ## Step 4: Authenticate
 
-The first time you use Gmail features, JARVIS will open a browser window asking you to:
+The first time you use Gmail features, M.I.C.A will open a browser window asking you to:
 
 1. Sign in to your Google Account
-2. Grant permission to JARVIS to access your Gmail
+2. Grant permission to M.I.C.A to access your Gmail
 3. The authentication token will be saved automatically
 
 After successful authentication, you won't need to repeat this step.
@@ -72,59 +72,59 @@ Once configured, you can use Gmail features with voice commands:
 
 ### List Emails
 ```
-"Jarvis, list my emails"
-"Jarvis, show me the last 5 emails"
-"Jarvis, list emails from John"
+"M.I.C.A, list my emails"
+"M.I.C.A, show me the last 5 emails"
+"M.I.C.A, list emails from John"
 ```
 
 ### Read Email
 ```
-"Jarvis, read the email with ID 12345"
-"Jarvis, show me the full email"
+"M.I.C.A, read the email with ID 12345"
+"M.I.C.A, show me the full email"
 ```
 
 ### Send Email
 ```
-"Jarvis, send an email to john@example.com"
-"Jarvis, email Sarah about the meeting"
+"M.I.C.A, send an email to john@example.com"
+"M.I.C.A, email Sarah about the meeting"
 ```
 
 ### Reply to Email
 ```
-"Jarvis, reply to that email"
-"Jarvis, reply saying I'll be there"
+"M.I.C.A, reply to that email"
+"M.I.C.A, reply saying I'll be there"
 ```
 
 ### Search Emails
 ```
-"Jarvis, search for emails about project X"
-"Jarvis, find emails from last week"
+"M.I.C.A, search for emails about project X"
+"M.I.C.A, find emails from last week"
 ```
 
 ### Get Unread Count
 ```
-"Jarvis, how many unread emails do I have?"
+"M.I.C.A, how many unread emails do I have?"
 ```
 
 ### Mark as Read
 ```
-"Jarvis, mark that email as read"
+"M.I.C.A, mark that email as read"
 ```
 
 ### Archive Email
 ```
-"Jarvis, archive that email"
+"M.I.C.A, archive that email"
 ```
 
 ### Delete Email
 ```
-"Jarvis, delete that email"
+"M.I.C.A, delete that email"
 ```
 
 ### Summarize Emails
 ```
-"Jarvis, summarize my recent emails"
-"Jarvis, give me a summary of important emails"
+"M.I.C.A, summarize my recent emails"
+"M.I.C.A, give me a summary of important emails"
 ```
 
 ## Available Actions
@@ -219,9 +219,9 @@ gmail_manager({
 
 ## Privacy
 
-- JARVIS only accesses your Gmail when you explicitly request it
+- M.I.C.A only accesses your Gmail when you explicitly request it
 - Email content is processed locally when possible
-- No data is stored permanently by JARVIS
+- No data is stored permanently by M.I.C.A
 - You can revoke access at any time from Google Account settings
 
 ## Support
@@ -230,4 +230,4 @@ For issues or questions:
 - Check the Google Cloud Console for API errors
 - Verify your credentials file is correctly formatted
 - Ensure all dependencies are installed
-- Check the JARVIS logs for error messages
+- Check the M.I.C.A logs for error messages

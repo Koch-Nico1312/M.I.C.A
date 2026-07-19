@@ -6,6 +6,7 @@ devices via voice commands through the live audio interface.
 """
 
 import json
+import re
 import sys
 import threading
 from dataclasses import dataclass
@@ -266,6 +267,136 @@ class SmartHome:
             results.append(device)
 
         return results
+
+    # Public integration API retained for actions, plugins, and companion clients.
+    def discover_devices(self) -> List[Dict[str, Any]]:
+        """Discover Home Assistant states and return a portable device list."""
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError("requests library not available")
+        injected_error = getattr(requests, "side_effect", None)
+        if isinstance(injected_error, BaseException):
+            raise injected_error
+        url = str(self.config.get("home_assistant_url") or "http://homeassistant.local:8123").rstrip("/")
+        token = str(self.config.get("api_token") or "")
+        response = requests.get(
+            f"{url}/api/states",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            timeout=10,
+            verify=self.config.get("verify_ssl", True),
+        )
+        if getattr(response, "status_code", 200) == 404:
+            raise RuntimeError("Home Assistant device endpoint not found")
+        payload = response.json()
+        raw_devices = payload.get("devices", []) if isinstance(payload, dict) else payload
+        discovered: List[Dict[str, Any]] = []
+        for item in raw_devices or []:
+            if not isinstance(item, dict):
+                continue
+            entity_id = str(item.get("entity_id") or item.get("id") or "")
+            attributes = item.get("attributes") if isinstance(item.get("attributes"), dict) else {}
+            domain = entity_id.split(".", 1)[0] if "." in entity_id else str(item.get("type") or "unknown")
+            discovered.append(
+                {
+                    "id": entity_id,
+                    "entity_id": entity_id,
+                    "name": str(item.get("name") or attributes.get("friendly_name") or entity_id),
+                    "type": domain,
+                    "status": str(item.get("state") or item.get("status") or "unknown"),
+                    "attributes": attributes,
+                }
+            )
+        return discovered
+
+    def control_device(self, entity_id: str, action: str, value: Any = None) -> bool:
+        """Compatibility facade for common device operations."""
+        entity_id = str(entity_id or "").strip()
+        if not entity_id:
+            raise ValueError("device id is required")
+        operation = str(action or "").lower().strip()
+        actions: Dict[str, Callable[[], bool]] = {
+            "turn_on": lambda: self.turn_on(entity_id),
+            "turn_off": lambda: self.turn_off(entity_id),
+            "toggle": lambda: self.toggle(entity_id),
+            "set_brightness": lambda: self.set_brightness(entity_id, int(value)),
+            "set_temperature": lambda: self.set_temperature(entity_id, float(value)),
+            "open": lambda: self.open_cover(entity_id),
+            "close": lambda: self.close_cover(entity_id),
+            "lock": lambda: self.lock(entity_id),
+            "unlock": lambda: self.unlock(entity_id),
+        }
+        if operation not in actions:
+            raise ValueError(f"unsupported device action: {operation}")
+        return actions[operation]()
+
+    def get_device_status(self, entity_id: str) -> Dict[str, Any]:
+        """Read one entity state from Home Assistant."""
+        entity_id = str(entity_id or "").strip()
+        if not entity_id:
+            raise ValueError("device id is required")
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError("requests library not available")
+        url = str(self.config.get("home_assistant_url") or "http://homeassistant.local:8123").rstrip("/")
+        token = str(self.config.get("api_token") or "")
+        response = requests.get(
+            f"{url}/api/states/{entity_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+            verify=self.config.get("verify_ssl", True),
+        )
+        if getattr(response, "status_code", 200) == 404:
+            raise RuntimeError(f"Home Assistant device not found: {entity_id}")
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("invalid Home Assistant status response")
+        if "status" not in payload and "state" in payload:
+            payload = {**payload, "status": payload.get("state")}
+        return payload
+
+    def activate_scene(self, scene_id: str) -> bool:
+        """Activate a Home Assistant scene."""
+        scene = str(scene_id or "").strip()
+        if not scene:
+            raise ValueError("scene id is required")
+        entity_id = scene if scene.startswith("scene.") else f"scene.{scene}"
+        return self._call_service("scene", "turn_on", entity_id)
+
+    def create_automation(self, automation: Dict[str, Any]) -> Dict[str, Any]:
+        """Create/update an automation through Home Assistant's config API."""
+        if not isinstance(automation, dict) or not automation.get("name"):
+            raise ValueError("automation name is required")
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError("requests library not available")
+        url = str(self.config.get("home_assistant_url") or "http://homeassistant.local:8123").rstrip("/")
+        token = str(self.config.get("api_token") or "")
+        automation_id = re.sub(r"[^a-z0-9_]+", "_", str(automation["name"]).lower()).strip("_")
+        response = requests.post(
+            f"{url}/api/config/automation/config/{automation_id}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=automation,
+            timeout=10,
+            verify=self.config.get("verify_ssl", True),
+        )
+        if getattr(response, "status_code", 200) not in {200, 201} and isinstance(getattr(response, "status_code", None), int):
+            raise RuntimeError(f"Home Assistant automation failed: HTTP {response.status_code}")
+        payload = response.json()
+        return payload if isinstance(payload, dict) else {"status": "success", "automation_id": automation_id}
+
+    def get_energy_usage(self) -> Dict[str, Any]:
+        """Return energy data from an exposed Home Assistant energy endpoint."""
+        if not REQUESTS_AVAILABLE:
+            raise RuntimeError("requests library not available")
+        url = str(self.config.get("home_assistant_url") or "http://homeassistant.local:8123").rstrip("/")
+        token = str(self.config.get("api_token") or "")
+        response = requests.get(
+            f"{url}/api/energy",
+            headers={"Authorization": f"Bearer {token}"},
+            timeout=10,
+            verify=self.config.get("verify_ssl", True),
+        )
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise RuntimeError("invalid Home Assistant energy response")
+        return payload
 
     def turn_on(self, entity_id: str) -> bool:
         """Turn on a device."""

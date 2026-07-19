@@ -145,6 +145,22 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"communication", "messaging"},
     ),
+    "communication_gateway": ToolMetadata(
+        name="communication_gateway",
+        description="Routes paired Telegram, Discord, companion, and notification traffic",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=False,
+        tags={"communication", "telegram", "companion", "external"},
+    ),
+    "telephony": ToolMetadata(
+        name="telephony",
+        description="Places allow-listed telephone calls through a configured provider",
+        risk_level="high",
+        requires_confirmation=True,
+        reversible=False,
+        tags={"communication", "voice", "telephone", "external"},
+    ),
     "gmail_manager": ToolMetadata(
         name="gmail_manager",
         description="Manages Gmail emails",

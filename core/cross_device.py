@@ -8,6 +8,7 @@ Send summaries/reminders to phone via Telegram or Discord
 import asyncio
 import json
 from datetime import datetime
+from pathlib import Path
 from uuid import uuid4
 from typing import Dict, List, Optional
 
@@ -129,18 +130,27 @@ class TelegramBot:
         self.base_url = f"https://api.telegram.org/bot{bot_token}"
         self.session: Optional[aiohttp.ClientSession] = None
 
-    async def send_message(self, text: str, parse_mode: str = "Markdown") -> bool:
+    async def send_message(
+        self,
+        text: str,
+        parse_mode: str = "Markdown",
+        *,
+        chat_id: str | None = None,
+        reply_markup: dict | None = None,
+    ) -> bool:
         """Send a message via Telegram"""
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-
         try:
             url = f"{self.base_url}/sendMessage"
-            data = {"chat_id": self.chat_id, "text": text, "parse_mode": parse_mode}
+            data = {"chat_id": chat_id or self.chat_id, "text": text}
+            if parse_mode:
+                data["parse_mode"] = parse_mode
+            if reply_markup:
+                data["reply_markup"] = reply_markup
 
-            async with self.session.post(url, json=data) as response:
-                result = await response.json()
-                return result.get("ok", False)
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=data) as response:
+                    result = await response.json()
+                    return result.get("ok", False)
 
         except Exception as e:
             print(f"[Telegram] ❌ Send error: {e}")
@@ -148,9 +158,6 @@ class TelegramBot:
 
     async def send_file(self, file_path: str, caption: str = "") -> bool:
         """Send a file via Telegram"""
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-
         try:
             url = f"{self.base_url}/sendDocument"
 
@@ -161,13 +168,78 @@ class TelegramBot:
                 if caption:
                     data.add_field("caption", caption)
 
-                async with self.session.post(url, data=data) as response:
-                    result = await response.json()
-                    return result.get("ok", False)
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, data=data) as response:
+                        result = await response.json()
+                        return result.get("ok", False)
 
         except Exception as e:
             print(f"[Telegram] ❌ File send error: {e}")
             return False
+
+    async def get_updates(self, offset: int = 0, timeout: int = 0) -> list[dict]:
+        """Fetch Telegram updates for local long-polling mode."""
+        try:
+            url = f"{self.base_url}/getUpdates"
+            payload = {
+                "offset": max(0, int(offset)),
+                "timeout": max(0, min(30, int(timeout))),
+                "allowed_updates": ["message", "callback_query"],
+            }
+            client_timeout = aiohttp.ClientTimeout(total=max(10, payload["timeout"] + 5))
+            async with aiohttp.ClientSession(timeout=client_timeout) as session:
+                async with session.post(url, json=payload) as response:
+                    result = await response.json()
+            if not result.get("ok"):
+                raise RuntimeError(str(result.get("description") or "Telegram update request failed"))
+            return [item for item in result.get("result", []) if isinstance(item, dict)]
+        except Exception as exc:
+            print(f"[Telegram] ❌ Poll error: {exc}")
+            return []
+
+    async def answer_callback(self, callback_query_id: str, text: str = "") -> bool:
+        """Acknowledge an inline-button callback."""
+        try:
+            url = f"{self.base_url}/answerCallbackQuery"
+            payload = {"callback_query_id": callback_query_id, "text": text[:180]}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json=payload) as response:
+                    result = await response.json()
+            return bool(result.get("ok"))
+        except Exception as exc:
+            print(f"[Telegram] ❌ Callback error: {exc}")
+            return False
+
+    async def resolve_file(self, file_id: str) -> str:
+        """Return the authenticated Telegram download URL for a file id."""
+        try:
+            url = f"{self.base_url}/getFile"
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, json={"file_id": file_id}) as response:
+                    result = await response.json()
+            file_path = str((result.get("result") or {}).get("file_path") or "")
+            return f"https://api.telegram.org/file/bot{self.bot_token}/{file_path}" if file_path else ""
+        except Exception as exc:
+            print(f"[Telegram] ❌ File lookup error: {exc}")
+            return ""
+
+    async def download_file(self, file_id: str, destination: str | Path) -> str:
+        """Download a Telegram attachment without exposing the bot token to callers."""
+        download_url = await self.resolve_file(file_id)
+        if not download_url:
+            return ""
+        target = Path(destination)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(download_url) as response:
+                    if response.status != 200:
+                        return ""
+                    target.write_bytes(await response.read())
+            return str(target)
+        except Exception as exc:
+            print(f"[Telegram] ❌ File download error: {exc}")
+            return ""
 
     async def close(self):
         """Close the session"""
@@ -186,16 +258,14 @@ class DiscordBot:
 
     async def send_message(self, text: str) -> bool:
         """Send a message via Discord"""
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-
         try:
             url = f"{self.base_url}/channels/{self.channel_id}/messages"
             headers = {"Authorization": f"Bot {self.bot_token}", "Content-Type": "application/json"}
             data = {"content": text}
 
-            async with self.session.post(url, headers=headers, json=data) as response:
-                return response.status == 200
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, headers=headers, json=data) as response:
+                    return response.status in {200, 201}
 
         except Exception as e:
             print(f"[Discord] ❌ Send error: {e}")
@@ -203,9 +273,6 @@ class DiscordBot:
 
     async def send_file(self, file_path: str, comment: str = "") -> bool:
         """Send a file via Discord"""
-        if not self.session:
-            self.session = aiohttp.ClientSession()
-
         try:
             url = f"{self.base_url}/channels/{self.channel_id}/messages"
             headers = {"Authorization": f"Bot {self.bot_token}"}
@@ -215,8 +282,9 @@ class DiscordBot:
                 data.add_field("payload_json", json.dumps({"content": comment}))
                 data.add_field("file[0]", f, filename=file_path.split("/")[-1])
 
-                async with self.session.post(url, headers=headers, data=data) as response:
-                    return response.status == 200
+                async with aiohttp.ClientSession() as session:
+                    async with session.post(url, headers=headers, data=data) as response:
+                        return response.status in {200, 201}
 
         except Exception as e:
             print(f"[Discord] ❌ File send error: {e}")
@@ -371,6 +439,34 @@ class CrossDeviceHandover:
         finally:
             loop.close()
 
+    def sync_get_telegram_updates(self, offset: int = 0, timeout: int = 0) -> list[dict]:
+        """Synchronous update fetch used by the UI bridge and background poller."""
+        if not AIOHTTP_AVAILABLE or not self.telegram_bot:
+            return []
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.telegram_bot.get_updates(offset, timeout))
+        finally:
+            loop.close()
+
+    def sync_answer_telegram_callback(self, callback_query_id: str, text: str = "") -> bool:
+        if not AIOHTTP_AVAILABLE or not self.telegram_bot:
+            return False
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.telegram_bot.answer_callback(callback_query_id, text))
+        finally:
+            loop.close()
+
+    def sync_download_telegram_file(self, file_id: str, destination: str | Path) -> str:
+        if not AIOHTTP_AVAILABLE or not self.telegram_bot:
+            return ""
+        loop = asyncio.new_event_loop()
+        try:
+            return loop.run_until_complete(self.telegram_bot.download_file(file_id, destination))
+        finally:
+            loop.close()
+
     async def close(self):
         """Close all connections"""
         if self.telegram_bot:
@@ -389,3 +485,19 @@ def get_cross_device() -> CrossDeviceHandover:
     if _cross_device is None:
         _cross_device = CrossDeviceHandover()
     return _cross_device
+
+
+def reset_cross_device() -> None:
+    """Reload channel configuration on the next gateway access."""
+    global _cross_device
+    _cross_device = None
+
+
+__all__ = [
+    "CrossDevice",
+    "CrossDeviceHandover",
+    "DiscordBot",
+    "TelegramBot",
+    "get_cross_device",
+    "reset_cross_device",
+]

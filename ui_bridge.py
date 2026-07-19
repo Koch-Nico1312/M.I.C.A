@@ -272,18 +272,18 @@ class _MICAWindow(QMainWindow):
         self.setWindowTitle("M.I.C.A")
         self.resize(1460, 960)
         self.setMinimumSize(1180, 760)
-        
+
         # Set window flags to prevent flickering and disappearing
         self.setWindowFlags(
             Qt.WindowType.Window |
             Qt.WindowType.WindowMinMaxButtonsHint |
             Qt.WindowType.WindowCloseButtonHint
         )
-        
+
         # Optimize window rendering to prevent flickering
         self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, False)
-        
+
         self._mini_head = _MicaMiniHeadWindow(self)
 
         if QWebEngineView is None:
@@ -293,11 +293,11 @@ class _MICAWindow(QMainWindow):
         if QColor is not None:
             self._web.page().setBackgroundColor(QColor("#041018"))
         self.setCentralWidget(self._web)
-        
+
         # Optimize WebEngine rendering to prevent flickering
         self._web.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, True)
         self._web.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
-        
+
         # Configure WebEngine settings to prevent freezing
         settings = self._web.settings()
         try:
@@ -314,7 +314,7 @@ class _MICAWindow(QMainWindow):
             settings.setAttribute(settings.WebAttribute.DnsPrefetchEnabled, False)
         except Exception:
             pass
-        
+
         self._web.setUrl(QUrl(url))
 
     def changeEvent(self, event):  # noqa: N802
@@ -358,6 +358,7 @@ class MicaUI:
         self._shutdown_event = threading.Event()
         self._server: Optional[ThreadingHTTPServer] = None
         self._server_thread: Optional[threading.Thread] = None
+        self._communications_thread: Optional[threading.Thread] = None
         self._server_url: Optional[str] = None
         self._vite_process: Optional[subprocess.Popen] = None
         self._app = None
@@ -384,6 +385,7 @@ class MicaUI:
 
         self._ensure_ui_assets()
         self._start_http_server()
+        self._start_communications_poller()
         self._log("SYS: UI bridge ready.")
 
     # ------------------------------------------------------------------
@@ -419,6 +421,10 @@ class MicaUI:
     @on_text_command.setter
     def on_text_command(self, cb):
         self._on_text_command = cb
+        with contextlib.suppress(Exception):
+            from core.communication_gateway import get_communication_gateway
+
+            get_communication_gateway().set_command_handler(cb)
 
     @property
     def on_voice_interrupt(self):
@@ -571,6 +577,32 @@ class MicaUI:
                 app = QApplication.instance() if QApplication else None
                 if app is not None:
                     app.quit()
+
+    def _start_communications_poller(self) -> None:
+        """Continuously receive Telegram updates when the channel is enabled."""
+        if self._communications_thread and self._communications_thread.is_alive():
+            return
+
+        def poll() -> None:
+            while not self._shutdown_event.wait(1.0):
+                try:
+                    enabled = bool(self._config.get("cross_device.telegram.enabled", False))
+                    if not enabled:
+                        self._shutdown_event.wait(4.0)
+                        continue
+                    result = self._communications_gateway().poll_telegram(timeout=2)
+                    if result.get("received"):
+                        self._invalidate_dashboard("communications", {"received": result["received"]})
+                except Exception as exc:
+                    logger.debug("Telegram polling paused: %s", exc)
+                    self._shutdown_event.wait(5.0)
+
+        self._communications_thread = threading.Thread(
+            target=poll,
+            daemon=True,
+            name="MICACommunicationsPoller",
+        )
+        self._communications_thread.start()
 
     # ------------------------------------------------------------------
     # UI state endpoints
@@ -1145,7 +1177,25 @@ class MicaUI:
             from core.system_notifications import notify
 
             inbox = self._project_state_payload().get("inbox", [])
-            evaluation = manager.evaluate(inbox, notifier=notify)
+            def deliver(title: str, message: str, priority: str) -> bool:
+                desktop_delivered = bool(notify(title, message, priority))
+                remote_delivered = False
+                if bool(self._config.get("communications.proactive.enabled", False)):
+                    result = self._communications_gateway().deliver_notification(
+                        title,
+                        message,
+                        priority,
+                        channels=list(
+                            self._config.get(
+                                "communications.proactive.channels", ["telegram"]
+                            )
+                            or []
+                        ),
+                    )
+                    remote_delivered = bool(result.get("ok"))
+                return desktop_delivered or remote_delivered
+
+            evaluation = manager.evaluate(inbox, notifier=deliver)
             return {"status": "evaluated", "evaluation": evaluation, "settings": evaluation["settings"]}
         raise ValueError(f"unknown supervisor automation action: {action}")
 
@@ -1415,6 +1465,138 @@ class MicaUI:
                 }
             ],
         }
+
+    def _communications_gateway(self):
+        from core.communication_gateway import get_communication_gateway
+
+        gateway = get_communication_gateway()
+        gateway.set_command_handler(self._on_text_command)
+        return gateway
+
+    @_dashboard_section
+    def _communications_payload(self) -> Dict[str, Any]:
+        try:
+            return self._communications_gateway().snapshot()
+        except Exception as exc:
+            logger.debug("Could not load communications: %s", exc)
+            return {"channels": {}, "events": [], "error": str(exc)}
+
+    def _communications_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        action = str(payload.get("action") or "status").lower().strip()
+        gateway = self._communications_gateway()
+        if action == "status":
+            return gateway.snapshot()
+        if action == "configure":
+            updates: Dict[str, Any] = {}
+            channels: Dict[str, Any] = {}
+            for channel in ("telegram", "discord"):
+                value = payload.get(channel)
+                if isinstance(value, dict):
+                    allowed = {"enabled", "bot_token", "chat_id", "channel_id", "mode", "allowed_sender_ids"}
+                    channels[channel] = {key: item for key, item in value.items() if key in allowed}
+            if channels:
+                # Preserve the established cross_device configuration consumed by existing actions.
+                updates["cross_device"] = channels
+            communications: Dict[str, Any] = {}
+            if isinstance(payload.get("telephony"), dict):
+                allowed = {
+                    "enabled", "provider", "account_sid", "auth_token", "from_number",
+                    "webhook_url", "inbound_action_url", "bridge_url", "bridge_token",
+                    "allowed_numbers", "allow_inbound", "allow_proactive_calls",
+                    "verify_webhook_signature", "language", "voice",
+                }
+                communications["telephony"] = {
+                    key: value for key, value in payload["telephony"].items() if key in allowed
+                }
+            if isinstance(payload.get("proactive"), dict):
+                communications["proactive"] = {
+                    key: value for key, value in payload["proactive"].items() if key in {"enabled", "channels"}
+                }
+            if communications:
+                updates["communications"] = communications
+            if updates:
+                get_config().update_local_settings(updates)
+                from core.communication_gateway import reset_communication_gateway
+                from core.cross_device import reset_cross_device
+                from core.telephony import reset_telephony_gateway
+
+                reset_cross_device()
+                reset_communication_gateway()
+                reset_telephony_gateway()
+                gateway = self._communications_gateway()
+            return {"ok": True, "communications": gateway.snapshot()}
+        if action == "pair":
+            return gateway.pair_identity(
+                str(payload.get("channel") or "telegram"),
+                str(payload.get("sender_id") or ""),
+                label=str(payload.get("label") or ""),
+                confirmed=bool(payload.get("confirmed", False)),
+            )
+        if action == "revoke":
+            return gateway.revoke_identity(
+                str(payload.get("channel") or "telegram"),
+                str(payload.get("sender_id") or ""),
+                confirmed=bool(payload.get("confirmed", False)),
+            )
+        if action == "send":
+            return gateway.send(
+                str(payload.get("channel") or "telegram"),
+                str(payload.get("text") or ""),
+                recipient=str(payload.get("recipient") or ""),
+                confirmed=bool(payload.get("confirmed", False)),
+            )
+        if action == "poll":
+            return gateway.poll_telegram(timeout=int(payload.get("timeout", 0) or 0))
+        if action == "telegram_update":
+            update = payload.get("update") if isinstance(payload.get("update"), dict) else payload
+            return gateway.process_telegram_update(update)
+        if action == "inbound":
+            return gateway.process_inbound(
+                str(payload.get("channel") or "companion"),
+                str(payload.get("sender_id") or ""),
+                str(payload.get("text") or ""),
+                attachment_path=str(payload.get("attachment_path") or ""),
+            )
+        if action == "call":
+            from core.telephony import get_telephony_gateway
+
+            return get_telephony_gateway().place_call(
+                str(payload.get("number") or ""),
+                str(payload.get("message") or ""),
+                confirmed=bool(payload.get("confirmed", False)),
+                purpose=str(payload.get("purpose") or "manual"),
+            )
+        if action == "notify":
+            return gateway.deliver_notification(
+                str(payload.get("title") or "M.I.C.A"),
+                str(payload.get("message") or ""),
+                str(payload.get("priority") or "normal"),
+                channels=list(payload.get("channels") or []) or None,
+                call_number=str(payload.get("call_number") or ""),
+                confirmed_call=bool(payload.get("confirmed_call", False)),
+            )
+        if action == "home_configure":
+            from core.smart_home import get_smart_home
+
+            ok = get_smart_home().configure(
+                str(payload.get("url") or ""),
+                str(payload.get("token") or ""),
+                enabled=bool(payload.get("enabled", True)),
+            )
+            return {"ok": ok, "communications": gateway.snapshot()}
+        if action == "home_action":
+            if not bool(payload.get("confirmed", False)):
+                return {"ok": False, "approval_required": True, "error": "explicit confirmation required"}
+            from core.smart_home import get_smart_home
+
+            home = get_smart_home()
+            entity_id = str(payload.get("entity_id") or "")
+            operation = str(payload.get("operation") or "status").lower()
+            operations = {"turn_on": home.turn_on, "turn_off": home.turn_off, "toggle": home.toggle}
+            if operation not in operations:
+                return {"ok": False, "error": "unsupported smart-home operation"}
+            return {"ok": bool(operations[operation](entity_id)), "communications": gateway.snapshot()}
+        return {"ok": False, "error": "unknown communications action"}
 
     @_dashboard_section
     def _action_history_payload(self) -> Dict[str, Any]:
@@ -1803,6 +1985,21 @@ class MicaUI:
             logger.debug("Could not load task pipelines: %s", exc)
             return {"pipelines": [], "active": [], "error": str(exc)}
 
+    def _system_status_payload(self, *, force: bool = False) -> Dict[str, Any]:
+        from core.system_status import get_system_status_manager
+
+        return get_system_status_manager().snapshot(force=force)
+
+    def _project_summary_payload(self) -> Dict[str, Any]:
+        from core.project_summary import build_project_summary
+
+        return build_project_summary(
+            self._project_state_payload(),
+            self._task_pipelines_payload(),
+            get_platform_hub().snapshot(),
+            self._action_history_payload(),
+        )
+
     def _task_pipeline_action(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         from agent.task_pipeline import get_task_pipeline_manager
 
@@ -1813,7 +2010,13 @@ class MicaUI:
             steps = raw_steps if isinstance(raw_steps, list) else []
             from core.project_state import get_project_state_manager
             budget = get_project_state_manager().snapshot().get("run_budget", {})
-            pipeline = manager.create_pipeline(str(payload.get("goal") or ""), steps=[str(step) for step in steps], budget=budget)
+            pipeline = manager.create_pipeline(
+                str(payload.get("goal") or ""),
+                steps=[str(step) for step in steps],
+                budget=budget,
+                origin_id=str(payload.get("origin_id") or ""),
+                origin_relation=str(payload.get("origin_relation") or ""),
+            )
             return {"status": "created", "pipeline": manager.get_pipeline(pipeline.id), "task_pipelines": self._task_pipelines_payload()}
         pipeline_id = str(payload.get("pipeline_id") or "")
         if action == "advance":
@@ -2554,6 +2757,11 @@ class MicaUI:
                     return {}
                 return json.loads(raw)
 
+            def _read_form(self) -> Dict[str, str]:
+                length = int(self.headers.get("Content-Length", "0") or "0")
+                raw = self.rfile.read(length).decode("utf-8", errors="replace") if length > 0 else ""
+                return {key: values[-1] for key, values in parse_qs(raw).items() if values}
+
             def _read_multipart(self) -> tuple[list[Any], Dict[str, str]]:
                 content_type = self.headers.get("Content-Type", "")
                 boundary_match = re.search(r'boundary=(?:"([^"]+)"|([^;]+))', content_type)
@@ -2697,6 +2905,10 @@ class MicaUI:
             return request._send_json(200, self._artifact_panel_payload())  # type: ignore[attr-defined]
         if path == "/api/task-pipelines":
             return request._send_json(200, self._task_pipelines_payload())  # type: ignore[attr-defined]
+        if path == "/api/system-status":
+            return request._send_json(200, self._system_status_payload())  # type: ignore[attr-defined]
+        if path == "/api/project-summary":
+            return request._send_json(200, self._project_summary_payload())  # type: ignore[attr-defined]
         if path == "/api/session/resume":
             return request._send_json(200, self._resume_payload())  # type: ignore[attr-defined]
         if path == "/api/documents":
@@ -2728,6 +2940,8 @@ class MicaUI:
             return request._send_json(200, self._reliability_payload())  # type: ignore[attr-defined]
         if path == "/api/devices":
             return request._send_json(200, self._devices_payload())  # type: ignore[attr-defined]
+        if path == "/api/communications":
+            return request._send_json(200, self._communications_payload())  # type: ignore[attr-defined]
         if path == "/api/notes/compose":
             return request._send_json(200, self._note_composer_payload())  # type: ignore[attr-defined]
         if path == "/api/automations":
@@ -2832,6 +3046,28 @@ class MicaUI:
     def _handle_post(self, request: BaseHTTPRequestHandler) -> None:
         path = urlparse(request.path).path
 
+        if path == "/api/communications/telephony":
+            from core.telephony import get_telephony_gateway
+
+            form = request._read_form()  # type: ignore[attr-defined]
+            telephony = get_telephony_gateway()
+            signature = str(request.headers.get("X-Twilio-Signature") or "")
+            if not telephony.validate_webhook(form, signature):
+                xml = telephony.voice_response(
+                    "Die Anfrage konnte nicht verifiziert werden.", gather=False
+                )
+                return request._send_bytes(403, xml.encode("utf-8"), "application/xml; charset=utf-8")  # type: ignore[attr-defined]
+            sender = str(form.get("From") or "")
+            speech = str(form.get("SpeechResult") or "").strip()
+            gateway = self._communications_gateway()
+            if speech:
+                result = gateway.process_inbound("phone", sender, speech)
+                reply = str(result.get("reply") or "Ihre Anfrage wurde an M.I.C.A weitergeleitet.")
+            else:
+                reply = "Hallo, hier ist M.I.C.A. Wie kann ich helfen?"
+            xml = telephony.voice_response(reply, gather=not bool(speech))
+            return request._send_bytes(200, xml.encode("utf-8"), "application/xml; charset=utf-8")  # type: ignore[attr-defined]
+
         if path == "/api/documents/upload":
             try:
                 fields, values = request._read_multipart()  # type: ignore[attr-defined]
@@ -2914,6 +3150,15 @@ class MicaUI:
                 ).start()
             self._log("SYS: Voice output interrupted.")
             return request._send_json(200, {"voice": voice})  # type: ignore[attr-defined]
+
+        if path == "/api/communications":
+            try:
+                result = self._communications_action(payload if isinstance(payload, dict) else {})
+                status = 400 if result.get("error") and not result.get("approval_required") else 200
+                self._invalidate_dashboard("communications", {"action": payload.get("action")})
+                return request._send_json(status, result)  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(400, {"ok": False, "error": str(exc), "communications": self._communications_payload()})  # type: ignore[attr-defined]
 
         if path == "/api/session/new":
             session_id = self._session_manager.start_session(force=True)
@@ -3072,6 +3317,12 @@ class MicaUI:
             except Exception as exc:
                 return request._send_json(400, {"error": str(exc), "task_pipelines": self._task_pipelines_payload()})  # type: ignore[attr-defined]
 
+        if path == "/api/system-status":
+            try:
+                return request._send_json(200, self._system_status_payload(force=True))  # type: ignore[attr-defined]
+            except Exception as exc:
+                return request._send_json(500, {"error": str(exc)})  # type: ignore[attr-defined]
+
         if path == "/api/notes/compose":
             try:
                 return request._send_json(200, self._note_composer_action(payload))  # type: ignore[attr-defined]
@@ -3193,6 +3444,19 @@ class MicaUI:
                 "revoke": "revoke_companion_session",
             }.get(action, "activate_companion_session")
             result = get_platform_hub().action(action_name, payload if isinstance(payload, dict) else {})
+            session = result.get("result", {}).get("session", {}) if isinstance(result.get("result"), dict) else {}
+            session_id = str(session.get("id") or payload.get("session_id") or "")
+            if session_id and action == "activate" and not result.get("error"):
+                self._communications_gateway().pair_identity(
+                    "companion",
+                    session_id,
+                    label=str(session.get("device_name") or "Companion Device"),
+                    confirmed=True,
+                )
+            elif session_id and action == "revoke" and not result.get("error"):
+                self._communications_gateway().revoke_identity(
+                    "companion", session_id, confirmed=True
+                )
             status = 400 if "error" in result and "platform" not in result else 200
             return request._send_json(status, result)  # type: ignore[attr-defined]
 
@@ -3284,7 +3548,7 @@ class MicaUI:
     def _start_vite_dev_server(self) -> None:
         """Start the Vite dev server if not already running."""
         vite_dev_url = "http://localhost:5173"
-        
+
         # Check if already running
         try:
             import requests
@@ -3294,23 +3558,23 @@ class MicaUI:
                 return
         except Exception:
             pass
-        
+
         # Start Vite dev server
         self._log("SYS: Starting Vite dev server...")
-        
+
         if not UI_DIR.exists():
             raise RuntimeError("UI/ directory is missing. Please run 'cd UI && npm run dev' to start the UI.")
-        
+
         if not VITE_BIN.exists():
             raise RuntimeError("UI build toolchain is missing. Run 'npm install' in UI/ first.")
-        
+
         node_executable = _find_node_executable()
         if not node_executable:
             raise RuntimeError(
                 "Node.js is not available. Install Node.js or add it to PATH, "
                 "then run 'npm install' in UI/."
             )
-        
+
         # Start Vite dev server in background
         self._vite_process = subprocess.Popen(
             [node_executable, str(VITE_BIN), "dev"],
@@ -3319,7 +3583,7 @@ class MicaUI:
             stderr=subprocess.PIPE,
             text=True
         )
-        
+
         # Wait for server to start
         import time
         max_wait = 30
@@ -3332,7 +3596,7 @@ class MicaUI:
                     return
             except Exception:
                 time.sleep(1)
-        
+
         raise RuntimeError("Failed to start Vite dev server. Please run 'cd UI && npm run dev' manually.")
 
     def _run_qt_window(self) -> None:
@@ -3366,7 +3630,7 @@ class MicaUI:
             self._window.show()
             self._window.raise_()
             self._window.activateWindow()
-            
+
             # Additional error handling for navigation issues
             if not _ok:
                 logger.warning("WebEngine page load failed or timed out")

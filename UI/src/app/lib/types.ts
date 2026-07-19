@@ -637,6 +637,40 @@ export interface AutomationsPayload {
   allowed_actions: string[];
 }
 
+export interface CommunicationsPayload {
+  channels: {
+    telegram?: { enabled: boolean; configured: boolean; mode?: string; paired: number };
+    discord?: { enabled: boolean; configured: boolean; paired: number };
+    companion?: { enabled: boolean; configured: boolean; paired: number };
+    telephony?: {
+      enabled: boolean;
+      provider: string;
+      credentials_ready: boolean;
+      webhook_url?: string;
+      allowed_numbers: string[];
+      allow_inbound: boolean;
+      allow_proactive_calls: boolean;
+      history: Array<Record<string, unknown>>;
+    };
+  };
+  smart_home: { connected?: boolean; total_devices?: number; last_sync?: string | null; error?: string };
+  telegram_offset: number;
+  paired_identities: Record<string, Array<{ sender_id: string; label: string; paired_at: string }>>;
+  events: Array<{
+    id: string;
+    channel: string;
+    direction: string;
+    sender_id: string;
+    kind: string;
+    text: string;
+    status: string;
+    created_at: string;
+    attachment_path?: string;
+    error?: string;
+  }>;
+  error?: string;
+}
+
 export interface PrivacyPayload {
   mode: string;
   temporary_until?: string | null;
@@ -782,6 +816,35 @@ export interface ReliabilityPayload {
   checks: ReliabilityCheckPayload[];
   recommendations: string[];
   error?: string;
+}
+
+export interface SystemStatusServicePayload {
+  id: "gemini" | "ollama" | "microphone" | "browser" | "mcp" | "database" | string;
+  label: string;
+  status: "available" | "degraded" | "unavailable" | string;
+  summary: string;
+  detail: string;
+  latency_ms: number;
+  checked_at: string;
+}
+
+export interface SystemStatusPayload {
+  status: "available" | "degraded" | "unavailable" | string;
+  checked_at: string;
+  counts: { available: number; degraded: number; unavailable: number };
+  services: SystemStatusServicePayload[];
+}
+
+export interface ProjectSummaryPayload {
+  generated_at: string;
+  title: string;
+  focus: string;
+  overview: string;
+  progress_percent: number;
+  counts: Record<string, number>;
+  blockers: Array<{ id?: string; title: string; reason: string }>;
+  next_steps: string[];
+  markdown: string;
 }
 
 export interface PlatformAgent {

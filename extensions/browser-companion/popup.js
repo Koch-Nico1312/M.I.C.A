@@ -12,17 +12,17 @@ const outputEl = document.querySelector("#output");
 const sendEl = document.querySelector("#send");
 
 async function loadSession() {
-  const stored = await chrome.storage.local.get(["jarvisSessionId", "jarvisDeviceName"]);
+  const stored = await chrome.storage.local.get(["micaSessionId", "micaDeviceName", "jarvisSessionId", "jarvisDeviceName"]);
   return {
-    id: stored.jarvisSessionId || "",
-    deviceName: stored.jarvisDeviceName || "Browser Companion",
+    id: stored.micaSessionId || stored.jarvisSessionId || "",
+    deviceName: stored.micaDeviceName || stored.jarvisDeviceName || "M.I.C.A Companion",
   };
 }
 
 async function saveSession(session) {
   await chrome.storage.local.set({
-    jarvisSessionId: session.id,
-    jarvisDeviceName: session.device_name || "Browser Companion",
+    micaSessionId: session.id,
+    micaDeviceName: session.device_name || "M.I.C.A Companion",
   });
 }
 
@@ -43,7 +43,7 @@ async function checkStatus() {
     const platform = await requestJson("/api/platform");
     const session = await loadSession();
     statusEl.textContent = `${platform.agents?.length || 0} agents`;
-    sessionEl.textContent = session.id ? `${session.deviceName} · ${session.id}` : "No session";
+    sessionEl.textContent = session.id ? `${session.deviceName} · ${session.id}` : "Nicht gekoppelt";
     if (session.id) {
       await requestJson("/api/companion/session", {
         method: "POST",
@@ -62,10 +62,10 @@ async function pairDevice() {
     const code = pairingCodeEl.value.trim();
     const body = await requestJson("/api/companion/session", {
       method: "POST",
-      body: JSON.stringify({ action: "activate", code, device_name: "Browser Companion" }),
+      body: JSON.stringify({ action: "activate", code, device_name: "M.I.C.A Companion" }),
     });
     await saveSession(body.result?.session || body.session);
-    outputEl.textContent = "Paired.";
+    outputEl.textContent = "Sicher gekoppelt.";
     await checkStatus();
     await refreshWorkspace();
   } catch (error) {
@@ -76,7 +76,7 @@ async function pairDevice() {
 async function refreshWorkspace() {
   const session = await loadSession();
   if (!session.id) {
-    workspaceEl.textContent = "Pair this browser first.";
+    workspaceEl.textContent = "Bitte zuerst koppeln.";
     return;
   }
   try {
@@ -116,13 +116,16 @@ async function sendToAgent() {
     return;
   }
   try {
-    const response = await fetch(`${baseUrl}/api/agents/research-copilot/invoke`, {
+    const body = await requestJson("/api/communications", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message, session_id: session.id }),
+      body: JSON.stringify({
+        action: "inbound",
+        channel: "companion",
+        sender_id: session.id,
+        text: message,
+      }),
     });
-    const body = await response.json();
-    outputEl.textContent = body.output || body.error || JSON.stringify(body, null, 2);
+    outputEl.textContent = body.reply || body.error || "An M.I.C.A weitergeleitet.";
   } catch (error) {
     outputEl.textContent = String(error.message || error);
   }

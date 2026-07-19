@@ -1,8 +1,17 @@
-# JARVIS AI Assistant - Architecture Documentation
+# M.I.C.A AI Assistant - Architecture Documentation
 
 ## Overview
 
-JARVIS (Just A Rather Very Intelligent System) is an AI-powered personal assistant that uses voice interaction, tool calling, memory management, and automation to help users with various tasks. This document describes the system architecture, component organization, and design patterns used in the project.
+M.I.C.A (Just A Rather Very Intelligent System) is an AI-powered personal assistant that uses voice interaction, tool calling, memory management, and automation to help users with various tasks. This document describes the system architecture, component organization, and design patterns used in the project.
+
+## Communication Gateway
+
+`core/communication_gateway.py` unifies external identities, history, routing,
+and notifications. `core/cross_device.py` provides Telegram and Discord
+transports, while `core/telephony.py` encapsulates Twilio/SIP. Existing approval
+flow, Companion sessions, Voice Mode, Supervisor notifications, and Home
+Assistant remain authoritative, so external channels cannot bypass M.I.C.A's
+central safety controls.
 
 ## System Architecture
 
@@ -67,7 +76,7 @@ JARVIS (Just A Rather Very Intelligent System) is an AI-powered personal assista
 ### Directory Structure
 
 ```
-Mark-XXXIX/
+M.I.C.A/
 ├── actions/              # Action implementations
 │   ├── base_action.py    # Base action interface
 │   ├── browser_control.py
@@ -125,7 +134,7 @@ The main entry point that orchestrates the application startup and main loop. Af
 
 ### 2. Tool System (tools/)
 
-The tool system defines all available actions that JARVIS can perform. Tools are declared in `tools/tool_declarations.py` and are separated into:
+The tool system defines all available actions that M.I.C.A can perform. Tools are declared in `tools/tool_declarations.py` and are separated into:
 
 - **Core Tools (TOOL_DECLARATIONS)**: Always available tools
 - **Feature Tools (FEATURE_TOOL_DECLARATIONS)**: Optional tools enabled by configuration
@@ -199,7 +208,7 @@ The plugin system (`core/plugin_system.py`) allows dynamic loading of external t
 
 Centralized error handling (`core/error_handler.py`) provides:
 
-- Custom exception hierarchy (JarvisError, ActionExecutionError, APIError, etc.)
+- Custom exception hierarchy (M.I.C.AError, ActionExecutionError, APIError, etc.)
 - Error severity classification
 - Recovery strategies
 - Error history tracking

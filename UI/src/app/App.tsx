@@ -24,6 +24,7 @@ import {
   Moon,
   MoreHorizontal,
   Radio,
+  RefreshCw,
   Save,
   Search,
   Settings,
@@ -46,13 +47,15 @@ const VoiceChatView = lazy(() => import("./components/VoiceChatView").then((modu
 const ChatsView = lazy(() => import("./components/ChatsView").then((module) => ({ default: module.ChatsView })));
 const SettingsModal = lazy(() => import("./components/SettingsModal").then((module) => ({ default: module.SettingsModal })));
 const IntelligenceCenterView = lazy(() => import("./components/IntelligenceCenterView").then((module) => ({ default: module.IntelligenceCenterView })));
+const CommunicationsView = lazy(() => import("./components/CommunicationsView").then((module) => ({ default: module.CommunicationsView })));
 
 type ViewId =
   | "command-center"
   | "home"
   | "voice-chat"
   | "chats"
-  | "intelligence";
+  | "intelligence"
+  | "communications";
 
 type ActiveViewId = ViewId | null;
 
@@ -106,6 +109,14 @@ const viewRegistry: ViewDefinition[] = [
     icon: BrainCircuit,
     supportsFullscreen: true,
   },
+  {
+    id: "communications",
+    label: "Connect",
+    category: "CHANNELS",
+    description: "Telegram, telephone, companion and smart home",
+    icon: Share2,
+    supportsFullscreen: true,
+  },
 ];
 
 const DASHBOARD_FALLBACK_REFRESH_MS = 30000;
@@ -125,6 +136,34 @@ const privacyOptions = [
   { id: "cloud_allowed", label: "Cloud erlaubt" },
   { id: "private_with_approval", label: "Privat mit Freigabe" },
 ];
+
+function FriendlyLoadError({
+  message,
+  onRetry,
+  onResume,
+}: {
+  message: string;
+  onRetry: () => void;
+  onResume: () => void;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  return (
+    <div className="flex h-full items-center justify-center p-8 text-center">
+      <div className="max-w-xl rounded-xl border border-rose-400/20 bg-rose-400/10 p-6 text-rose-50">
+        <div className="text-sm font-semibold text-rose-100">M.I.C.A konnte die aktuellen Daten nicht laden.</div>
+        <p className="mt-2 text-xs leading-5 text-rose-100/75">
+          Wahrscheinlich ist der lokale UI-Dienst noch nicht bereit oder die Verbindung wurde kurz unterbrochen. Bereits gespeicherte Projektdaten bleiben erhalten.
+        </p>
+        {detailsOpen ? <pre className="mt-3 max-h-36 overflow-auto rounded-lg bg-black/20 p-3 text-left text-[11px] text-rose-100/80">{message}</pre> : null}
+        <div className="mt-4 flex flex-wrap justify-center gap-2">
+          <Button onClick={onRetry} className="rounded-lg bg-rose-100 text-rose-950 hover:bg-white"><RefreshCw className="h-4 w-4" />Erneut versuchen</Button>
+          <Button onClick={onResume} variant="ghost" className="rounded-lg border border-rose-100/20 text-rose-50 hover:bg-rose-100/10">Ab letztem Schritt fortsetzen</Button>
+          <Button onClick={() => setDetailsOpen((open) => !open)} variant="ghost" className="rounded-lg border border-rose-100/20 text-rose-50 hover:bg-rose-100/10">{detailsOpen ? "Details schließen" : "Details anzeigen"}</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 class ViewErrorBoundary extends Component<
   { viewKey: string; children: ReactNode },
@@ -980,15 +1019,18 @@ export default function App() {
   const renderActiveView = () => {
     if (loadError) {
       return (
-        <div className="flex h-full items-center justify-center p-8 text-center">
-          <div className="max-w-lg rounded-xl border border-rose-400/20 bg-rose-400/10 p-8 text-rose-50">
-            <div className="mb-2 flex items-center justify-center gap-2 text-rose-200">
-              <Activity className="h-5 w-5" />
-              Backend connection issue
-            </div>
-            <p className="text-sm text-rose-100/80">{loadError}</p>
-          </div>
-        </div>
+        <FriendlyLoadError
+          message={loadError}
+          onRetry={() => void refreshDashboard()}
+          onResume={() => {
+            sessionStorage.setItem("mica.pendingHubCommand", "open-tasks");
+            setWorkspace("agent-hub");
+            window.setTimeout(
+              () => window.dispatchEvent(new CustomEvent("mica:run-hub-command", { detail: "open-tasks" })),
+              50,
+            );
+          }}
+        />
       );
     }
 
@@ -1007,7 +1049,20 @@ export default function App() {
           />
         )}
         {activeView === "home" && (
-          <HomeView dashboard={dashboard} onStartNewChat={handleStartNewChat} />
+          <HomeView
+            dashboard={dashboard}
+            onStartNewChat={handleStartNewChat}
+            onOpenAgentHub={(commandId) => {
+              if (commandId) sessionStorage.setItem("mica.pendingHubCommand", commandId);
+              setWorkspace("agent-hub");
+              if (commandId) {
+                window.setTimeout(
+                  () => window.dispatchEvent(new CustomEvent("mica:run-hub-command", { detail: commandId })),
+                  50,
+                );
+              }
+            }}
+          />
         )}
         {activeView === "voice-chat" && (
           <VoiceChatView
@@ -1030,6 +1085,9 @@ export default function App() {
         )}
         {activeView === "intelligence" && (
           <IntelligenceCenterView dashboard={dashboard} />
+        )}
+        {activeView === "communications" && (
+          <CommunicationsView />
         )}
       </ViewErrorBoundary>
       </Suspense>
@@ -1163,6 +1221,16 @@ export default function App() {
           </div>
 
           <div className="reference-window-actions">
+            <Button
+              size="icon"
+              title={activeView === "communications" ? "Kommunikationszentrale schließen" : "Kommunikationszentrale"}
+              onMouseEnter={() => void import("./components/CommunicationsView")}
+              onFocus={() => void import("./components/CommunicationsView")}
+              onClick={() => setActiveView((current) => current === "communications" ? null : "communications")}
+              className="reference-round-action"
+            >
+              <Share2 className="h-5 w-5" />
+            </Button>
             <Button
               size="icon"
               title={activeView === "intelligence" ? "Artifact Space" : "Intelligence Center"}

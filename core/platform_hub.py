@@ -2557,7 +2557,7 @@ class PlatformHub:
         nonce = claims.get("nonce")
         if nonce and nonce != flow.get("nonce"):
             return {"status": "failed", "error": "invalid token nonce", "alg": alg, "kid": kid}
-        
+
         # Fetch JWKS from remote endpoint if configured
         jwks = provider.get("jwks") if isinstance(provider.get("jwks"), dict) else {}
         jwks_uri = str(provider.get("jwks_uri") or "")
@@ -2567,7 +2567,7 @@ class PlatformHub:
                 # Cache the fetched JWKS
                 provider["jwks"] = jwks
                 provider["jwks_fetched_at"] = _now()
-        
+
         key = self._find_jwks_key(jwks, kid, alg)
         if not key:
             return {"status": "failed", "error": "jwks key not found", "alg": alg, "kid": kid}
@@ -2602,7 +2602,7 @@ class PlatformHub:
         """Fetch JWKS from a remote endpoint with caching."""
         import urllib.request
         import urllib.error
-        
+
         # Check cache (5 minute TTL)
         cache_key = f"jwks:{provider_id}"
         cache = self.data.get("jwks_cache", {})
@@ -2617,7 +2617,7 @@ class PlatformHub:
                         return cached.get("jwks", {})
             except Exception:
                 pass
-        
+
         # Fetch from remote
         try:
             request = urllib.request.Request(jwks_uri)
@@ -2625,7 +2625,7 @@ class PlatformHub:
             with urllib.request.urlopen(request, timeout=5) as response:
                 data = response.read().decode("utf-8")
                 jwks = json.loads(data) if isinstance(data, (str, bytes)) else data
-                
+
                 # Cache the result
                 cache[cache_key] = {
                     "jwks": jwks,
@@ -2634,7 +2634,7 @@ class PlatformHub:
                 }
                 self.data["jwks_cache"] = cache
                 self._save()
-                
+
                 return jwks
         except urllib.error.URLError as exc:
             logger.warning(f"Failed to fetch JWKS from {jwks_uri}: {exc}")
@@ -2642,7 +2642,7 @@ class PlatformHub:
             logger.warning(f"Failed to parse JWKS from {jwks_uri}: {exc}")
         except Exception as exc:
             logger.warning(f"Unexpected error fetching JWKS: {exc}")
-        
+
         return {}
 
     def _find_jwks_key(self, jwks: dict[str, Any], kid: str, alg: str) -> dict[str, Any] | None:
@@ -2818,7 +2818,7 @@ class PlatformHub:
 
     def _sync_marketplace_registry(self, payload: dict[str, Any]) -> dict[str, Any]:
         registry_url = str(payload.get("registry_url") or (os.environ.get("MICA_MARKETPLACE_REGISTRY_URL") or os.environ.get("JARVIS_MARKETPLACE_REGISTRY_URL")) or "")
-        
+
         # Use remote registry if configured
         if registry_url:
             try:
@@ -2838,7 +2838,7 @@ class PlatformHub:
                 registry_items = payload.get("items")
         else:
             registry_items = payload.get("items")
-        
+
         if not isinstance(registry_items, list):
             registry_items = [
                 {
@@ -2885,12 +2885,12 @@ class PlatformHub:
             item["manifest"] = self._marketplace_manifest(item)
             item["verification"] = self._verify_marketplace_payload(item)
             item["risk"] = self._marketplace_risk(item)
-            
+
             # Verify signature chain if present
             if item.get("signature_chain"):
                 chain_verification = self._verify_signature_chain(item)
                 item["chain_verification"] = chain_verification
-            
+
             existing = self._find_marketplace_item(item["id"])
             if existing:
                 existing.update({**item, "installed": existing.get("installed", item["installed"]), "enabled": existing.get("enabled", item["enabled"])})
@@ -4908,7 +4908,11 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
 
     def _resolve_workspace_path(self, relative: str) -> Path | None:
         base = project_path().resolve()
-        candidate = (base / relative).resolve()
+        # Companion clients may send Windows paths even when the hub runs on
+        # Linux. Treat both separator styles consistently before containment
+        # checks so ``..\\file`` cannot be interpreted as a local filename.
+        normalized = relative.replace("\\", "/")
+        candidate = (base / normalized).resolve()
         if candidate == base or base in candidate.parents:
             return candidate
         return None
@@ -5131,16 +5135,16 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         policy.setdefault("api_keys", [])
         if key_hash not in policy["api_key_hashes"]:
             policy["api_key_hashes"].append(key_hash)
-        
+
         # Handle expiration
         expires_in_hours = int(payload.get("expires_in_hours") or 0)
         expires_at = None
         if expires_in_hours > 0:
             expires_at = (datetime.now() + timedelta(hours=expires_in_hours)).isoformat()
-        
+
         # Handle auto-rotation
         auto_rotate_days = int(payload.get("auto_rotate_days") or 0)
-        
+
         key_record = {
             "id": key_id,
             "key_id": key_id,  # Alias for easier access
@@ -5156,13 +5160,13 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
             key_record["expires_at"] = expires_at
         if auto_rotate_days > 0:
             key_record["auto_rotate_days"] = auto_rotate_days
-        
+
         policy["api_keys"].insert(0, key_record)
         publication["updated_at"] = _now()
-        
+
         # Audit the key issuance
         self._record_audit_event("issue_publish_api_key", payload, status="completed", permission="agents:publish", result={"publication_id": publication_id, "key_id": key_id})
-        
+
         return {"publication": publication, "api_key": raw_key, "key_id": key_id, "status": "issued", "key": {**key_record, "hash": f"sha256:***{key_hash[-6:]}"}}
 
     def _revoke_publish_api_key(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -5180,10 +5184,10 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         key_hash = str(key.get("hash") or "")
         policy["api_key_hashes"] = [item for item in _as_list(policy.get("api_key_hashes")) if item != key_hash]
         publication["updated_at"] = _now()
-        
+
         # Audit the key revocation
         self._record_audit_event("revoke_publish_api_key", payload, status="completed", permission="agents:publish", result={"publication_id": publication_id, "key_id": key_id})
-        
+
         return {"publication": publication, "key": {**key, "hash": f"sha256:***{key_hash[-6:]}"}, "status": "revoked"}
 
     def _rotate_publish_api_key(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -5197,28 +5201,28 @@ def {tool_name}(parameters: dict, **kwargs) -> dict:
         key = next((item for item in policy.setdefault("api_keys", []) if isinstance(item, dict) and (item.get("id") == key_id or item.get("key_id") == key_id)), None)
         if not key:
             return {"error": "api key not found"}
-        
+
         # Generate new key
         new_raw_key = f"mica-pub-{uuid4().hex}{uuid4().hex[:8]}"
         new_key_hash = self._hash_publish_api_key(new_raw_key)
-        
+
         # Update key record
         old_hash = key.get("hash", "")
         key["hash"] = new_key_hash
         key["api_key"] = new_raw_key  # Store for testing
         key["rotated_at"] = _now()
         key["previous_hash"] = old_hash
-        
+
         # Update hashes list
         policy["api_key_hashes"] = [item for item in _as_list(policy.get("api_key_hashes")) if item != old_hash]
         if new_key_hash not in policy["api_key_hashes"]:
             policy["api_key_hashes"].append(new_key_hash)
-        
+
         publication["updated_at"] = _now()
-        
+
         # Audit the key rotation
         self._record_audit_event("rotate_publish_api_key", payload, status="completed", permission="agents:publish", result={"publication_id": publication_id, "key_id": key_id})
-        
+
         return {"publication": publication, "api_key": new_raw_key, "key_id": key_id, "status": "rotated", "key": {**key, "hash": f"sha256:***{new_key_hash[-6:]}"}}
 
     def _normalize_publish_policy(self, kind: str, policy: dict[str, Any]) -> dict[str, Any]:

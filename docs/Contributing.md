@@ -1,6 +1,6 @@
-# Contributing to JARVIS AI Assistant
+# Contributing to M.I.C.A AI Assistant
 
-Thank you for your interest in contributing to JARVIS! This document provides guidelines and instructions for contributors.
+Thank you for your interest in contributing to M.I.C.A! This document provides guidelines and instructions for contributors.
 
 ## Table of Contents
 
@@ -25,13 +25,13 @@ Thank you for your interest in contributing to JARVIS! This document provides gu
 1. Fork the repository on GitHub
 2. Clone your fork:
    ```bash
-   git clone https://github.com/your-username/Mark-XXXIX.git
-   cd Mark-XXXIX
+   git clone https://github.com/your-username/M.I.C.A.git
+   cd M.I.C.A
    ```
 
 3. Add upstream remote:
    ```bash
-   git remote add upstream https://github.com/Koch-Nico1312/Jarvis.git
+   git remote add upstream https://github.com/Koch-Nico1312/M.I.C.A.git
    ```
 
 ## Development Setup
@@ -174,10 +174,10 @@ from tests.mocking_utils import mock_config
 def test_my_function(mock_config):
     # Arrange
     mock_config.get.return_value = "test_value"
-    
+
     # Act
     result = my_function()
-    
+
     # Assert
     assert result == "expected"
 ```
@@ -269,7 +269,7 @@ When reporting a bug, include:
 5. **Environment**:
    - OS and version
    - Python version
-   - JARVIS version
+   - M.I.C.A version
 6. **Logs**: Relevant log output
 7. **Screenshots**: If applicable
 
@@ -293,7 +293,7 @@ When reporting a bug, include:
 **Environment**
 - OS: [e.g., Windows 11, Ubuntu 22.04]
 - Python: [e.g., 3.11.0]
-- JARVIS: [e.g., v1.0.0]
+- M.I.C.A: [e.g., v1.0.0]
 
 **Logs**
 ```
@@ -354,11 +354,11 @@ class MyAction(BaseAction):
             description="Description of my action",
             permission=ActionPermission.MEDIUM
         )
-    
+
     def execute(self, parameters):
         # Implementation
         return "Result"
-    
+
     def validate_parameters(self, parameters):
         # Validation logic
         return True
@@ -459,4 +459,4 @@ Contributors will be recognized in:
 - Release notes
 - Project documentation
 
-Thank you for contributing to JARVIS!
+Thank you for contributing to M.I.C.A!

@@ -1,8 +1,16 @@
-# JARVIS AI Assistant - API Documentation
+# M.I.C.A AI Assistant - API Documentation
 
 ## Overview
 
-This document describes the internal APIs used within the JARVIS system. These APIs are primarily for developers working on extending or integrating with JARVIS.
+This document describes the internal APIs used within the M.I.C.A system. These APIs are primarily for developers working on extending or integrating with M.I.C.A.
+
+## Communication API
+
+`GET /api/communications` returns redacted channel status and history.
+`POST /api/communications` configures pairings, Telegram polling, confirmed
+messages and calls, proactive notifications, and Home Assistant actions. The
+signed provider webhook is `POST /api/communications/telephony`. See
+[COMMUNICATIONS.md](COMMUNICATIONS.md) for payload actions and setup.
 
 ## Table of Contents
 
@@ -150,12 +158,12 @@ class MyAction(BaseAction):
             permission=ActionPermission.MEDIUM,
             category="custom"
         )
-    
+
     def execute(self, parameters):
         """Execute the action with given parameters."""
         # Implementation here
         return "Result"
-    
+
     def validate_parameters(self, parameters):
         """Validate parameters before execution."""
         required = ["param1"]
@@ -163,10 +171,10 @@ class MyAction(BaseAction):
             if param not in parameters:
                 return False
         return True
-    
+
     def get_required_parameters(self):
         return ["param1"]
-    
+
     def get_optional_parameters(self):
         return {"param2": "default_value"}
 ```
@@ -215,10 +223,10 @@ class MyPluginAction(BaseAction):
             description="Action from my plugin",
             permission=ActionPermission.SAFE
         )
-    
+
     def execute(self, parameters):
         return "Plugin result"
-    
+
     def validate_parameters(self, parameters):
         return True
 
@@ -343,7 +351,7 @@ Location: `core/error_handler.py`
 
 ```python
 from core.error_handler import (
-    JarvisError,
+    M.I.C.AError,
     ConfigurationError,
     ActionExecutionError,
     APIError,

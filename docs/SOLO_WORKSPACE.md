@@ -1,6 +1,6 @@
-# Jarvis Solo Workspace
+# M.I.C.A Solo Workspace
 
-This guide is for running the platform features as a local, single-user Jarvis workspace.
+This guide is for running the platform features as a local, single-user M.I.C.A workspace.
 
 ## What Solo Mode Does
 
@@ -14,7 +14,7 @@ Solo mode turns the platform-style feature set into a personal workspace:
 
 ## Use It In Studio
 
-Open Jarvis Studio and use the buttons in the Solo banner:
+Open M.I.C.A Studio and use the buttons in the Solo banner:
 
 1. **Solo vorbereiten** sets local defaults, private agents, personal ACLs, local knowledge sources, and publishing drafts.
 2. **Quickstart ausfuehren** runs the useful local path end to end: agent, knowledge sync/search, document ingestion, sandbox, workflow, artifact, and publishing links.
@@ -60,7 +60,7 @@ The platform hub exposes the same flow through actions:
 from core.platform_hub import get_platform_hub
 
 hub = get_platform_hub()
-hub.action("prepare_solo_workspace", {"workspace_name": "Personal Jarvis"})
+hub.action("prepare_solo_workspace", {"workspace_name": "Personal M.I.C.A"})
 hub.action("run_solo_quickstart", {})
 audit = hub.action("run_solo_audit", {})["result"]
 assert audit["status"] == "ready"

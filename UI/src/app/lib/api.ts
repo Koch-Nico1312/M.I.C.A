@@ -1,6 +1,7 @@
 import type {
   CockpitPayload,
   CommandCenterPayload,
+  CommunicationsPayload,
   DashboardResponse,
   DocumentsPayload,
   KnowledgeGraphPayload,
@@ -26,6 +27,8 @@ import type {
   ProjectSnapshotsPayload,
   ProjectWorkspacesPayload,
   SupervisorAutomationPayload,
+  SystemStatusPayload,
+  ProjectSummaryPayload,
   ReliabilityPayload,
   PlatformPayload,
   ResumePayload,
@@ -1059,6 +1062,12 @@ export const micaApi = {
   getSilentBrain: () => requestJson<SilentBrainPayload>("/api/silent-brain"),
   getCommandCenter: () => requestJson<CommandCenterPayload>("/api/command-center"),
   getTaskPipelines: () => requestJson<TaskPipelinesPayload>("/api/task-pipelines"),
+  getSystemStatus: () => requestJson<SystemStatusPayload>("/api/system-status"),
+  refreshSystemStatus: () => requestJson<SystemStatusPayload>("/api/system-status", {
+    method: "POST",
+    body: JSON.stringify({ force: true }),
+  }),
+  getProjectSummary: () => requestJson<ProjectSummaryPayload>("/api/project-summary"),
   getKnowledgeGraph: () => requestJson<KnowledgeGraphPayload>("/api/knowledge/graph"),
   getCockpit: () => requestJson<CockpitPayload>("/api/cockpit"),
   getResume: () => requestJson<ResumePayload>("/api/session/resume"),
@@ -1073,6 +1082,12 @@ export const micaApi = {
   getPermissions: () => requestJson<PermissionsPayload>("/api/permissions"),
   getReliability: () => requestJson<ReliabilityPayload>("/api/reliability"),
   getDevices: () => requestJson<DevicesPayload>("/api/devices"),
+  getCommunications: () => requestJson<CommunicationsPayload>("/api/communications"),
+  communicationAction: (payload: Record<string, unknown>) =>
+    requestJson<Record<string, any>>("/api/communications", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
   getAutomations: () => requestJson<AutomationsPayload>("/api/automations"),
   getPrivacy: () => requestJson<PrivacyPayload>("/api/privacy"),
   getProjectWorkspaces: () => requestJson<ProjectWorkspacesPayload>("/api/project-workspaces"),

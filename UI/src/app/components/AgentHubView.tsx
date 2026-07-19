@@ -32,6 +32,7 @@ import {
   Play,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Search,
   Star,
@@ -75,6 +76,62 @@ import type {
 type HubTab = "hub" | "tasks" | "agents" | "flows" | "approvals" | "activity";
 type AgentTone = "cyan" | "amber" | "emerald" | "blue" | "violet" | "rose";
 type DashboardWidget = ProjectStatePayload["dashboard_widgets"][number];
+
+function explainOperationalError(message: string) {
+  const normalized = message.toLowerCase();
+  if (normalized.includes("network") || normalized.includes("fetch") || normalized.includes("connection")) {
+    return {
+      title: "M.I.C.A konnte den Dienst nicht erreichen.",
+      cause: "Wahrscheinlich ist die Verbindung unterbrochen oder der lokale Dienst wurde noch nicht gestartet.",
+    };
+  }
+  if (normalized.includes("budget") || normalized.includes("laufgrenze")) {
+    return {
+      title: "Der Lauf wurde an seiner Grenze angehalten.",
+      cause: "Die erlaubte Laufzeit oder Anzahl der Agentenaufrufe wurde erreicht.",
+    };
+  }
+  if (normalized.includes("approval") || normalized.includes("freigabe")) {
+    return {
+      title: "Der Lauf wartet auf eine Freigabe.",
+      cause: "Eine sicherheitsrelevante Aktion darf erst nach deiner Bestätigung fortgesetzt werden.",
+    };
+  }
+  return {
+    title: "Die Aktion konnte nicht abgeschlossen werden.",
+    cause: "Möglicherweise ist ein benötigter Dienst nicht verfügbar oder ein vorheriger Schritt ist fehlgeschlagen.",
+  };
+}
+
+function RecoveryError({
+  message,
+  loading,
+  onRetry,
+  onResume,
+}: {
+  message: string;
+  loading: boolean;
+  onRetry: () => void;
+  onResume?: () => void;
+}) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const explanation = explainOperationalError(message);
+  return (
+    <div className="agent-hub-error agent-hub-recovery-error" role="alert">
+      <AlertTriangle />
+      <span>
+        <strong>{explanation.title}</strong>
+        <small>{explanation.cause}</small>
+        {detailsOpen ? <code>{message}</code> : null}
+      </span>
+      <div>
+        <button disabled={loading} onClick={onRetry}>{loading ? <Loader2 className="agent-hub-spin" /> : <RefreshCw />}Erneut versuchen</button>
+        {onResume ? <button disabled={loading} onClick={onResume}><History />Ab letztem Schritt fortsetzen</button> : null}
+        <button onClick={() => setDetailsOpen((open) => !open)}><FileJson />{detailsOpen ? "Details schließen" : "Details anzeigen"}</button>
+      </div>
+    </div>
+  );
+}
 
 type HubAgent = {
   id: string;
@@ -438,6 +495,11 @@ export const AgentHubView = memo(function AgentHubView() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [commandQuery, setCommandQuery] = useState("");
+  const [pendingCommandId, setPendingCommandId] = useState(() =>
+    typeof sessionStorage !== "undefined"
+      ? sessionStorage.getItem("mica.pendingHubCommand") || ""
+      : "",
+  );
   const [dashboardSettingsOpen, setDashboardSettingsOpen] = useState(false);
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [explorerMenuOpen, setExplorerMenuOpen] = useState(false);
@@ -450,34 +512,43 @@ export const AgentHubView = memo(function AgentHubView() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [
-        nextPlatform,
-        nextPipelines,
-        nextApprovals,
-        nextCenter,
-        nextProjectState,
-        nextAutomation,
-        nextSnapshots,
-        nextTaskAutomations,
-      ] = await Promise.all([
-        micaApi.getPlatform(),
-        micaApi.getTaskPipelines(),
-        micaApi.getApprovals(),
-        micaApi.getCommandCenter(),
+      const [nextProjectState, nextAutomation, nextApprovals] = await Promise.all([
         micaApi.getProjectState(),
         micaApi.getSupervisorAutomation(),
-        micaApi.getProjectSnapshots(),
-        micaApi.getAutomations(),
+        micaApi.getApprovals(),
       ]);
-      setPlatform(nextPlatform);
-      setPipelines({
+      const effectiveTab = projectStateLoaded.current ? tab : nextProjectState.last_tab || "hub";
+      let nextPlatform: PlatformPayload | null = null;
+      let nextPipelines: TaskPipelinesPayload | null = null;
+      let nextCenter: CommandCenterPayload | null = null;
+      let nextSnapshots: ProjectSnapshotsPayload | null = null;
+      let nextTaskAutomations: AutomationsPayload | null = null;
+      if (effectiveTab === "hub") {
+        [nextPlatform, nextPipelines, nextCenter, nextSnapshots, nextTaskAutomations] = await Promise.all([
+          micaApi.getPlatform(),
+          micaApi.getTaskPipelines(),
+          micaApi.getCommandCenter(),
+          micaApi.getProjectSnapshots(),
+          micaApi.getAutomations(),
+        ]);
+      } else if (effectiveTab === "tasks") {
+        [nextPipelines, nextTaskAutomations] = await Promise.all([
+          micaApi.getTaskPipelines(),
+          micaApi.getAutomations(),
+        ]);
+      } else if (effectiveTab === "agents" || effectiveTab === "flows") {
+        [nextPlatform, nextPipelines] = await Promise.all([
+          micaApi.getPlatform(),
+          micaApi.getTaskPipelines(),
+        ]);
+      } else if (effectiveTab === "activity") {
+        nextCenter = await micaApi.getCommandCenter();
+      }
+      if (nextPlatform) setPlatform(nextPlatform);
+      if (nextPipelines) setPipelines({
         ...nextPipelines,
-        pipelines: Array.isArray(nextPipelines?.pipelines)
-          ? nextPipelines.pipelines
-          : [],
-        active: Array.isArray(nextPipelines?.active)
-          ? nextPipelines.active
-          : [],
+        pipelines: Array.isArray(nextPipelines.pipelines) ? nextPipelines.pipelines : [],
+        active: Array.isArray(nextPipelines.active) ? nextPipelines.active : [],
       });
       setApprovals({
         ...nextApprovals,
@@ -486,15 +557,15 @@ export const AgentHubView = memo(function AgentHubView() {
           ? nextApprovals.pending
           : [],
       });
-      setCommandCenter(nextCenter);
+      if (nextCenter) setCommandCenter(nextCenter);
       setProjectState(nextProjectState);
       setSupervisorAutomation(nextAutomation);
-      setProjectSnapshots(
+      if (nextSnapshots) setProjectSnapshots(
         nextSnapshots?.items
           ? nextSnapshots
           : { format: "mica-solo-project/v1", items: [] },
       );
-      setTaskAutomations(nextTaskAutomations);
+      if (nextTaskAutomations) setTaskAutomations(nextTaskAutomations);
       if (!projectStateLoaded.current) {
         projectStateLoaded.current = true;
         setTab(nextProjectState.last_tab || "hub");
@@ -510,7 +581,7 @@ export const AgentHubView = memo(function AgentHubView() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [tab]);
 
   useEffect(() => {
     const online = () => { setOffline(false); void load(); };
@@ -802,7 +873,11 @@ export const AgentHubView = memo(function AgentHubView() {
     }
   };
 
-  const createPipeline = async (nextGoal: string, steps: string[]) => {
+  const createPipeline = async (
+    nextGoal: string,
+    steps: string[],
+    origin?: { origin_id: string; origin_relation: "duplicate" },
+  ) => {
     setBusy("create-pipeline");
     setError(null);
     try {
@@ -810,6 +885,7 @@ export const AgentHubView = memo(function AgentHubView() {
         action: "create",
         goal: nextGoal,
         steps,
+        ...(origin || {}),
       });
       setPipelines({
         ...result.task_pipelines,
@@ -826,6 +902,39 @@ export const AgentHubView = memo(function AgentHubView() {
       return false;
     } finally {
       setBusy(null);
+    }
+  };
+
+  const lastPipeline = useMemo(
+    () =>
+      [...pipelines.pipelines].sort(
+        (left, right) =>
+          new Date(right.updated_at || right.created_at).getTime() -
+          new Date(left.updated_at || left.created_at).getTime(),
+      )[0] ?? null,
+    [pipelines.pipelines],
+  );
+  const recoverablePipeline = useMemo(
+    () =>
+      [...pipelines.pipelines]
+        .sort(
+          (left, right) =>
+            new Date(right.updated_at || right.created_at).getTime() -
+            new Date(left.updated_at || left.created_at).getTime(),
+        )
+        .find((pipeline) => ["paused", "blocked", "failed"].includes(pipeline.status)) ?? null,
+    [pipelines.pipelines],
+  );
+  const resumeRecoverablePipeline = async () => {
+    if (!recoverablePipeline) return;
+    const failedStep = recoverablePipeline.steps.find((step) => ["failed", "blocked"].includes(step.status));
+    if (failedStep) {
+      await pipelineAction(recoverablePipeline, "retry_step", {
+        step_id: failedStep.id,
+        note: "Nach Fehlerhinweis ab letztem Schritt fortgesetzt",
+      });
+    } else {
+      await pipelineAction(recoverablePipeline, "resume");
     }
   };
 
@@ -1120,6 +1229,26 @@ export const AgentHubView = memo(function AgentHubView() {
     setCommandOpen(false);
     setCommandQuery("");
   };
+  const commandCatalogRef = useRef(commandCatalog);
+  const executeCommandRef = useRef(executeCommand);
+  commandCatalogRef.current = commandCatalog;
+  executeCommandRef.current = executeCommand;
+  useEffect(() => {
+    const runFavorite = (event: Event) => {
+      const commandId = String((event as CustomEvent<string>).detail || "");
+      if (commandId) setPendingCommandId(commandId);
+    };
+    window.addEventListener("mica:run-hub-command", runFavorite);
+    return () => window.removeEventListener("mica:run-hub-command", runFavorite);
+  }, []);
+  useEffect(() => {
+    if (!pendingCommandId) return;
+    const command = commandCatalogRef.current.find((item) => item.id === pendingCommandId);
+    if (!command) return;
+    sessionStorage.removeItem("mica.pendingHubCommand");
+    setPendingCommandId("");
+    void executeCommandRef.current(command);
+  }, [pendingCommandId, commandCatalog]);
   const toggleCommandFavorite = async (commandId: string) => {
     const next = favoriteCommands.has(commandId)
       ? [...favoriteCommands].filter((id) => id !== commandId)
@@ -1314,7 +1443,7 @@ export const AgentHubView = memo(function AgentHubView() {
                 <Users />
                 agents <b>{agents.length}</b>
               </button>
-              {agents.map((agent) => (
+              {agents.slice(0, 12).map((agent) => (
                 <button
                   key={agent.id}
                   className={selectedAgent.id === agent.id ? "selected" : ""}
@@ -1408,6 +1537,15 @@ export const AgentHubView = memo(function AgentHubView() {
             <kbd>Ctrl K</kbd>
           </button>
           <button
+            className="agent-hub-command-trigger"
+            disabled={!lastPipeline || busy !== null}
+            onClick={() => lastPipeline && void pipelineAction(lastPipeline, "rerun")}
+            title={lastPipeline ? `Letzten Lauf wiederholen: ${lastPipeline.goal}` : "Noch kein Lauf vorhanden"}
+          >
+            <RotateCcw />
+            <span>Letzten Lauf wiederholen</span>
+          </button>
+          <button
             className="agent-hub-primary agent-hub-start"
             disabled={!goal.trim() || busy === "start"}
             onClick={() => void startRun()}
@@ -1429,11 +1567,12 @@ export const AgentHubView = memo(function AgentHubView() {
           </button>
         </header>
         {error || offline ? (
-          <div className="agent-hub-error" role="alert">
-            <AlertTriangle />
-            <span>{offline ? "Keine Netzwerkverbindung. Vorhandene Daten bleiben sichtbar; nach Wiederherstellung wird automatisch neu verbunden." : `${error} · Verbindung eingeschränkt, vorhandene Daten bleiben sichtbar.`}</span>
-            <button disabled={offline || loading} onClick={() => void load()}>{loading ? <Loader2 className="agent-hub-spin" /> : <RefreshCw />}Erneut verbinden</button>
-          </div>
+          <RecoveryError
+            message={offline ? "Keine Netzwerkverbindung. Vorhandene Daten bleiben sichtbar." : error || "Unbekannter Fehler"}
+            loading={loading}
+            onRetry={() => void load()}
+            onResume={recoverablePipeline ? () => void resumeRecoverablePipeline() : undefined}
+          />
         ) : null}
 
         <section className="agent-hub-content">
@@ -1570,6 +1709,7 @@ export const AgentHubView = memo(function AgentHubView() {
                   </svg>
                   {agents
                     .filter((agent) => agent.id !== "orchestrator")
+                    .slice(0, 8)
                     .map((agent, index) => (
                       <button
                         key={agent.id}
@@ -2108,7 +2248,11 @@ function TasksView({
     action: string,
     payload?: Record<string, unknown>,
   ) => void;
-  onCreate: (goal: string, steps: string[]) => Promise<boolean>;
+  onCreate: (
+    goal: string,
+    steps: string[],
+    origin?: { origin_id: string; origin_relation: "duplicate" },
+  ) => Promise<boolean>;
   automations: AutomationsPayload;
   onAutomation: (payload: Record<string, unknown>) => Promise<boolean>;
 }) {
@@ -2118,6 +2262,7 @@ function TasksView({
   const createReturnFocus = useRef<HTMLElement | null>(null);
   const [newGoal, setNewGoal] = useState("");
   const [newSteps, setNewSteps] = useState("");
+  const [duplicateSource, setDuplicateSource] = useState<TaskPipeline | null>(null);
   const [verificationNote, setVerificationNote] = useState("");
   const [compareId, setCompareId] = useState("");
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -2129,11 +2274,20 @@ function TasksView({
   const [scheduleOnce, setScheduleOnce] = useState("");
   const openCreate = useCallback(() => {
     createReturnFocus.current = document.activeElement as HTMLElement | null;
+    setDuplicateSource(null);
     setCreateOpen(true);
   }, []);
   const closeCreate = useCallback(() => {
     setCreateOpen(false);
+    setDuplicateSource(null);
     window.setTimeout(() => createReturnFocus.current?.focus(), 0);
+  }, []);
+  const openDuplicate = useCallback((pipeline: TaskPipeline) => {
+    createReturnFocus.current = document.activeElement as HTMLElement | null;
+    setDuplicateSource(pipeline);
+    setNewGoal(pipeline.goal);
+    setNewSteps(pipeline.steps.map((step) => step.title).join("\n"));
+    setCreateOpen(true);
   }, []);
   useEffect(() => {
     window.addEventListener("mica:new-task", openCreate);
@@ -2178,7 +2332,13 @@ function TasksView({
       .split("\n")
       .map((step) => step.trim())
       .filter(Boolean);
-    if (await onCreate(goal, steps)) {
+    if (await onCreate(
+      goal,
+      steps,
+      duplicateSource
+        ? { origin_id: duplicateSource.id, origin_relation: "duplicate" }
+        : undefined,
+    )) {
       setNewGoal("");
       setNewSteps("");
       closeCreate();
@@ -2229,7 +2389,7 @@ function TasksView({
               <span>{column.title}</span>
               <b>{column.items.length}</b>
             </div>
-            {column.items.map((pipeline) => (
+            {column.items.slice(0, 40).map((pipeline) => (
               <article
                 key={pipeline.id}
                 className={`agent-hub-task-card ${selectedId === pipeline.id ? "active" : ""}`}
@@ -2276,6 +2436,7 @@ function TasksView({
                 ) : null}
               </article>
             ))}
+            {column.items.length > 40 ? <small className="agent-hub-list-limit">Weitere {column.items.length - 40} über die Suche filtern</small> : null}
             {!column.items.length ? <Empty>Keine Aufgaben</Empty> : null}
           </section>
         ))}
@@ -2305,9 +2466,9 @@ function TasksView({
           <div className="agent-hub-task-history-tools">
             <div>
               <button disabled={busy === selected.id} onClick={() => onAction(selected, "rerun")}><RefreshCw />Erneut starten</button>
-              <button disabled={busy === selected.id} onClick={() => onAction(selected, "duplicate")}><Copy />Duplizieren</button>
+              <button disabled={busy === selected.id} onClick={() => openDuplicate(selected)}><Copy />Duplizieren und anpassen</button>
             </div>
-            <label>Vergleichen mit<select value={compareId} onChange={(event) => setCompareId(event.target.value)}><option value="">Lauf auswählen…</option>{pipelines.filter((pipeline) => pipeline.id !== selected.id).map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.goal} · {new Date(pipeline.created_at).toLocaleDateString("de-AT")}</option>)}</select></label>
+            <label>Vergleichen mit<select value={compareId} onChange={(event) => setCompareId(event.target.value)}><option value="">Lauf auswählen…</option>{pipelines.filter((pipeline) => pipeline.id !== selected.id).slice(0, 100).map((pipeline) => <option key={pipeline.id} value={pipeline.id}>{pipeline.goal} · {new Date(pipeline.created_at).toLocaleDateString("de-AT")}</option>)}</select></label>
           </div>
           {comparison ? <div className="agent-hub-task-comparison">
             {[selected, comparison].map((pipeline) => <article key={pipeline.id}><header><strong>{pipeline.goal}</strong><span>{statusLabel(pipeline.status)}</span></header><div><b>{progressFor(pipeline)}%</b><span>{pipeline.steps.filter((step) => step.status === "completed").length}/{pipeline.steps.length} Schritte</span></div><small>{pipeline.budget_usage?.elapsed_minutes ?? 0} Min · {pipeline.budget_usage?.agent_calls ?? 0} Aufrufe · {pipeline.checkpoints?.length ?? 0} Ereignisse</small></article>)}
@@ -2419,8 +2580,8 @@ function TasksView({
               <div>
                 <Plus />
                 <span>
-                  <h3>Neue Aufgabe</h3>
-                  <p>Ziel und optionale Arbeitsschritte festlegen</p>
+                  <h3>{duplicateSource ? "Aufgabe duplizieren" : "Neue Aufgabe"}</h3>
+                  <p>{duplicateSource ? "Kopie vor dem Start anpassen" : "Ziel und optionale Arbeitsschritte festlegen"}</p>
                 </span>
               </div>
               <button onClick={closeCreate} aria-label="Schließen">
@@ -2459,7 +2620,7 @@ function TasksView({
                 ) : (
                   <Play />
                 )}
-                Aufgabe anlegen
+                {duplicateSource ? "Kopie anlegen" : "Aufgabe anlegen"}
               </button>
             </footer>
           </div>

@@ -202,6 +202,12 @@ class Config:
             env_dict.setdefault("cross_device", {}).setdefault("telegram", {})["chat_id"] = (
                 os.getenv("TELEGRAM_CHAT_ID")
             )
+        if os.getenv("TELEGRAM_ENABLED"):
+            enabled = os.getenv("TELEGRAM_ENABLED", "").lower() == "true"
+            env_dict.setdefault("cross_device", {}).setdefault("telegram", {})["enabled"] = enabled
+        if os.getenv("TELEGRAM_ALLOWED_SENDER_IDS"):
+            sender_ids = [item.strip() for item in os.getenv("TELEGRAM_ALLOWED_SENDER_IDS", "").split(",") if item.strip()]
+            env_dict.setdefault("cross_device", {}).setdefault("telegram", {})["allowed_sender_ids"] = sender_ids
         if os.getenv("DISCORD_BOT_TOKEN"):
             env_dict.setdefault("cross_device", {}).setdefault("discord", {})["bot_token"] = (
                 os.getenv("DISCORD_BOT_TOKEN")
@@ -210,6 +216,27 @@ class Config:
             env_dict.setdefault("cross_device", {}).setdefault("discord", {})["channel_id"] = (
                 os.getenv("DISCORD_CHANNEL_ID")
             )
+
+        # Unified communications and approval-gated telephone provider.
+        telephony_env = {
+            "MICA_TELEPHONY_PROVIDER": "provider",
+            "TWILIO_ACCOUNT_SID": "account_sid",
+            "TWILIO_AUTH_TOKEN": "auth_token",
+            "TWILIO_FROM_NUMBER": "from_number",
+            "MICA_TELEPHONY_WEBHOOK_URL": "webhook_url",
+            "MICA_SIP_BRIDGE_URL": "bridge_url",
+            "MICA_SIP_BRIDGE_TOKEN": "bridge_token",
+        }
+        for env_name, key in telephony_env.items():
+            if os.getenv(env_name):
+                env_dict.setdefault("communications", {}).setdefault("telephony", {})[key] = os.getenv(env_name)
+        if os.getenv("MICA_TELEPHONY_ENABLED"):
+            env_dict.setdefault("communications", {}).setdefault("telephony", {})["enabled"] = (
+                os.getenv("MICA_TELEPHONY_ENABLED", "").lower() == "true"
+            )
+        if os.getenv("MICA_ALLOWED_PHONE_NUMBERS"):
+            numbers = [item.strip() for item in os.getenv("MICA_ALLOWED_PHONE_NUMBERS", "").split(",") if item.strip()]
+            env_dict.setdefault("communications", {}).setdefault("telephony", {})["allowed_numbers"] = numbers
 
         # VS Code
         if os.getenv("VSCODE_BRIDGE_ENABLED"):

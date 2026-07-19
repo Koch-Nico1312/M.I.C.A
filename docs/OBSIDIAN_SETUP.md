@@ -1,10 +1,10 @@
 # Obsidian Vault Integration Guide
 
-This guide explains how to set up and use Obsidian Vault integration for JARVIS memory.
+This guide explains how to set up and use Obsidian Vault integration for M.I.C.A memory.
 
 ## Overview
 
-The Obsidian Vault integration allows JARVIS to:
+The Obsidian Vault integration allows M.I.C.A to:
 - Save each conversation as a separate note in your Obsidian vault
 - Automatically link related notes using AI
 - Create person and project notes
@@ -15,35 +15,35 @@ The Obsidian Vault integration allows JARVIS to:
 
 1. [Obsidian](https://obsidian.md/) installed on your computer
 2. An Obsidian vault (or create a new one)
-3. JARVIS with Obsidian dependencies installed
+3. M.I.C.A with Obsidian dependencies installed
 
 ## Step 1: Configure Obsidian Vault Path
 
 1. Create or identify your Obsidian vault location
-2. Configure JARVIS to use this vault:
+2. Configure M.I.C.A to use this vault:
 
 **Option A: Using .env file**
 ```bash
 # Edit .env
 OBSIDIAN_ENABLED=true
-OBSIDIAN_VAULT_PATH=~/Obsidian/Jarvis
+OBSIDIAN_VAULT_PATH=~/Obsidian/M.I.C.A
 ```
 
 **Option B: Using config.yaml**
 ```yaml
 obsidian:
   enabled: true
-  vault_path: "~/Obsidian/Jarvis"
+  vault_path: "~/Obsidian/M.I.C.A"
 ```
 
 The vault path will be expanded automatically (e.g., `~` becomes your home directory).
 
 ## Step 2: Vault Structure
 
-JARVIS will automatically create the following structure in your vault:
+M.I.C.A will automatically create the following structure in your vault:
 
 ```
-~/Obsidian/Jarvis/
+~/Obsidian/M.I.C.A/
 ├── Conversations/    # Conversation notes
 ├── People/          # Person profiles
 ├── Projects/        # Project notes
@@ -57,8 +57,8 @@ Conversation tracking can be started manually or automatically:
 ### Manual Tracking
 Use voice commands:
 ```
-"Jarvis, start tracking this conversation"
-"Jarvis, end conversation tracking"
+"M.I.C.A, start tracking this conversation"
+"M.I.C.A, end conversation tracking"
 ```
 
 Or use the obsidian_manager tool:
@@ -78,33 +78,33 @@ Conversations are automatically saved when:
 
 ### Start Conversation Tracking
 ```
-"Jarvis, start tracking this conversation about the marketing campaign"
+"M.I.C.A, start tracking this conversation about the marketing campaign"
 ```
 
 ### End and Save Conversation
 ```
-"Jarvis, end conversation tracking"
+"M.I.C.A, end conversation tracking"
 ```
 
 ### Search Notes
 ```
-"Jarvis, search my Obsidian notes for marketing"
-"Jarvis, find notes about project X"
+"M.I.C.A, search my Obsidian notes for marketing"
+"M.I.C.A, find notes about project X"
 ```
 
 ### Create Person Note
 ```
-"Jarvis, create a note for John Smith"
+"M.I.C.A, create a note for John Smith"
 ```
 
 ### Create Project Note
 ```
-"Jarvis, create a project note for Website Redesign"
+"M.I.C.A, create a project note for Website Redesign"
 ```
 
 ### Get All Notes
 ```
-"Jarvis, list all my Obsidian notes"
+"M.I.C.A, list all my Obsidian notes"
 ```
 
 ## Note Format
@@ -206,7 +206,7 @@ Complete redesign of company website with new branding.
 
 ## AI-Powered Note Linking
 
-At the end of each conversation, JARVIS uses AI to:
+At the end of each conversation, M.I.C.A uses AI to:
 1. Extract keywords from the conversation
 2. Search for related notes in your vault
 3. Automatically add `[[WikiLinks]]` to related notes
@@ -247,7 +247,7 @@ obsidian_manager({
 
 ### Search with Obsidian Syntax
 
-JARVIS supports Obsidian's powerful search syntax:
+M.I.C.A supports Obsidian's powerful search syntax:
 - `[[link]]` - Find notes linking to this note
 - `tag:#work` - Find notes with specific tags
 - `path:Conversations/` - Search in specific folder
@@ -266,22 +266,22 @@ Your notes work with all Obsidian features:
 
 ### Daily Standup Tracking
 
-1. Start tracking: "Jarvis, start tracking daily standup"
+1. Start tracking: "M.I.C.A, start tracking daily standup"
 2. Discuss tasks and progress
-3. End tracking: "Jarvis, end conversation"
+3. End tracking: "M.I.C.A, end conversation"
 4. Note automatically saved with all actions and key points
 
 ### Project Meeting Notes
 
 1. Start tracking with project name
-2. JARVIS captures decisions, action items, participants
+2. M.I.C.A captures decisions, action items, participants
 3. Creates person notes for new contacts
 4. Links to existing project notes automatically
 
 ### Research Sessions
 
 1. Start tracking research topic
-2. JARVIS performs searches and summarizes findings
+2. M.I.C.A performs searches and summarizes findings
 3. All sources and conclusions saved
 4. Linked to related research notes
 
@@ -326,17 +326,17 @@ Your notes work with all Obsidian features:
 
 ## Integration with Other Features
 
-The Obsidian integration works with other JARVIS features:
+The Obsidian integration works with other M.I.C.A features:
 
 - **Memory System** - Extracted information can create person/project notes
 - **Semantic Search** - Search across your entire vault with RAG
-- **Proactive Suggestions** - JARVIS can suggest creating notes based on context
+- **Proactive Suggestions** - M.I.C.A can suggest creating notes based on context
 - **Cross-Device Handover** - Send note summaries to your phone
 
 ## Future Enhancements
 
 Potential future additions:
-- Direct Obsidian plugin for JARVIS
+- Direct Obsidian plugin for M.I.C.A
 - Real-time note editing in Obsidian
 - Advanced NLP for better note linking
 - Template system for different note types
@@ -348,9 +348,9 @@ Potential future additions:
 For issues or questions:
 - Check the Obsidian documentation
 - Verify your vault path configuration
-- Ensure JARVIS has write permissions
+- Ensure M.I.C.A has write permissions
 - Check the console logs for error messages
 
 ---
 
-**Build your personal knowledge graph with JARVIS and Obsidian! 🧠**
+**Build your personal knowledge graph with M.I.C.A and Obsidian! 🧠**

@@ -57,7 +57,7 @@ audio:
 # Local LLM Fallback (Ollama)
 ollama:
   enabled: false
-  
+
   base_url: "http://localhost:11434"
   model: "llama3.1"
   fallback_only: true  # If true, only use when Gemini fails
@@ -115,12 +115,6 @@ hud:
   show_click_targets: true
   show_mouse_trail: false
 
-# Proactive Suggestions
-proactive:
-  enabled: false
-  interval_seconds: 60
-  max_suggestions: 3
-
 # Voice Emotional Analysis
 emotion:
   enabled: true
@@ -133,10 +127,35 @@ cross_device:
     enabled: false
     bot_token: ""
     chat_id: ""
+    mode: "polling"
+    allowed_sender_ids: []
   discord:
     enabled: false
     bot_token: ""
     channel_id: ""
+
+# Unified external communication. Telephone calls stay disabled until a
+# provider, credentials, an allow-list, and per-call confirmation are present.
+communications:
+  proactive:
+    enabled: false
+    channels: ["telegram"]
+  telephony:
+    enabled: false
+    provider: "twilio"              # twilio | sip
+    account_sid: ""
+    auth_token: ""
+    from_number: ""
+    webhook_url: ""
+    inbound_action_url: "/api/communications/telephony"
+    bridge_url: ""
+    bridge_token: ""
+    allowed_numbers: []
+    allow_inbound: true
+    allow_proactive_calls: false
+    verify_webhook_signature: true
+    language: "de-DE"
+    voice: "alice"
 
 # VS Code Integration
 vscode:

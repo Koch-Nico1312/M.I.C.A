@@ -1,6 +1,6 @@
-# JARVIS Enhancements Documentation
+# M.I.C.A Enhancements Documentation
 
-This document describes all the new enhancements added to Mark-XXXIX (JARVIS).
+This document describes all the new enhancements added to M.I.C.A (M.I.C.A).
 
 ## 📋 Overview
 
@@ -73,7 +73,7 @@ ollama:
   base_url: "http://localhost:11434"
 ```
 
-### 3. Start JARVIS
+### 3. Start M.I.C.A
 
 ```bash
 .\venv\Scripts\python.exe .\main.py
@@ -302,7 +302,7 @@ hud:
 - Visual feedback for autonomous actions
 - Glowing highlights on clicks
 - "Iron Man" experience
-- See what JARVIS is doing
+- See what M.I.C.A is doing
 
 ---
 
@@ -455,7 +455,7 @@ from core.voice_emotion import get_emotion_analyzer
 from core.vscode_bridge import get_vscode_bridge
 from core.cross_device import get_cross_device
 
-# Initialize in JarvisLive.__init__
+# Initialize in M.I.C.ALive.__init__
 config = get_config()
 
 # Initialize enabled features
@@ -524,4 +524,4 @@ For issues or questions:
 
 ---
 
-**Enjoy your enhanced JARVIS experience! 🤖**
+**Enjoy your enhanced M.I.C.A experience! 🤖**

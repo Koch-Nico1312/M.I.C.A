@@ -1,6 +1,6 @@
-# JARVIS AI Assistant - Performance Guide
+# M.I.C.A AI Assistant - Performance Guide
 
-This guide provides comprehensive information about optimizing JARVIS performance, monitoring system resources, and troubleshooting performance issues.
+This guide provides comprehensive information about optimizing M.I.C.A performance, monitoring system resources, and troubleshooting performance issues.
 
 ## Table of Contents
 
@@ -15,7 +15,7 @@ This guide provides comprehensive information about optimizing JARVIS performanc
 
 ## Performance Overview
 
-JARVIS uses a multi-layered performance optimization strategy:
+M.I.C.A uses a multi-layered performance optimization strategy:
 
 1. **Feature Flags**: Enable/disable performance optimizations
 2. **Caching**: Reduce redundant computations
@@ -40,7 +40,7 @@ performance:
 
 **Purpose**: Load tool declarations on first use instead of at startup
 
-**When to Enable**: 
+**When to Enable**:
 - Slow startup times
 - Many tools registered
 - Limited memory at startup
@@ -377,7 +377,7 @@ def test_action_performance(benchmark):
     def my_action():
         # Action to benchmark
         return result
-    
+
     result = benchmark(my_action)
     assert result is not None
 ```

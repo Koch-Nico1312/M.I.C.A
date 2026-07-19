@@ -1,15 +1,15 @@
-const JARVIS_BASE_URL = "http://127.0.0.1:8000";
+const MICA_BASE_URL = "http://127.0.0.1:8000";
 
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.create({
-    id: "send-page-to-jarvis",
-    title: "Send page to Jarvis",
+    id: "send-page-to-mica",
+    title: "Seite an M.I.C.A senden",
     contexts: ["page", "selection", "link"],
   });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
-  const stored = await chrome.storage.local.get(["jarvisSessionId"]);
+  const stored = await chrome.storage.local.get(["micaSessionId", "jarvisSessionId"]);
   const payload = {
     title: tab?.title || "Browser capture",
     kind: "note",
@@ -21,21 +21,21 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   };
 
   await chrome.storage.local.set({
-    lastJarvisTab: tab?.url || "",
-    lastJarvisSelection: info.selectionText || "",
-    lastJarvisCaptureAt: new Date().toISOString(),
+    lastMicaTab: tab?.url || "",
+    lastMicaSelection: info.selectionText || "",
+    lastMicaCaptureAt: new Date().toISOString(),
   });
 
   try {
-    await fetch(`${JARVIS_BASE_URL}/api/platform/action`, {
+    await fetch(`${MICA_BASE_URL}/api/platform/action`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         action: "create_artifact",
-        payload: { ...payload, companion_session_id: stored.jarvisSessionId || "" },
+        payload: { ...payload, companion_session_id: stored.micaSessionId || stored.jarvisSessionId || "" },
       }),
     });
   } catch (error) {
-    await chrome.storage.local.set({ lastJarvisError: String(error) });
+    await chrome.storage.local.set({ lastMicaError: String(error) });
   }
 });

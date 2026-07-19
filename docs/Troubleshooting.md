@@ -1,6 +1,6 @@
-# JARVIS AI Assistant - Troubleshooting Guide
+# M.I.C.A AI Assistant - Troubleshooting Guide
 
-This guide helps you diagnose and resolve common issues with JARVIS.
+This guide helps you diagnose and resolve common issues with M.I.C.A.
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ This guide helps you diagnose and resolve common issues with JARVIS.
 
 ### Python Version Incompatible
 
-**Problem**: JARVIS requires Python 3.11 or higher.
+**Problem**: M.I.C.A requires Python 3.11 or higher.
 
 **Solution**:
 ```bash
@@ -67,7 +67,7 @@ python main.py --cli
 
 ### API Key Not Found
 
-**Problem**: JARVIS reports missing API key.
+**Problem**: M.I.C.A reports missing API key.
 
 **Solutions**:
 
@@ -125,7 +125,7 @@ security:
 
 ### Application Won't Start
 
-**Problem**: JARVIS fails to start with error.
+**Problem**: M.I.C.A fails to start with error.
 
 **Solutions**:
 
@@ -206,7 +206,7 @@ security:
 
 ### Memory Issues
 
-**Problem**: JARVIS runs out of memory or becomes slow.
+**Problem**: M.I.C.A runs out of memory or becomes slow.
 
 **Solutions**:
 
@@ -225,7 +225,7 @@ performance:
 
 ### Slow Response Times
 
-**Problem**: JARVIS responds slowly to queries.
+**Problem**: M.I.C.A responds slowly to queries.
 
 **Solutions**:
 
@@ -252,7 +252,7 @@ performance:
 
 ### High CPU Usage
 
-**Problem**: JARVIS uses excessive CPU.
+**Problem**: M.I.C.A uses excessive CPU.
 
 **Solutions**:
 
@@ -272,7 +272,7 @@ performance:
 
 ### High Memory Usage
 
-**Problem**: JARVIS uses excessive memory.
+**Problem**: M.I.C.A uses excessive memory.
 
 **Solutions**:
 
@@ -533,7 +533,7 @@ python -c "import sys; print(sys.path)"
 
 Include:
 
-1. JARVIS version
+1. M.I.C.A version
 2. Python version
 3. OS version
 4. Error message

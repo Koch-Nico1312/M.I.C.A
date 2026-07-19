@@ -312,6 +312,8 @@ class ApprovalFlow:
         "file_processor": RiskLevel.MEDIUM,
         # HIGH RISK - Delete, move, send messages, calendar changes, system changes
         "send_message": RiskLevel.HIGH,
+        "communication_gateway": RiskLevel.HIGH,
+        "telephony": RiskLevel.HIGH,
         "reminder": RiskLevel.HIGH,
         "computer_settings": RiskLevel.HIGH,
         "computer_control": RiskLevel.HIGH,

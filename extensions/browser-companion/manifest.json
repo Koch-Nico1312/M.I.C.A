@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Jarvis Companion",
+  "name": "M.I.C.A Companion",
   "version": "0.1.0",
-  "description": "Connects the browser to Jarvis workspaces, files, terminal actions, and remote agents.",
+  "description": "Verbindet Browser und Mobilgerät sicher mit M.I.C.A, Arbeitsbereichen und Kommunikation.",
   "permissions": [
     "activeTab",
     "contextMenus",
@@ -14,7 +14,7 @@
     "http://localhost:8000/*"
   ],
   "action": {
-    "default_title": "Jarvis Companion",
+    "default_title": "M.I.C.A Companion",
     "default_popup": "popup.html"
   },
   "background": {

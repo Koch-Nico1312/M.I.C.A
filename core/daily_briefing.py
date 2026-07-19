@@ -395,10 +395,13 @@ class DailyBriefing:
             return
 
         try:
-            from core.cross_device import get_cross_device
+            from core.communication_gateway import get_communication_gateway
 
-            cross_device = get_cross_device()
-            cross_device.sync_send_summary(text)
+            get_communication_gateway().deliver_notification(
+                "M.I.C.A Briefing",
+                text,
+                "normal",
+            )
         except Exception as e:
             logger.error(f"[DailyBriefing] ⚠️ Cross-device error: {e}")
 
