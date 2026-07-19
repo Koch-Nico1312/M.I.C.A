@@ -1,6 +1,7 @@
 import json
+from datetime import datetime, timedelta
 
-from core.automation_scheduler import AutomationScheduler
+from core.automation_scheduler import AutomationScheduler, CircuitOpenError
 from core.document_ingestion import build_ingestion_record, chunk_text
 from core.knowledge_graph import build_knowledge_graph
 from core.learning_feedback import LearningFeedbackStore
@@ -72,6 +73,45 @@ def test_task_automation_tracks_next_run_toggle_and_delete(tmp_path):
     assert scheduler.set_enabled(item["id"], True)["enabled"] is True
     assert scheduler.delete(item["id"])["id"] == item["id"]
     assert scheduler.list()["items"] == []
+
+
+def test_automation_runs_are_persistent_and_interrupted_runs_recover(tmp_path):
+    path = tmp_path / "automations.json"
+    scheduler = AutomationScheduler(path=path)
+    item = scheduler.create("Pulse", "healthcheck", "manual")
+    scheduler.begin_run(item["id"])
+
+    restored = AutomationScheduler(path=path)
+    runs = restored.list()["runs"]
+
+    assert runs[0]["status"] == "interrupted"
+    assert restored.list()["items"][0]["active_run_id"] is None
+    assert restored.list()["items"][0]["consecutive_failures"] == 1
+
+
+def test_automation_circuit_breaker_opens_and_half_open_run_recovers(tmp_path):
+    scheduler = AutomationScheduler(path=tmp_path / "automations.json")
+    item = scheduler.create("Pulse", "healthcheck", "manual")
+    automation_id = item["id"]
+    opened_at = datetime(2026, 7, 19, 12, 0, 0)
+
+    for _ in range(3):
+        run = scheduler.begin_run(automation_id, now=opened_at)
+        scheduler.complete_run(run["id"], error="offline", now=opened_at)
+
+    assert scheduler.list()["items"][0]["circuit_state"] == "open"
+    try:
+        scheduler.begin_run(automation_id, now=opened_at + timedelta(minutes=14))
+    except CircuitOpenError:
+        pass
+    else:
+        raise AssertionError("open circuit accepted a run before cooldown")
+
+    recovery = scheduler.begin_run(automation_id, now=opened_at + timedelta(minutes=15))
+    assert recovery["recovery"] is True
+    result = scheduler.complete_run(recovery["id"], now=opened_at + timedelta(minutes=15))
+    assert result["automation"]["circuit_state"] == "closed"
+    assert result["automation"]["consecutive_failures"] == 0
 
 
 def test_plugin_manifest_status(tmp_path):

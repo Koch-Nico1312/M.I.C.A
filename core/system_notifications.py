@@ -188,5 +188,14 @@ def notify(title: str, message: str, priority: str = NotificationPriority.NORMAL
     Returns:
         bool: True if notification was displayed
     """
+    from core.notification_center import get_notification_center
+
     notifier = get_system_notifier()
-    return notifier.notify(title, message, priority)
+    event = get_notification_center().publish(
+        title,
+        message,
+        priority,
+        source="system_notifications",
+        deliver=lambda: notifier.notify(title, message, priority),
+    )
+    return event.get("status") == "delivered"

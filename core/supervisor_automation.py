@@ -121,7 +121,8 @@ class SupervisorAutomationManager:
                 ):
                     delivered = bool(notifier(str(item.get("title") or "Mika Supervisor"), str(item.get("detail") or ""), priority))
                     notifications.append({"id": item_id, "delivered": delivered})
-                    self.settings.notified_signatures.append(signature)
+                    if delivered:
+                        self.settings.notified_signatures.append(signature)
             self.settings.notified_signatures = self.settings.notified_signatures[-200:]
             self.settings.last_evaluated_at = now.isoformat()
             self._save()

@@ -914,10 +914,12 @@ class MicaUI:
             if item.get("action") != "task_pipeline":
                 continue
             try:
-                self._run_task_automation(item)
-                scheduler.record_run(str(item.get("id") or ""))
-            except Exception as exc:
-                scheduler.record_run(str(item.get("id") or ""), error=str(exc))
+                scheduler.execute(
+                    str(item.get("id") or ""),
+                    lambda automation: self._run_task_automation(automation),
+                )
+            except Exception:
+                pass  # The persistent run record already contains the failure.
         return scheduler.list()
 
     @staticmethod
@@ -952,8 +954,11 @@ class MicaUI:
                 raise ValueError("unknown automation")
             if item.get("action") != "task_pipeline":
                 raise ValueError("automation cannot be run from Agent Hub")
-            pipeline = self._run_task_automation(item)
-            scheduler.record_run(automation_id)
+            execution = scheduler.execute(
+                automation_id,
+                lambda automation: self._run_task_automation(automation),
+            )
+            pipeline = execution["run"].get("result", {})
             return {"status": "run", "pipeline": pipeline, "automations": scheduler.list(), "task_pipelines": self._task_pipelines_payload()}
         if action == "enable":
             item = scheduler.set_enabled(str(payload.get("automation_id") or ""), True)
@@ -961,6 +966,9 @@ class MicaUI:
         if action == "disable":
             item = scheduler.set_enabled(str(payload.get("automation_id") or ""), False)
             return {"status": "disabled", "automation": item, "automations": scheduler.list()}
+        if action == "recover":
+            item = scheduler.recover(str(payload.get("automation_id") or ""))
+            return {"status": "recovering", "automation": item, "automations": scheduler.list()}
         if action == "delete":
             item = scheduler.delete(str(payload.get("automation_id") or ""))
             return {"status": "deleted", "automation": item, "automations": scheduler.list()}
