@@ -2,7 +2,13 @@
 Tests for the approval flow system.
 """
 
-from core.approval_flow import ApprovalFlow, ApprovalRequest, ApprovalStatus, get_approval_flow
+from core.approval_flow import (
+    ApprovalFlow,
+    ApprovalRequest,
+    ApprovalStatus,
+    RiskLevel,
+    get_approval_flow,
+)
 from core.permission_profiles import PermissionLevel
 
 
