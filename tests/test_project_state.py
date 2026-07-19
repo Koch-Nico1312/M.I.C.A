@@ -50,6 +50,84 @@ def test_project_state_persists_personal_commands_and_views(tmp_path):
     assert restored["run_budget"]["max_steps"] == 4
 
 
+def test_personal_state_v2_persists_telos_current_and_ideal_state(tmp_path):
+    path = tmp_path / "state.json"
+    manager = ProjectStateManager(path)
+
+    manager.update(
+        {
+            "telos": {
+                "mission": "Build a trustworthy personal AI system",
+                "goals": ["Ship M.I.C.A", "Ship M.I.C.A"],
+                "strategies": ["Local first"],
+            },
+            "current_state": {
+                "summary": "Useful but fragmented",
+                "constraints": ["One operator"],
+            },
+            "ideal_state": {
+                "summary": "A reliable personal operating system",
+                "metrics": ["All critical claims verified"],
+            },
+        }
+    )
+
+    restored = ProjectStateManager(path).snapshot()
+    assert restored["version"] == 2
+    assert restored["telos"]["mission"] == "Build a trustworthy personal AI system"
+    assert restored["telos"]["goals"] == ["Ship M.I.C.A"]
+    assert restored["current_state"]["constraints"] == ["One operator"]
+    assert restored["ideal_state"]["metrics"] == ["All critical claims verified"]
+
+
+def test_personal_state_v2_tracks_criteria_decisions_and_evidence(tmp_path):
+    manager = ProjectStateManager(tmp_path / "state.json")
+
+    state = manager.set_acceptance_criterion(
+        "Agent-Reach diagnostics match the installed CLI",
+        criterion_id="isc-agent-reach",
+        status="passed",
+    )
+    assert state["completion"]["ready_to_close"] is False
+
+    manager.record_decision(
+        "Keep external integrations disabled by default",
+        rationale="Installation and credentials require explicit consent",
+    )
+    state = manager.record_evidence(
+        "Agent-Reach diagnostics match the installed CLI",
+        source="pytest tests/test_agent_reach.py: 39 passed",
+        result="passed",
+        criterion_id="isc-agent-reach",
+    )
+
+    assert state["acceptance_criteria"][0]["evidence_ids"] == [state["evidence"][0]["id"]]
+    assert state["decisions"][0]["status"] == "active"
+    assert state["completion"] == {
+        "criteria_total": 1,
+        "counts": {"blocked": 0, "failed": 0, "passed": 1, "pending": 0, "waived": 0},
+        "evidence_total": 1,
+        "decision_total": 1,
+        "ready_to_close": True,
+    }
+
+
+def test_project_state_migrates_version_one_without_losing_resume_context(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text(
+        '{"version": 1, "objective": "Finish M.I.C.A", "focus": "Project state"}',
+        encoding="utf-8",
+    )
+
+    state = ProjectStateManager(path).snapshot()
+
+    assert state["version"] == 2
+    assert state["objective"] == "Finish M.I.C.A"
+    assert state["focus"] == "Project state"
+    assert state["telos"]["mission"] == ""
+    assert state["acceptance_criteria"] == []
+
+
 def test_supervisor_inbox_prioritizes_approvals_and_paused_work(monkeypatch):
     import core.project_state as state_module
     import ui_bridge

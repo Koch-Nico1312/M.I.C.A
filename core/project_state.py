@@ -17,6 +17,31 @@ VALID_TABS = {"hub", "tasks", "agents", "flows", "approvals", "activity"}
 DEFAULT_DASHBOARD_WIDGETS = ["supervisor", "approvals", "runs", "models", "activity"]
 VALID_DASHBOARD_WIDGETS = set(DEFAULT_DASHBOARD_WIDGETS)
 DEFAULT_RUN_BUDGET = {"max_steps": 8, "max_minutes": 60, "max_agent_calls": 20, "stop_on_limit": True}
+MAX_STATE_RECORDS = 200
+VALID_CRITERION_STATUSES = {"pending", "passed", "failed", "blocked", "waived"}
+VALID_DECISION_STATUSES = {"active", "superseded", "reversed"}
+
+
+def _default_telos() -> dict[str, Any]:
+    return {
+        "mission": "",
+        "beliefs": [],
+        "values": [],
+        "goals": [],
+        "strategies": [],
+        "problems": [],
+        "challenges": [],
+        "people": [],
+        "projects": [],
+    }
+
+
+def _default_current_state() -> dict[str, Any]:
+    return {"summary": "", "facts": [], "constraints": [], "risks": []}
+
+
+def _default_ideal_state() -> dict[str, Any]:
+    return {"summary": "", "outcomes": [], "metrics": [], "target_date": ""}
 
 
 def _now() -> str:
@@ -25,7 +50,7 @@ def _now() -> str:
 
 @dataclass
 class ProjectState:
-    version: int = 1
+    version: int = 2
     active_project_id: str = ""
     objective: str = ""
     focus: str = ""
@@ -40,6 +65,12 @@ class ProjectState:
     dashboard_widgets: list[str] = field(default_factory=lambda: list(DEFAULT_DASHBOARD_WIDGETS))
     run_budget: dict[str, Any] = field(default_factory=lambda: dict(DEFAULT_RUN_BUDGET))
     checkpoint: str = ""
+    telos: dict[str, Any] = field(default_factory=_default_telos)
+    current_state: dict[str, Any] = field(default_factory=_default_current_state)
+    ideal_state: dict[str, Any] = field(default_factory=_default_ideal_state)
+    acceptance_criteria: list[dict[str, Any]] = field(default_factory=list)
+    decisions: list[dict[str, Any]] = field(default_factory=list)
+    evidence: list[dict[str, Any]] = field(default_factory=list)
     updated_at: str = field(default_factory=_now)
 
 
@@ -54,7 +85,9 @@ class ProjectStateManager:
 
     def snapshot(self) -> dict[str, Any]:
         with self._lock:
-            return asdict(self._state)
+            snapshot = asdict(self._state)
+            snapshot["completion"] = self.completion_report()
+            return snapshot
 
     def update(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock:
@@ -85,12 +118,125 @@ class ProjectStateManager:
                     "max_agent_calls": max(1, min(500, int(raw_budget.get("max_agent_calls", self._state.run_budget.get("max_agent_calls", 20))))),
                     "stop_on_limit": bool(raw_budget.get("stop_on_limit", self._state.run_budget.get("stop_on_limit", True))),
                 }
+            if "telos" in payload and isinstance(payload["telos"], dict):
+                self._state.telos = self._merge_section(self._state.telos, payload["telos"])
+            if "current_state" in payload and isinstance(payload["current_state"], dict):
+                self._state.current_state = self._merge_section(self._state.current_state, payload["current_state"])
+            if "ideal_state" in payload and isinstance(payload["ideal_state"], dict):
+                self._state.ideal_state = self._merge_section(self._state.ideal_state, payload["ideal_state"])
+            if "acceptance_criteria" in payload and isinstance(payload["acceptance_criteria"], list):
+                self._state.acceptance_criteria = self._normalize_criteria(payload["acceptance_criteria"])
+            if "decisions" in payload and isinstance(payload["decisions"], list):
+                self._state.decisions = self._normalize_decisions(payload["decisions"])
+            if "evidence" in payload and isinstance(payload["evidence"], list):
+                self._state.evidence = self._normalize_evidence(payload["evidence"])
+            if isinstance(payload.get("acceptance_criterion"), dict):
+                self._upsert_criterion(payload["acceptance_criterion"])
+            if isinstance(payload.get("decision"), dict):
+                self._append_decision(payload["decision"])
+            if isinstance(payload.get("evidence_record"), dict):
+                self._append_evidence(payload["evidence_record"])
             self._state.updated_at = _now()
             self._save()
             return self.snapshot()
 
     def checkpoint(self, note: str, *, focus: str = "") -> dict[str, Any]:
         return self.update({"checkpoint": note, **({"focus": focus} if focus else {})})
+
+    def set_acceptance_criterion(
+        self,
+        claim: str,
+        *,
+        criterion_id: str = "",
+        status: str = "pending",
+        evidence_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        return self.update(
+            {
+                "acceptance_criterion": {
+                    "id": criterion_id,
+                    "claim": claim,
+                    "status": status,
+                    "evidence_ids": evidence_ids or [],
+                }
+            }
+        )
+
+    def record_decision(
+        self,
+        summary: str,
+        *,
+        rationale: str = "",
+        decision_id: str = "",
+        status: str = "active",
+    ) -> dict[str, Any]:
+        return self.update(
+            {
+                "decision": {
+                    "id": decision_id,
+                    "summary": summary,
+                    "rationale": rationale,
+                    "status": status,
+                }
+            }
+        )
+
+    def record_evidence(
+        self,
+        claim: str,
+        *,
+        source: str,
+        result: str = "passed",
+        kind: str = "verification",
+        evidence_id: str = "",
+        criterion_id: str = "",
+    ) -> dict[str, Any]:
+        with self._lock:
+            criterion = None
+            if criterion_id:
+                criterion = next(
+                    (item for item in self._state.acceptance_criteria if item["id"] == criterion_id),
+                    None,
+                )
+                if criterion is None:
+                    raise ValueError(f"unknown acceptance criterion: {criterion_id}")
+            record = self._append_evidence(
+                {
+                    "id": evidence_id,
+                    "claim": claim,
+                    "source": source,
+                    "result": result,
+                    "kind": kind,
+                }
+            )
+            if criterion is not None:
+                criterion["evidence_ids"] = list(
+                    dict.fromkeys([*criterion.get("evidence_ids", []), record["id"]])
+                )
+                criterion["updated_at"] = _now()
+            self._state.updated_at = _now()
+            self._save()
+            return self.snapshot()
+
+    def completion_report(self) -> dict[str, Any]:
+        with self._lock:
+            criteria = self._state.acceptance_criteria
+            counts = {status: 0 for status in sorted(VALID_CRITERION_STATUSES)}
+            for item in criteria:
+                counts[str(item.get("status") or "pending")] = counts.get(
+                    str(item.get("status") or "pending"), 0
+                ) + 1
+            closable = bool(criteria) and all(
+                item.get("status") in {"passed", "waived"} and bool(item.get("evidence_ids"))
+                for item in criteria
+            )
+            return {
+                "criteria_total": len(criteria),
+                "counts": counts,
+                "evidence_total": len(self._state.evidence),
+                "decision_total": len(self._state.decisions),
+                "ready_to_close": closable,
+            }
 
     def reconcile(
         self,
@@ -117,8 +263,137 @@ class ProjectStateManager:
             raw = json.loads(self.path.read_text(encoding="utf-8"))
             allowed = ProjectState.__dataclass_fields__
             self._state = ProjectState(**{key: value for key, value in raw.items() if key in allowed})
+            self._state.version = 2
+            self._state.telos = self._merge_section(_default_telos(), self._state.telos)
+            self._state.current_state = self._merge_section(_default_current_state(), self._state.current_state)
+            self._state.ideal_state = self._merge_section(_default_ideal_state(), self._state.ideal_state)
+            self._state.acceptance_criteria = self._normalize_criteria(self._state.acceptance_criteria)
+            self._state.decisions = self._normalize_decisions(self._state.decisions)
+            self._state.evidence = self._normalize_evidence(self._state.evidence)
         except Exception:
             self._state = ProjectState()
+
+    @staticmethod
+    def _merge_section(current: dict[str, Any], update: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(current)
+        for key, value in update.items():
+            if isinstance(value, list):
+                merged[str(key)] = list(dict.fromkeys(str(item).strip() for item in value if str(item).strip()))
+            elif isinstance(value, (str, int, float, bool)) or value is None:
+                merged[str(key)] = value
+        return merged
+
+    @staticmethod
+    def _record_id(prefix: str, raw_id: Any, seed: str) -> str:
+        value = str(raw_id or "").strip()
+        if value:
+            return value
+        import hashlib
+
+        digest = hashlib.sha256(seed.encode("utf-8")).hexdigest()[:12]
+        return f"{prefix}-{digest}"
+
+    @classmethod
+    def _normalize_criteria(cls, items: list[Any]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for raw in items[-MAX_STATE_RECORDS:]:
+            if not isinstance(raw, dict):
+                continue
+            claim = str(raw.get("claim") or raw.get("text") or "").strip()
+            if not claim:
+                continue
+            status = str(raw.get("status") or "pending").strip().lower()
+            status = status if status in VALID_CRITERION_STATUSES else "pending"
+            normalized.append(
+                {
+                    "id": cls._record_id("isc", raw.get("id"), claim),
+                    "claim": claim,
+                    "status": status,
+                    "evidence_ids": list(
+                        dict.fromkeys(str(item) for item in raw.get("evidence_ids", []) if item)
+                    ),
+                    "updated_at": str(raw.get("updated_at") or _now()),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _normalize_decisions(cls, items: list[Any]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for raw in items[-MAX_STATE_RECORDS:]:
+            if not isinstance(raw, dict):
+                continue
+            summary = str(raw.get("summary") or raw.get("decision") or "").strip()
+            if not summary:
+                continue
+            status = str(raw.get("status") or "active").strip().lower()
+            normalized.append(
+                {
+                    "id": cls._record_id("decision", raw.get("id"), summary),
+                    "summary": summary,
+                    "rationale": str(raw.get("rationale") or "").strip(),
+                    "status": status if status in VALID_DECISION_STATUSES else "active",
+                    "made_at": str(raw.get("made_at") or _now()),
+                }
+            )
+        return normalized
+
+    @classmethod
+    def _normalize_evidence(cls, items: list[Any]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for raw in items[-MAX_STATE_RECORDS:]:
+            if not isinstance(raw, dict):
+                continue
+            claim = str(raw.get("claim") or "").strip()
+            source = str(raw.get("source") or "").strip()
+            if not claim or not source:
+                continue
+            collected_at = str(raw.get("collected_at") or _now())
+            normalized.append(
+                {
+                    "id": cls._record_id("evidence", raw.get("id"), f"{claim}|{source}|{collected_at}"),
+                    "claim": claim,
+                    "source": source,
+                    "result": str(raw.get("result") or "observed").strip().lower(),
+                    "kind": str(raw.get("kind") or "verification").strip().lower(),
+                    "collected_at": collected_at,
+                }
+            )
+        return normalized
+
+    def _upsert_criterion(self, raw: dict[str, Any]) -> dict[str, Any]:
+        raw_id = str(raw.get("id") or "").strip()
+        existing = next(
+            (item for item in self._state.acceptance_criteria if raw_id and item["id"] == raw_id),
+            None,
+        )
+        candidate = {**(existing or {}), **raw}
+        normalized = self._normalize_criteria([candidate])
+        if not normalized:
+            raise ValueError("acceptance criterion requires a claim")
+        item = normalized[0]
+        for index, current in enumerate(self._state.acceptance_criteria):
+            if current["id"] == item["id"]:
+                self._state.acceptance_criteria[index] = item
+                return item
+        self._state.acceptance_criteria = [*self._state.acceptance_criteria, item][-MAX_STATE_RECORDS:]
+        return item
+
+    def _append_decision(self, raw: dict[str, Any]) -> dict[str, Any]:
+        normalized = self._normalize_decisions([raw])
+        if not normalized:
+            raise ValueError("decision requires a summary")
+        item = normalized[0]
+        self._state.decisions = [*self._state.decisions, item][-MAX_STATE_RECORDS:]
+        return item
+
+    def _append_evidence(self, raw: dict[str, Any]) -> dict[str, Any]:
+        normalized = self._normalize_evidence([raw])
+        if not normalized:
+            raise ValueError("evidence requires a claim and source")
+        item = normalized[0]
+        self._state.evidence = [*self._state.evidence, item][-MAX_STATE_RECORDS:]
+        return item
 
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
