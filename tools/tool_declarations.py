@@ -436,6 +436,26 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "desktop_convenience",
+        "description": "Controls M.I.C.A autostart, clipboard history, assistant naming, and real wake-word detection.",
+        "parameters": {
+            "type": "OBJECT",
+            "properties": {
+                "action": {"type": "STRING", "description": "status | autostart_preview | autostart_enable | autostart_disable | clipboard_read | clipboard_write | clipboard_start | clipboard_stop | clipboard_history | clipboard_search | clipboard_clear | identity_get | identity_set | wakeword_status | wakeword_configure"},
+                "content": {"type": "STRING"},
+                "query": {"type": "STRING"},
+                "limit": {"type": "INTEGER"},
+                "display_name": {"type": "STRING"},
+                "wake_word": {"type": "STRING"},
+                "aliases": {"type": "ARRAY", "items": {"type": "STRING"}},
+                "engine": {"type": "STRING"},
+                "model_path": {"type": "STRING"},
+                "threshold": {"type": "NUMBER"},
+            },
+            "required": [],
+        },
+    },
+    {
         "name": "pi_coding_agent",
         "description": (
             "Delegates coding tasks to the Pi coding agent inside the configured Docker sandbox. "

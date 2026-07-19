@@ -97,6 +97,7 @@ def _get_action_module(action_name: str):
             "web_search": "actions.web_search",
             "youtube_video": "actions.youtube_video",
             "video_production": "actions.video_production",
+            "desktop_convenience": "actions.desktop_convenience",
         }
         
         if action_name in action_map:

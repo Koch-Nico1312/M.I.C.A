@@ -12,13 +12,16 @@ def test_push_to_talk_gates_audio_capture():
     assert not voice.should_capture_audio(muted=False, mica_speaking=True)
 
 
-def test_open_mic_and_wakeword_allow_capture_when_available():
+def test_open_mic_allows_capture_but_wakeword_requires_real_detection():
     voice = VoiceConversationMode()
 
     voice.configure(input_mode="open_mic", push_to_talk_active=False)
     assert voice.should_capture_audio(muted=False, mica_speaking=False)
 
     voice.configure(input_mode="wakeword", wakeword_enabled=True)
+    assert not voice.should_capture_audio(muted=False, mica_speaking=False)
+    assert voice.waiting_for_wakeword()
+    voice.activate_wakeword()
     assert voice.should_capture_audio(muted=False, mica_speaking=False)
     assert voice.snapshot()["wakeword_enabled"] is True
 

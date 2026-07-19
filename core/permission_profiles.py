@@ -97,6 +97,14 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
         reversible=False,
         tags={"video", "ffmpeg", "production", "local"},
     ),
+    "desktop_convenience": ToolMetadata(
+        name="desktop_convenience",
+        description="Per-user autostart, sensitive clipboard access, naming, and wake-word setup",
+        risk_level="medium",
+        requires_confirmation=True,
+        reversible=True,
+        tags={"desktop", "clipboard", "identity", "voice"},
+    ),
     "weather_report": ToolMetadata(
         name="weather_report",
         description="Provides weather information",

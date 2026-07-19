@@ -320,6 +320,9 @@ class MicaLive:
         self._proactive = None
         self.emotion = get_emotion_analyzer()
         self.voice_mode = get_voice_conversation_mode()
+        from core.wake_word import get_wake_word_detector
+
+        self.wake_word_detector = get_wake_word_detector()
         self.vscode = get_vscode_bridge()
         self.cross_device = get_cross_device()
         self.obsidian_bridge = get_obsidian_bridge()
@@ -1238,6 +1241,7 @@ class MicaLive:
             web_search_action,
             youtube_video,
             video_production,
+            desktop_convenience,
         )
 
         if name == "save_memory":
@@ -1385,6 +1389,12 @@ class MicaLive:
             elif name == "video_production":
                 r = await loop.run_in_executor(
                     None, lambda: video_production(parameters=args, player=self.ui, speak=self.speak)
+                )
+                result = r or "Done."
+
+            elif name == "desktop_convenience":
+                r = await loop.run_in_executor(
+                    None, lambda: desktop_convenience(parameters=args, player=self.ui, speak=self.speak)
                 )
                 result = r or "Done."
 
@@ -1821,9 +1831,15 @@ class MicaLive:
         def callback(indata, frames, time_info, status):
             with self._speaking_lock:
                 mica_speaking = self._is_speaking
+            data = indata.tobytes()
+            if (
+                not self.ui.muted
+                and not mica_speaking
+                and self.voice_mode.waiting_for_wakeword()
+                and self.wake_word_detector.process_pcm(data)
+            ):
+                self.voice_mode.activate_wakeword()
             if self.voice_mode.should_capture_audio(self.ui.muted, mica_speaking):
-                data = indata.tobytes()
-
                 def safe_put():
                     try:
                         self.out_queue.put_nowait({"data": data, "mime_type": "audio/pcm"})

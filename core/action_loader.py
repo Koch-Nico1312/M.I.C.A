@@ -39,6 +39,7 @@ class ActionLoader:
             "screen_process": "actions.screen_processor",
             "youtube_video": "actions.youtube_video",
             "video_production": "actions.video_production",
+            "desktop_convenience": "actions.desktop_convenience",
             "desktop_control": "actions.desktop",
             "browser_control": "actions.browser_control",
             "browser_agent": "actions.browser_agent",

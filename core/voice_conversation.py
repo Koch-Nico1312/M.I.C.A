@@ -9,6 +9,7 @@ and interruption requests.
 from __future__ import annotations
 
 import threading
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Literal
@@ -35,6 +36,9 @@ class VoiceConversationMode:
         self._push_to_talk_active = False
         self._wakeword_enabled = False
         self._wakeword = "mica"
+        self._wakeword_detected_at: str | None = None
+        self._wakeword_active_until = 0.0
+        self._wakeword_window_seconds = 8.0
         self._last_transcript = ""
         self._last_response = ""
         self._last_interrupt_at: str | None = None
@@ -76,7 +80,26 @@ class VoiceConversationMode:
                 return False
             if self._input_mode == "push_to_talk":
                 return self._push_to_talk_active
+            if self._input_mode == "wakeword":
+                return self._wakeword_enabled and time.monotonic() < self._wakeword_active_until
             return True
+
+    def activate_wakeword(self) -> dict[str, Any]:
+        """Open a short audio window after a real detector reports the wake word."""
+        with self._lock:
+            self._wakeword_detected_at = datetime.now().isoformat()
+            self._wakeword_active_until = time.monotonic() + self._wakeword_window_seconds
+            self.record_system(f"Wake word '{self._wakeword}' detected.")
+            return self.snapshot()
+
+    def waiting_for_wakeword(self) -> bool:
+        with self._lock:
+            return (
+                self._enabled
+                and self._input_mode == "wakeword"
+                and self._wakeword_enabled
+                and time.monotonic() >= self._wakeword_active_until
+            )
 
     def record_transcript(self, role: Literal["user", "assistant"], text: str) -> None:
         """Remember a spoken transcript turn for the UI."""
@@ -115,6 +138,8 @@ class VoiceConversationMode:
                 "push_to_talk_active": self._push_to_talk_active,
                 "wakeword_enabled": self._wakeword_enabled,
                 "wakeword": self._wakeword,
+                "wakeword_detected_at": self._wakeword_detected_at,
+                "wakeword_active": time.monotonic() < self._wakeword_active_until,
                 "last_transcript": self._last_transcript,
                 "last_response": self._last_response,
                 "last_interrupt_at": self._last_interrupt_at,

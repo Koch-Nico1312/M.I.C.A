@@ -244,3 +244,11 @@ def test_video_production_planning_is_low_risk_but_execution_needs_approval():
 
     assert flow.classify_risk("video_production", "plan") == RiskLevel.LOW
     assert flow.classify_risk("video_production", "run_stage") == RiskLevel.MEDIUM
+
+
+def test_desktop_convenience_status_is_low_but_clipboard_and_autostart_are_medium():
+    flow = ApprovalFlow()
+
+    assert flow.classify_risk("desktop_convenience", "status") == RiskLevel.LOW
+    assert flow.classify_risk("desktop_convenience", "clipboard_read") == RiskLevel.MEDIUM
+    assert flow.classify_risk("desktop_convenience", "autostart_enable") == RiskLevel.MEDIUM

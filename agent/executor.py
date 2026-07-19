@@ -285,6 +285,11 @@ def _call_tool(tool: str, parameters: dict, speak: Callable | None = None) -> st
 
         return video_production(parameters=parameters, player=None, speak=speak) or "Done."
 
+    elif tool == "desktop_convenience":
+        from actions.desktop_convenience import desktop_convenience
+
+        return desktop_convenience(parameters=parameters, player=None, speak=speak) or "Done."
+
     elif tool == "weather_report":
         from actions.weather_report import weather_action
 

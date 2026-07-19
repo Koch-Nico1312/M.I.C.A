@@ -425,6 +425,11 @@ class ApprovalFlow:
             if action_lower in {"approve", "reject", "run_stage", "evaluate", "finalize"}:
                 return RiskLevel.MEDIUM
 
+        if tool_lower == "desktop_convenience":
+            if action_lower in {"status", "autostart_preview", "identity_get", "wakeword_status"}:
+                return RiskLevel.LOW
+            return RiskLevel.MEDIUM
+
         # Check tool-level classification
         for tool_pattern, risk_level in self.RISK_CLASSIFICATION.items():
             if tool_pattern in tool_lower:
