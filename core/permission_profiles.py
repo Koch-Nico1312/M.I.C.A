@@ -75,11 +75,11 @@ TOOL_METADATA: Dict[str, ToolMetadata] = {
     ),
     "agent_reach": ToolMetadata(
         name="agent_reach",
-        description="Runs optional Agent-Reach CLI diagnostics and allowlisted read/search commands",
+        description="Checks the optional Agent-Reach capability layer and runs explicit maintenance commands",
         risk_level="medium",
         requires_confirmation=True,
         reversible=False,
-        tags={"agent-reach", "cli", "web", "external"},
+        tags={"agent-reach", "cli", "capabilities", "external"},
     ),
     "weather_report": ToolMetadata(
         name="weather_report",

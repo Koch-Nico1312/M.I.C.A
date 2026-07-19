@@ -214,3 +214,12 @@ def test_tool_forge_plan_is_allowed_but_activation_requires_approval():
     )
     assert is_allowed is False
     assert "approval" in message.lower() or "confirmation" in message.lower()
+
+
+def test_agent_reach_diagnostics_are_low_risk_but_transcription_is_medium():
+    flow = ApprovalFlow()
+
+    assert flow.classify_risk("agent_reach", "doctor") == RiskLevel.LOW
+    assert flow.classify_risk("agent_reach", "capabilities") == RiskLevel.LOW
+    assert flow.classify_risk("agent_reach", "check_update") == RiskLevel.LOW
+    assert flow.classify_risk("agent_reach", "transcribe") == RiskLevel.MEDIUM

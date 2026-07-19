@@ -387,9 +387,18 @@ class ApprovalFlow:
                 return RiskLevel.HIGH
 
         if tool_lower == "agent_reach":
-            if action_lower in {"doctor", "status", "install_preview"}:
+            if action_lower in {
+                "doctor",
+                "status",
+                "capabilities",
+                "version",
+                "watch",
+                "check_update",
+                "install_preview",
+                "configure_preview",
+            }:
                 return RiskLevel.LOW
-            if action_lower == "run":
+            if action_lower in {"run", "transcribe"}:
                 return RiskLevel.MEDIUM
 
         # Check tool-level classification

@@ -86,26 +86,44 @@ TOOL_DECLARATIONS: List[Dict[str, Any]] = [
     {
         "name": "agent_reach",
         "description": (
-            "Runs optional Agent-Reach CLI diagnostics and safe read/search commands. "
-            "Use doctor/status to check installed internet capability routes; login-state platforms require explicit opt-in."
+            "Checks and maintains the optional Agent-Reach capability layer. "
+            "Use doctor/status for route health; platform content is handled by dedicated M.I.C.A tools."
         ),
         "parameters": {
             "type": "OBJECT",
             "properties": {
                 "action": {
                     "type": "STRING",
-                    "description": "doctor | status | run | install_preview",
+                    "description": (
+                        "doctor | status | capabilities | version | watch | check_update | "
+                        "transcribe | run | install_preview | configure_preview"
+                    ),
                 },
                 "args": {
                     "type": "ARRAY",
                     "items": {"type": "STRING"},
-                    "description": "Arguments for action=run, e.g. ['github', 'owner/repo']",
+                    "description": (
+                        "Compatibility arguments for action=run. Only doctor, watch, version, "
+                        "and check-update are accepted."
+                    ),
+                },
+                "source": {
+                    "type": "STRING",
+                    "description": "Audio/video URL or local path for action=transcribe",
+                },
+                "provider": {
+                    "type": "STRING",
+                    "description": "auto | groq | openai for action=transcribe",
+                },
+                "output": {
+                    "type": "STRING",
+                    "description": "Optional transcript output file for action=transcribe",
+                },
+                "json": {
+                    "type": "BOOLEAN",
+                    "description": "Request machine-readable doctor output (default: true)",
                 },
                 "timeout": {"type": "INTEGER", "description": "Command timeout in seconds"},
-                "allow_login_state": {
-                    "type": "BOOLEAN",
-                    "description": "Allow platforms that may reuse browser login state/cookies",
-                },
             },
             "required": [],
         },
